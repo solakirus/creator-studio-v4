@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="#151515"/>
+  <!-- shadow of the slate -->
+  <rect x="238" y="466" width="600" height="364" rx="22" fill="#EDE5D2"/>
+  <!-- slate body with a lightning bolt cut through -->
+  <path fill="#FB6900" fill-rule="evenodd" d="M226 436h576a22 22 0 0 1 22 22v320a22 22 0 0 1-22 22H226a22 22 0 0 1-22-22V458a22 22 0 0 1 22-22z
+    M548 472 404 652h92l-46 126 176-196h-96l60-110z"/>
+  <!-- the fixed stick -->
+  <g>
+    <rect x="204" y="352" width="620" height="72" rx="10" fill="#EDE5D2"/>
+    <path fill="#151515" d="M262 352h70l-46 72h-70zM402 352h70l-46 72h-70zM542 352h70l-46 72h-70zM682 352h70l-46 72h-70z"/>
+  </g>
+  <!-- the arm, snapped open -->
+  <g transform="rotate(-16 204 346)">
+    <rect x="204" y="274" width="620" height="72" rx="10" fill="#FB6900"/>
+    <path fill="#151515" d="M262 274h70l-46 72h-70zM402 274h70l-46 72h-70zM542 274h70l-46 72h-70zM682 274h70l-46 72h-70z"/>
+  </g>
+  <circle cx="226" cy="350" r="18" fill="#151515"/>
+  <circle cx="226" cy="350" r="8" fill="#EDE5D2"/>
+</svg>

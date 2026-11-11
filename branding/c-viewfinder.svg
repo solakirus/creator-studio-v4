@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="#151515"/>
+  <!-- viewfinder corners -->
+  <path fill="#EDE5D2" d="M176 176h200v60H236v140h-60zM848 176v200h-60V236H648v-60zM176 848V648h60v140h140v60zM848 848H648v-60h140V648h60z"/>
+  <!-- play mark: hard cream shadow, orange face, a 4 cut into it -->
+  <path fill="#EDE5D2" d="M418 346c0-20 22-32 39-22l302 186c16 10 16 34 0 44L457 740c-17 10-39-2-39-22z" transform="translate(30 30)"/>
+  <path fill="#FB6900" fill-rule="evenodd" d="M418 346c0-20 22-32 39-22l302 186c16 10 16 34 0 44L457 740c-17 10-39-2-39-22z
+    M560 444h46v104h24v38h-24v40h-46v-40H468v-38z M560 490l-52 58h52z"/>
+  <!-- REC -->
+  <circle cx="300" cy="300" r="26" fill="#E2564A"/>
+</svg>

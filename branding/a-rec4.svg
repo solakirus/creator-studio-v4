@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="#151515"/>
+  <!-- hard offset shadow, the app's card shadow -->
+  <rect x="282" y="282" width="500" height="500" rx="26" fill="#EDE5D2"/>
+  <!-- the slab, with a bold 4 cut through it -->
+  <path fill="#FB6900" fill-rule="evenodd" d="M268 242h460a26 26 0 0 1 26 26v460a26 26 0 0 1-26 26H268a26 26 0 0 1-26-26V268a26 26 0 0 1 26-26z
+    M548 330h104v232h52v84h-52v86H548v-86H318v-84z M548 430 422 562h126z"/>
+  <!-- REC -->
+  <circle cx="356" cy="356" r="40" fill="#151515"/>
+  <circle cx="356" cy="356" r="22" fill="#E2564A"/>
+</svg>
