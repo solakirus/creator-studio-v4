@@ -1,4 +1,4 @@
-Creator Studio 3 → GitHub → your iPad
+Creator Studio v4 → GitHub → your iPad
 =====================================
 
 Follow this top to bottom. It assumes nothing has been pushed yet.
@@ -9,18 +9,18 @@ STEP 1 — REPLACE YOUR LOCAL FOLDER WITH THIS ONE
   Do this BEFORE pushing, or you publish an old version and have to push twice.
 
   a) Rename what you have now, as a safety net:
-       C:\Users\Khale\Projects\creator-studio-3
+       C:\Users\Khale\Projects\creator-studio-v4
      becomes
-       C:\Users\Khale\Projects\creator-studio-3-old
+       C:\Users\Khale\Projects\creator-studio-v4-old
 
   b) Extract this zip into C:\Users\Khale\Projects\
-     You should end up with C:\Users\Khale\Projects\creator-studio-3
+     You should end up with C:\Users\Khale\Projects\creator-studio-v4
      containing app\, docs\, electron\, build.bat and this file.
 
   c) Check it is the new one — open PowerShell:
-       cd C:\Users\Khale\Projects\creator-studio-3
+       cd C:\Users\Khale\Projects\creator-studio-v4
        git log --oneline -1
-     It should say:  Backup: a copy that survives the app being deleted
+     It should say:  Creator Studio v4
 
   Nothing is lost by replacing the folder: your DATA is on your devices, not
   in this folder. This folder is only code.
@@ -29,7 +29,7 @@ STEP 1 — REPLACE YOUR LOCAL FOLDER WITH THIS ONE
 STEP 2 — THE REPO ON GITHUB
 
   If you have NOT made it yet:
-     github.com/new  →  name it  creator-studio-3  →  Public
+     github.com/new  →  name it  creator-studio-v4  →  Public
      Do NOT tick "Add a README file". It must be empty.
 
   If you ALREADY made it and it has a README in it, that is fine — see the
@@ -38,14 +38,14 @@ STEP 2 — THE REPO ON GITHUB
 
 STEP 3 — PUSH
 
-  In PowerShell, in C:\Users\Khale\Projects\creator-studio-3 :
+  In PowerShell, in C:\Users\Khale\Projects\creator-studio-v4 :
 
-     git remote add origin https://github.com/solakirus/creator-studio-3.git
+     git remote add origin https://github.com/solakirus/creator-studio-v4.git
      git branch -M main
      git push -u origin main
 
   If it says "remote origin already exists", use this instead of the first line:
-     git remote set-url origin https://github.com/solakirus/creator-studio-3.git
+     git remote set-url origin https://github.com/solakirus/creator-studio-v4.git
 
   A browser window may open asking you to sign in to GitHub. That is normal.
 
@@ -72,7 +72,7 @@ STEP 5 — WATCH IT BUILD
 STEP 6 — INSTALL IT ON THE IPAD
 
      Open SAFARI on the iPad (not Chrome — only Safari can install)
-     Go to:   https://solakirus.github.io/creator-studio-3/
+     Go to:   https://solakirus.github.io/creator-studio-v4/
      Share button (the square with the up arrow)  →  Add to Home Screen  →  Add
      Then open it from the NEW HOME SCREEN ICON, not from Safari.
 

@@ -1,11 +1,11 @@
-Creator Studio 3 on the iPad
+Creator Studio v4 on the iPad
 ============================
 
 ONE-TIME SETUP (about 10 minutes)
 
 1. Push this repo to GitHub.
-      cd C:\Users\Khale\Projects\creator-studio-3
-      git remote add origin https://github.com/solakirus/creator-studio-3.git
+      cd C:\Users\Khale\Projects\creator-studio-v4
+      git remote add origin https://github.com/solakirus/creator-studio-v4.git
       git push -u origin main
 
    (If the remote already exists, just push.)
@@ -16,7 +16,7 @@ ONE-TIME SETUP (about 10 minutes)
    That is the only setting. The workflow is already in the repo.
 
 3. Wait for the green tick on the Actions tab. Your address will be:
-      https://solakirus.github.io/creator-studio-3/
+      https://solakirus.github.io/creator-studio-v4/
 
 ON THE IPAD
 

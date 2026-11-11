@@ -20,13 +20,17 @@ const src = Object.fromEntries(js.map(f => [path.relative(A, f), fs.readFileSync
 const html = fs.readFileSync(A + 'index.html', 'utf8');
 
 console.log('\nidentity');
-/* The default must be CS3's own database. A CS_DB_NAME override is allowed so
-   tests can use a throwaway one, but nothing may name v2's database. */
-ok(/const DB_NAME = (?:global\.CS_DB_NAME \|\| )?'creator-studio-3';/.test(src['js/store.js']),
+/* The default must be v4's own database. A CS_DB_NAME override is allowed so
+   tests can use a throwaway one, but nothing may name v2's or CS3's database:
+   on the iPad both apps load from solakirus.github.io and would share it. */
+ok(/const DB_NAME = (?:global\.CS_DB_NAME \|\| )?'creator-studio-4';/.test(src['js/store.js']),
   'own database by default, never v2\'s');
+ok(!/creator-studio-3/.test(src['js/store.js'] + src['js/sync.js']), 'and never Creator Studio 3\'s, nor its sync space');
+ok(/const APP\s*=\s*'creator-studio-4'/.test(src['js/sync.js']), 'syncs in its own space on Sync Hub');
+ok(/solakirus\.github\.io\/creator-studio-v4\//.test(src['js/updater.js']), 'updates from its own site, never CS3\'s');
 ok(!/'creator-studio'(?!-)/.test(src['js/store.js']),
   'and v2\'s database name appears nowhere');
-ok(/<title>Creator Studio 3<\/title>/.test(html), 'title says Creator Studio 3');
+ok(/<title>Creator Studio v4<\/title>/.test(html), 'title says Creator Studio v4');
 const nativeDir = path.join(ROOT, 'native');
 const nat = fs.readdirSync(nativeDir).filter(f => /\.(java|xml)$/.test(f))
   .map(f => [f, fs.readFileSync(path.join(nativeDir, f), 'utf8')]);
@@ -36,7 +40,8 @@ const sc = (nat.find(x => x[0] === 'shortcuts.xml') || [])[1] || '';
 ok(!/targetPackage="com\.creatorstudio\.v2"/.test(sc), 'shortcuts target the cs3 app id');
 const cap = JSON.parse(fs.readFileSync(path.join(ROOT, 'capacitor.config.json'), 'utf8'));
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-ok(cap.appId === 'com.solakirus.creatorstudio3' && pkg.build.appId === cap.appId, 'Android and Windows share one app id');
+ok(cap.appId === 'com.solakirus.creatorstudio4' && pkg.build.appId === cap.appId, 'Android and Windows share one app id, v4\'s own');
+ok(!nat.some(([, t]) => /cs3:\/\/|creatorstudio3/.test(t)), 'no widget or shortcut opens Creator Studio 3');
 
 console.log('\n1. every script tag points at a file');
 const tags = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);

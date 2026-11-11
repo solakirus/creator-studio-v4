@@ -19,6 +19,14 @@ const exe = process.env.CHROME || ['C:/Program Files (x86)/Microsoft/Edge/Applic
   const b = await chromium.launch({ executablePath: exe, headless: true,
     args: ['--allow-file-access-from-files', '--disable-component-update', '--autoplay-policy=no-user-gesture-required'] });
   const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
+  /* v4: the Library and Templates show on the laptop only (window.CS3Lib, the
+     Electron bridge). Stand in for it with no folders, so this runs as the laptop. */
+  await p.addInitScript(() => {
+    if(window.CS3Lib) return;
+    window.CS3Lib = { home: async () => '/home/test/Shot Library', scan: async () => ({ items: [], pages: [], roots: [], errors: [] }),
+      pickFolder: async () => null, open: async () => {}, trash: async () => ({}), boardFolder: async () => ({}), shotline: async () => null,
+      grabFind: async () => ({ root: 'built in', setUp: true, node: true, builtin: true, ytdlp: true, ffmpeg: true, winget: false, out: '/home/test/Shot Library' }), grabRun: async () => ({}), grabStop: async () => {}, onGrab: () => () => {} };
+  });
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   p.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text()); });
   await p.goto('file:///' + path.resolve(__dirname, '../../index.html').replace(/\\/g, '/'));
