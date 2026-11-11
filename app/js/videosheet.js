@@ -59,6 +59,9 @@
       <textarea id="vd-s" class="pgtext" rows="4"
         placeholder="Wide of the bench&#10;Hands on the drill&#10;Reveal, slow push in">${esc((r.shots || []).join('\n'))}</textarea>
       <p class="hintline">One per line. These become the steps on the task when you give it a day.</p>
+      ${r.page && (r.page.slots || []).some(sl => sl.item) ? `<h3 class="pgh">Shot frames</h3>
+      <div class="tf-strip" id="vd-fr"></div>
+      <p class="hintline">From the template's shots. They go onto the task with the shot list.</p>` : ''}
 
       <h3 class="pgh">Tags</h3>
       <input id="vd-g" class="pgname" type="text" value="${esc((r.tags || []).join(', '))}"
@@ -152,6 +155,7 @@
           </select>`;
       }
       paintChannel();
+      if(window.TaskFrames && r.page) TaskFrames.strip(sheet.querySelector('#vd-fr'), r.page);
 
       sheet.addEventListener('change', e => {
         if(e.target.id !== 'vd-sr') return;

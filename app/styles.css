@@ -4026,3 +4026,12 @@ html{-webkit-text-size-adjust:100%}
 .bkdot.good{background:var(--green)}
 .bkdot.warn{background:var(--amber)}
 .bkdot.bad{background:var(--red)}
+
+/* v4: a video's shot frames (taskframes.js strip) */
+.tf-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin:4px 0 0}
+.tf-cell{margin:0;background:var(--surface-1);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:3px 3px 0 var(--shadow)}
+.tf-pic{position:relative;padding-top:125%;background:var(--surface-2)}
+.tf-pic img,.tf-pic video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.tf-miss{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--dim);text-align:center;padding:6px}
+.tf-cell figcaption{font-size:11.5px;line-height:1.35;color:var(--muted);padding:5px 6px 6px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.tf-cell figcaption b{color:var(--orange);font-family:var(--display),sans-serif;font-weight:900;margin-right:2px}

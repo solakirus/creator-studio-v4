@@ -182,7 +182,7 @@
     }
 
     function pageSelectHTML(placeholder){
-      if(!pageChoices.length) return `<p class="hintline" style="margin:10px 0 0">No notebook pages yet — make one in Content → Templates.</p>`;
+      if(!pageChoices.length) return `<p class="hintline" style="margin:10px 0 0">No notebook pages yet — make one in Content → Templates${window.CS3Lib ? '' : ' on the laptop'}.</p>`;
       const groups = [];
       pageChoices.forEach(c => { let g = groups.find(x => x[0] === c.group); if(!g) groups.push(g = [c.group, []]); g[1].push(c); });
       /* templates with a task sequence first: those are the ones made for steps */

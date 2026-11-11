@@ -26,11 +26,17 @@
       d:'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 16.5h7M16.5 13v7' },
     /* From Shotline: the Library of GIFs, clips and stills to plan with, and
        the Templates — shot structures, task lists, looks and notebook pages. */
-    { v:'library',  label:'Library',  screen:'library',
+    { v:'library',  label:'Library',  screen:'library', laptop:true,
       d:'M4 5h5v14H4zM10.5 5h4v14h-4zM16 6.2l3.6-1 3 13.6-3.6 1z' },
-    { v:'templates', label:'Templates', screen:'shot-templates',
+    { v:'templates', label:'Templates', screen:'shot-templates', laptop:true,
       d:'M5 3h10l4 4v14H5zM15 3v4h4M8 11h8M8 14.5h8M8 18h5' }
   ];
+
+  /* v4: the Library and Templates are where planning happens, on the laptop.
+     The phone gets what they put on tasks and videos (taskframes.js), not the
+     Library itself. window.CS3Lib is the laptop's disk bridge (electron/preload.js). */
+  const onLaptop = () => !!global.CS3Lib;
+  const shown = () => NAV.filter(n => !n.laptop || onLaptop());
 
   let view = 'clips';
 
@@ -41,7 +47,7 @@
          leaves room for it. */
       el.innerHTML = `
         <div id="ctWrap"></div>
-        <nav class="ctnav">${NAV.map(n => `
+        <nav class="ctnav">${shown().map(n => `
           <button data-v="${n.v}" ${view === n.v ? 'aria-current="page"' : ''}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
               stroke-linecap="round" stroke-linejoin="round"><path d="${n.d}"/></svg>
@@ -51,6 +57,7 @@
     async function show(){
       shell();
       const host = el.querySelector('#ctWrap');
+      if(!shown().some(n => n.v === view)) view = 'clips';
       const target = NAV.find(n => n.v === view);
       /* the section about to be replaced may have a selection bar open */
       if(global.Select) Select.reset();

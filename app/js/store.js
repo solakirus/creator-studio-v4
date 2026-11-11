@@ -2,7 +2,7 @@
    One database, one version, every store declared in one place. */
 (function(global){
   const DB_NAME = global.CS_DB_NAME || 'creator-studio-4';   /* tests set CS_DB_NAME so they never touch real data */
-  const DB_VERSION = 35;
+  const DB_VERSION = 36;
   const STORES = {
     art:            {},                  // task card images, keyed by item slug
     focal:          {},                  // {x,y} focal point per item slug
@@ -61,7 +61,11 @@
     'lib-poster':   {},                   // a still from each clip, so a grid stays cheap
     'lib-boards':   { keyPath:'id' },     // boards: a name, a group and the frames on it
     'shot-templates': { keyPath:'id' },   // Shotline templates: shots, tasks, look, notebook pages
-    'nb-music':     {}                    // music attached to a notebook page, keyed by its own id
+    'nb-music':     {},                   // music attached to a notebook page, keyed by its own id
+    /* v4: the frames a task or video uses, copied out of the Library so they
+       travel to the phone without it. Keyed by the Library uid they came from.
+       taskframes.js keeps and clears them (21 days after the task's date). */
+    'task-frames':  { keyPath:'uid' }
   };
 
   let dbp = null;

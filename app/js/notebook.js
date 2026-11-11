@@ -278,6 +278,9 @@
       } catch(e){ return { missing:true }; }
     })();
     media.set(uid, p);
+    /* a frame that isn't here yet (a kept copy still on its way from the
+       laptop) is looked for again next time rather than remembered as missing */
+    p.then(m => { if(m && m.missing && media.get(uid) === p) media.delete(uid); });
     return p;
   }
   /* a GIF's own length: its frame times added up; 2.5 s when it can't be read (clips.js gifInfo) */

@@ -31,6 +31,15 @@
     };
     if(s.kind) task.kind = s.kind;
     if(s.source) task.source = s.source;
+    /* v4: a page handed in (a template's shots, frames and all) is the task's
+       shot page; its shots become the steps, ahead of any typed ones */
+    if(s.page && global.Notebook){
+      task.page = Notebook.copyNew(s.page);
+      (task.page.slots || []).forEach(sl => { sl.done = false; });
+      if(s.pageFrom) task.pageFrom = s.pageFrom;
+      if(Array.isArray(s.morePages) && s.morePages.length) task.morePages = s.morePages.map(p => Notebook.copyNew(p));
+      if(global.TaskPages) TaskPages.match(task);
+    }
     /* every new task starts with the task sequence shot page (taskpages.js) */
     if(global.TaskPages) await TaskPages.attachDefault(task);
 

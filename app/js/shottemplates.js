@@ -76,6 +76,10 @@
     out.splice(9, 0, t({ name:'Task sequence · steps', kind:'Notebook pages', format:'Short', color:'#E23840',
       description:'A task\'s steps in order, each with its picture or GIF; tick them off while you shoot. 4:5.', sheets:[Notebook.stepsPage('Task')] }));
     out.forEach((x, i) => { x.created = Date.now() + i; });
+    /* v4: the same ids on every device, so the laptop and the phone each making
+       the samples end up with one set between them, not two */
+    out.forEach((x, i) => { x.id = 'sample-' + String(i + 1).padStart(2, '0') + '-' +
+      x.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40); });
     return out;
   }
 
@@ -89,8 +93,12 @@
     try { seeded = await Store.get('settings', 'shot-templates-seeded'); } catch(e){}
     if(!seeded && !list.length){
       list = samples();
-      for(const t of list) await Store.put('shot-templates', t);
-      await Store.put('settings', true, 'shot-templates-seeded');
+      /* Written past sync (Store.raw): each device makes its own samples, so
+         a phone opening for the first time can't push fresh samples over ones
+         already edited on the laptop. Once edited, a sample syncs like any. */
+      const w = (Store.raw && Store.raw.put) ? Store.raw : Store;
+      for(const t of list) await w.put('shot-templates', t);
+      await w.put('settings', true, 'shot-templates-seeded');
     }
     cache = list.sort((a, b) => (a.created || 0) - (b.created || 0));
     return cache;
@@ -178,6 +186,27 @@
   const shotLine = s => [s.label || s.name || s.role, [s.size, s.movement].filter(x => x && x !== '—').join(' · '),
     s.seconds ? Notebook.fmtTime(s.seconds) : ''].filter(Boolean).join(' — ');
 
+  /* v4: a template's shots as one task-sequence page — each spot holds the
+     shot's GIF, clip or still and its line — so the task (and the phone) shows
+     the frame beside every step. A page holds 14 spots; shots past that stay
+     as steps without a picture. A template with no shots uses its first
+     steps or frames page as it is. Returns null when there's nothing to show. */
+  function pageFrom(t){
+    if(!global.Notebook) return null;
+    const shots = (t.shots || []).filter(s => s.item || s.label || s.name);
+    if(shots.length){
+      const P = Notebook.stepsPage(t.name);
+      P.name = 'Shot sequence · ' + t.name;
+      P.slots = shots.slice(0, Notebook.MAX_STEPS).map(s => ({ item:s.item || '', tone:'', text:shotLine(s), role:s.role || '', done:false }));
+      return P;
+    }
+    const sh = (t.sheets || []).find(x => x.layout === 'steps') || (t.sheets || [])[0];
+    return sh ? Notebook.copyNew(sh) : null;
+  }
+  /* pages beside the shot page: the template's notebook pages, when its shots made the shot page */
+  const otherPages = (t, main) => (t.shots || []).some(s => s.item || s.label || s.name)
+    ? (t.sheets || []).map(x => Notebook.copyNew(x)) : (t.sheets || []).filter(x => !main || x.id !== main.id).map(x => Notebook.copyNew(x));
+
   /* ui_videos.rs project_from_template → a Creator Studio video carrying its
      shot list, with the look and tasks in its notes */
   async function newVideo(id){
@@ -187,8 +216,10 @@
       .filter(Boolean).join('\n\n');
     const shots = t.shots.length ? t.shots.map(shotLine)
       : t.sheets.flatMap(s => s.layout === 'steps' ? s.slots.map(x => x.text).filter(Boolean) : [s.name]);
+    const page = pageFrom(t);
     return Videos.save({ title:t.name, plat:t.format === 'Short' ? 'shorts' : 'youtube', stage:'idea',
-      hook:t.description || '', notes, shots, tags:[t.kind], template:t.id });
+      hook:t.description || '', notes, shots, tags:[t.kind], template:t.id,
+      page, pageFrom: page ? { tid:t.id, sid:page.id, template:t.name } : null });
   }
 
   /* ui_week.rs apply_template_to_day → real tasks on that date: the template's
@@ -199,9 +230,14 @@
     const day = await Data.dateToDay(ts);
     let n = 0;
     if(t.shots.length || t.sheets.length){
-      const subs = (t.shots.length ? t.shots.map(shotLine)
-        : t.sheets.flatMap(s => s.layout === 'steps' ? s.slots.map(x => x.text).filter(Boolean) : [s.name])).map(x => ({ t:x, done:false }));
-      await QuickAdd.add({ day, title:'Shoot — ' + t.name, kind:'shoot', note:[t.description, t.use_look ? lookLine(t.look) : ''].filter(Boolean).join('\n\n'), subs });
+      const page = pageFrom(t);
+      /* shots past what one page holds stay as plain steps after the page's */
+      const extra = t.shots.length > Notebook.MAX_STEPS ? t.shots.slice(Notebook.MAX_STEPS).map(shotLine) : [];
+      const subs = page ? extra.map(x => ({ t:x, done:false }))
+        : (t.shots.length ? t.shots.map(shotLine)
+          : t.sheets.flatMap(s => s.layout === 'steps' ? s.slots.map(x => x.text).filter(Boolean) : [s.name])).map(x => ({ t:x, done:false }));
+      await QuickAdd.add({ day, title:'Shoot — ' + t.name, kind:'shoot', note:[t.description, t.use_look ? lookLine(t.look) : ''].filter(Boolean).join('\n\n'), subs,
+        page, pageFrom: page ? { tid:t.id, sid:page.id, template:t.name } : null, morePages: page ? otherPages(t, page) : [] });
       n++;
     }
     for(const x of t.tasks){ await QuickAdd.add({ day, title:x.title }); n++; }
@@ -237,6 +273,6 @@
     KINDS, ROLES, SIZES, MOVES, TRANSITIONS, DURATIONS, FORMATS,
     all, get, save, remove, duplicate, create, blank, shot, copyShot,
     shotFromItem, fillShot, addToTarget, findSheet, nearestDuration, totalSeconds,
-    newVideo, putOnDay, importShotline, invalidate:() => { cache = null; }
+    newVideo, putOnDay, importShotline, pageFrom, invalidate:() => { cache = null; }
   };
 })(window);

@@ -100,11 +100,30 @@
     return diskCache;
   }
 
+  /* frames kept for tasks (the task-frames store), shaped like Library items */
+  async function keptItems(){
+    let recs = [];
+    try { recs = (await Store.all('task-frames')).values; } catch(e){ recs = []; }
+    return recs.filter(r => r && r.uid).map(r => ({ uid:r.uid, id:r.uid, src:'tf', kind:r.kind || 'image',
+      name:r.name || 'frame', label:r.label || '', caption:r.caption || '', link:'', page:'', bytes:r.bytes || 0,
+      createdAt:r.keptAt || 0, mime:r.mime || '', big:'', source:'', tags:[], from:'' }));
+  }
+  async function keptRecord(uid){ try { return await Store.get('task-frames', uid); } catch(e){ return null; } }
+
   /* library.rs reindex: collections from pages, newest page first */
   function index(items, pages){
     const byUid = new Map(items.map(it => [it.uid, it]));
     const byPlain = new Map();
     items.forEach(it => { if(it.path && !byPlain.has(it.path)) byPlain.set(it.path, it); });
+    /* A frame copied into the app (bringIn) still answers to the folder address
+       it came from, so templates, pages and tasks that point at the folder copy
+       find it on a device without that folder. The folder copy wins where both exist. */
+    items.forEach(it => {
+      if(!it.from) return;
+      if(!byUid.has(it.from)) byUid.set(it.from, it);
+      const plain = it.from.includes('|') ? it.from.slice(it.from.indexOf('|') + 1) : '';
+      if(plain && !byPlain.has(plain)) byPlain.set(plain, it);
+    });
     const pageIdx = new Map(pages.map(p => [p.uid, p]));
     const cols = new Map();
     pages.forEach(p => {
@@ -130,6 +149,15 @@
       const a = await appItems();
       const h = await diskItems(force);
       cache = index([...a.items, ...h.items], [...a.pages, ...h.pages]);
+      /* v4: frames kept for tasks and videos (taskframes.js). They answer to the
+         Library uid they were copied from, so a page or shot finds them on the
+         phone, which has no Library. They are not Library items: they never show
+         in the Library's own grids, and the Library's copy wins on the laptop. */
+      for(const it of await keptItems()){
+        if(!cache.byUid.has(it.uid)) cache.byUid.set(it.uid, it);
+        const plain = it.uid.includes('|') ? it.uid.slice(it.uid.indexOf('|') + 1) : '';
+        if(plain && !cache.byPlain.has(plain)) cache.byPlain.set(plain, it);
+      }
       cache.roots = h.roots || [];
       cache.errors = h.errors || [];
       loading = null;
@@ -157,26 +185,30 @@
   async function url(it){
     if(!it) return null;
     if(it.src === 'h') return it.url;
-    if(urls.has(it.id)) return urls.get(it.id);
+    if(urls.has(it.src + ':' + it.id)) return urls.get(it.src + ':' + it.id);
     let blob = null;
-    try { blob = await Store.get('lib-blob', it.id); } catch(e){ blob = null; }
+    if(it.src === 'tf'){ const r = await keptRecord(it.uid); blob = r && r.blob || null; }
+    else try { blob = await Store.get('lib-blob', it.id); } catch(e){ blob = null; }
     if(!blob) return null;
     const u = URL.createObjectURL(blob);
-    urls.set(it.id, u);
+    urls.set(it.src + ':' + it.id, u);
     return u;
   }
   async function posterUrl(it){
     if(!it || it.src === 'h') return null;
-    if(posters.has(it.id)) return posters.get(it.id);
+    const pk = it.src + ':' + it.id;
+    if(posters.has(pk)) return posters.get(pk);
     let blob = null;
-    try { blob = await Store.get('lib-poster', it.id); } catch(e){ blob = null; }
+    if(it.src === 'tf'){ const r = await keptRecord(it.uid); blob = r && r.poster || null; }
+    else try { blob = await Store.get('lib-poster', it.id); } catch(e){ blob = null; }
     const u = blob ? URL.createObjectURL(blob) : null;
-    posters.set(it.id, u);
+    posters.set(pk, u);
     return u;
   }
   async function blobOf(it){
     if(!it) return null;
     if(it.src === 'db'){ try { return await Store.get('lib-blob', it.id); } catch(e){ return null; } }
+    if(it.src === 'tf'){ const r = await keptRecord(it.uid); return r && r.blob || null; }
     try { const r = await fetch(it.url); return r.ok ? await r.blob() : null; } catch(e){ return null; }
   }
 
@@ -443,7 +475,7 @@
     settings, setSettings, load, invalidate, find, url, posterUrl, blobOf,
     addFiles, addFromLink, update, remove, moveToLibrary, bringIn,
     allBoards, saveBoard, deleteBoard, addToBoard, importShotline,
-    deck, search, target, setTarget, disk,
+    deck, search, target, setTarget, disk, videoPoster,
     rescan: () => { diskCache = null; cache = null; return load(true); }
   };
 })(window);

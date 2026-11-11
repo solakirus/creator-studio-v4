@@ -27,9 +27,14 @@
   const AFTER_CHANGE = 5000;                /* quiet period after an edit */
   const TIMEOUT  = 20000;
 
-  /* settings keys that belong to one device */
-  const LOCAL_SETTINGS = /^(backup:|sync:)/;
-  const skip = (store, key) => store === 'settings' && LOCAL_SETTINGS.test(String(key));
+  /* settings keys that belong to one device ('library' is the laptop's folders
+     and grabber paths) */
+  const LOCAL_SETTINGS = /^(backup:|sync:|library$)/;
+  /* v4: the Library stays on the laptop. Its files would fill the phone and
+     the server; what a task or video uses travels as 'task-frames' instead. */
+  const LOCAL_STORES = new Set(['lib-items', 'lib-blob', 'lib-poster', 'lib-boards', 'nb-music']);
+  const skip = (store, key) => LOCAL_STORES.has(store) ||
+    (store === 'settings' && LOCAL_SETTINGS.test(String(key)));
 
   /* ------------------------------------------------ the side database */
   let sdbp = null;
@@ -242,9 +247,34 @@
     return true;
   }
 
+  /* A newer build added stores. While this device was on the older build, the
+     server's records for those stores were passed over (apply() had nowhere to
+     put them) and the cursor moved on, so a plain pull would never see them.
+     The first sync on the new build reads the server from the start once,
+     taking only records for the stores it just gained. */
+  async function catchUp(cfg, me, kp){
+    const known = await meta('stores');
+    const names = Object.keys(kp).sort();
+    if(!Array.isArray(known)){ await setMeta('stores', names); return 0; }   /* first sync: nothing passed over yet */
+    const fresh = new Set(names.filter(n => !known.includes(n)));
+    if(!fresh.size) return 0;
+    let since = 0, changed = 0;
+    for(;;){
+      const r = await call(cfg, 'GET', `/sync/${APP}?since=${since}`);
+      for(const c of (r.changes || [])){
+        if(c.deviceId === me || !fresh.has(c.store)) continue;
+        if(await apply(c, kp)) changed++;
+      }
+      since = r.cursor || since;
+      if(!r.more) break;
+    }
+    await setMeta('stores', names);
+    return changed;
+  }
+
   async function pull(cfg, me){
     const kp = await layout();
-    let since = (await meta('cursor')) || 0, changed = 0;
+    let since = (await meta('cursor')) || 0, changed = await catchUp(cfg, me, kp);
     /* The app's data was cleared (an iPad clearing a home-screen app's storage,
        say) but this side database kept its place in the server's history. It
        would then ask only for changes after that point and get none: "0 in,

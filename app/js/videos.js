@@ -37,6 +37,9 @@
     if(!v.id) v.id = uid();
     v.title = String(v.title || '').trim() || 'Untitled video';
     v.tags = (v.tags || []).map(t => String(t).trim()).filter(Boolean);
+    /* v4: when it went out, so its frames can be let go 21 days later (taskframes.js) */
+    if(v.stage === 'published'){ if(!v.publishedAt) v.publishedAt = Date.now(); }
+    else delete v.publishedAt;
     await Store.put('videos', v);
     if(global.Data && Data.invalidate) Data.invalidate('videos');
     return v;
@@ -63,6 +66,9 @@
           t.day = day;
           t.title = 'Shoot — ' + v.title;
           t.subs = (v.shots || []).map(s => ({ t:s, done:false }));
+          /* v4: a video made from a template carries its shot page, frames and all */
+          if(v.page && global.Notebook){ t.page = Notebook.copyNew(v.page); t.page.slots.forEach(sl => { sl.done = false; });
+                      t.pageFrom = v.pageFrom || null; delete t.pageOff; if(global.TaskPages) TaskPages.match(t); }
           await Store.put('tasks', t);
           if(global.Data && Data.invalidate) Data.invalidate('tasks');
           return save({ ...v, stage: v.stage === 'idea' ? 'planned' : v.stage });
@@ -76,7 +82,8 @@
       kind: 'shoot',
       note: v.hook || v.notes || '',
       source: v.channel || '',
-      subs: (v.shots || []).map(s => ({ t:s, done:false }))
+      subs: (v.shots || []).map(s => ({ t:s, done:false })),
+      page: v.page || null, pageFrom: v.pageFrom || null
     });
     return save({ ...v, taskId: task.id, stage: v.stage === 'idea' ? 'planned' : v.stage });
   }
