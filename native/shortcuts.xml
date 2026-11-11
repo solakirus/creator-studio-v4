@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press shortcuts for the app icon.
+     Goes in: android/app/src/main/res/xml/shortcuts.xml
+
+     Android shows at most four or five, so these are the ones worth a slot:
+     things you reach for while busy, where two taps of navigation is two too
+     many. Each fires a deep link that js/shortcuts.js turns into a screen.
+
+     The scheme is the one already in strings.xml as custom_url_scheme, so
+     Capacitor's own intent-filter catches it and no manifest edit is needed
+     beyond pointing at this file. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <shortcut
+      android:shortcutId="run"
+      android:enabled="true"
+      android:icon="@mipmap/ic_launcher"
+      android:shortcutShortLabel="@string/sc_run_short"
+      android:shortcutLongLabel="@string/sc_run_long">
+    <intent
+        android:action="android.intent.action.VIEW"
+        android:targetPackage="com.solakirus.creatorstudio3"
+        android:targetClass="com.creatorstudio.v2.MainActivity"
+        android:data="cs3://go/run" />
+    <categories android:name="android.shortcut.conversation" />
+  </shortcut>
+
+  <shortcut
+      android:shortcutId="capture"
+      android:enabled="true"
+      android:icon="@mipmap/ic_launcher"
+      android:shortcutShortLabel="@string/sc_capture_short"
+      android:shortcutLongLabel="@string/sc_capture_long">
+    <intent
+        android:action="android.intent.action.VIEW"
+        android:targetPackage="com.solakirus.creatorstudio3"
+        android:targetClass="com.creatorstudio.v2.MainActivity"
+        android:data="cs3://go/capture" />
+    <categories android:name="android.shortcut.conversation" />
+  </shortcut>
+
+  <shortcut
+      android:shortcutId="shoot"
+      android:enabled="true"
+      android:icon="@mipmap/ic_launcher"
+      android:shortcutShortLabel="@string/sc_shoot_short"
+      android:shortcutLongLabel="@string/sc_shoot_long">
+    <intent
+        android:action="android.intent.action.VIEW"
+        android:targetPackage="com.solakirus.creatorstudio3"
+        android:targetClass="com.creatorstudio.v2.MainActivity"
+        android:data="cs3://go/shoot" />
+    <categories android:name="android.shortcut.conversation" />
+  </shortcut>
+
+  <shortcut
+      android:shortcutId="workout"
+      android:enabled="true"
+      android:icon="@mipmap/ic_launcher"
+      android:shortcutShortLabel="@string/sc_workout_short"
+      android:shortcutLongLabel="@string/sc_workout_long">
+    <intent
+        android:action="android.intent.action.VIEW"
+        android:targetPackage="com.solakirus.creatorstudio3"
+        android:targetClass="com.creatorstudio.v2.MainActivity"
+        android:data="cs3://go/workout" />
+    <categories android:name="android.shortcut.conversation" />
+  </shortcut>
+
+</shortcuts>

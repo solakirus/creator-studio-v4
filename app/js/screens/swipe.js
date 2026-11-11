@@ -1,0 +1,1114 @@
+/* Swipe file — a gallery of things worth stealing the structure of. */
+(function(){
+  const { ICON, slug } = U;
+
+  const SOURCES = {
+    reel:{ n:'IG Reel', c:'#E1477E' }, carousel:{ n:'IG Carousel', c:'#A855F7' },
+    story:{ n:'IG Story', c:'#F59E0B' }, tiktok:{ n:'TikTok', c:'#22C7B8' },
+    ytshort:{ n:'YT Short', c:'#E2564A' }, ytlong:{ n:'YT Long-form', c:'#FB6900' },
+    x:{ n:'X / Twitter', c:'#9AA0A6' }, linkedin:{ n:'LinkedIn', c:'#3B82F6' },
+    newsletter:{ n:'Newsletter', c:'#5BBE6A' }
+  };
+  const SHORT = { reel:'REEL', carousel:'CARO', story:'STORY', tiktok:'TT', ytshort:'YTS',
+                  ytlong:'YT', x:'X', linkedin:'LI', newsletter:'NL' };
+  const INTENTS = ['Education','Entertainment','Story','Promo','Inspiration'];
+  let CHANNELS = [];
+  async function loadChannels(){ CHANNELS = await Channels.all(); }
+
+  let thumbs = {};
+  let autoCovers = false;   /* the background cover fetch runs once per session */
+
+  /* YouTube is the only platform whose cover image we can derive from the link. */
+  function ytId(url){
+    const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([A-Za-z0-9_-]{11})/);
+    return m ? m[1] : null;
+  }
+  function detectSource(url){
+    const u = String(url).toLowerCase();
+    if(u.includes('tiktok')) return 'tiktok';
+    if(u.includes('youtube') || u.includes('youtu.be')) return u.includes('shorts') ? 'ytshort' : 'ytlong';
+    if(u.includes('instagram')) return 'reel';
+    if(u.includes('linkedin')) return 'linkedin';
+    if(u.includes('twitter') || u.includes('x.com')) return 'x';
+    return 'reel';
+  }
+  /* Instagram publishes no thumbnail URL, but it does allow its own embed view,
+     so a single swipe can show the post itself when there's no custom cover. */
+  function igId(url){
+    const m = String(url || '').match(/instagram\.com\/(?:[\w.]+\/)?(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/i);
+    return m ? m[1] : null;
+  }
+  /* Grid previews for Instagram swipes with no cover. The embed is drawn at
+     Instagram's minimum width, shifted up past its header and scaled to the
+     card, so the 4:5 post frame fills the 4:5 thumb. Each loads only when its
+     card scrolls near the screen, and taps pass through to the card. */
+  const IG_W = 326, IG_HEAD = 50, IG_MEDIA = 408, IG_FOOT = 90;
+  let igObserver = null;
+  function mountIgEmbed(thumb){
+    const id = thumb.dataset.ig;
+    if(!id || thumb.querySelector('.igclip')) return;
+    const W = thumb.clientWidth, H = thumb.clientHeight || W * 1.25;
+    /* Instagram letterboxes a 9:16 reel inside its 4:5 frame. For reels, zoom in
+       until the video fills the card edge to edge (a centre crop, like the
+       YouTube covers); other posts are fitted to the card as-is. */
+    const zoom = thumb.dataset.igReel ? IG_W / (IG_MEDIA * 9 / 16) : 1;
+    const S = (W / IG_W) * zoom;
+    const tx = W / 2 - S * IG_W / 2;
+    const ty = H / 2 - S * (IG_HEAD + IG_MEDIA / 2);
+    const clip = document.createElement('span');
+    clip.className = 'igclip';
+    clip.style.cssText = 'position:absolute;inset:0;overflow:hidden;display:block;pointer-events:none;background:#000';
+    const f = document.createElement('iframe');
+    f.src = `https://www.instagram.com/p/${id}/embed/`;
+    f.title = 'Instagram post';
+    f.setAttribute('scrolling', 'no');
+    f.setAttribute('tabindex', '-1');
+    f.setAttribute('aria-hidden', 'true');
+    f.style.cssText = `position:absolute;left:0;top:0;width:${IG_W}px;
+      height:${IG_HEAD + IG_MEDIA + IG_FOOT}px;border:0;pointer-events:none;background:#000;
+      transform-origin:0 0;transform:translate(${tx}px,${ty}px) scale(${S})`;
+    clip.appendChild(f);
+    thumb.prepend(clip);
+  }
+  function wireIgEmbeds(root){
+    if(igObserver) igObserver.disconnect();
+    const cards = root.querySelectorAll('.thumb[data-ig]');
+    if(!cards.length) return;
+    if(!('IntersectionObserver' in window)){ cards.forEach(mountIgEmbed); return; }
+    igObserver = new IntersectionObserver(entries => {
+      entries.forEach(en => {
+        if(!en.isIntersecting) return;
+        mountIgEmbed(en.target);
+        igObserver.unobserve(en.target);
+      });
+    }, { rootMargin:'300px 0px' });
+    cards.forEach(c => igObserver.observe(c));
+  }
+
+  function coverFor(s){
+    if(thumbs[s.id]) return `url(${thumbs[s.id]})`;
+    /* fetched from the platform and kept on the record */
+    /* single quotes: this lands inside a double-quoted style="" attribute */
+    if(s.imageUrl) return `url('${String(s.imageUrl).replace(/'/g, '%27').replace(/"/g, '%22')}')`;
+    /* YouTube gives its poster away in the url — an image, so no permission
+       is needed to show it and no embed is worth the weight */
+    const poster = window.Embed ? Embed.poster(s.url) : null;
+    if(poster) return `url(${poster})`;
+    return U.generatedArt(s.id, s.title || '?', 300, 375);
+  }
+  async function loadThumbs(){
+    try {
+      const blobs = await Store.allMap('swipe-thumb');
+      Object.values(thumbs).forEach(URL.revokeObjectURL);
+      thumbs = {};
+      Object.entries(blobs).forEach(([k,b]) => thumbs[k] = URL.createObjectURL(b));
+    } catch(e){ console.warn('Swipe thumbs unavailable', e); }
+  }
+
+  /* ---------- fill in title, creator and cover from the link itself ---------- */
+  /* Titles the app made up, which a real one should replace. */
+  function needsTitle(s){
+    const t = (s.title || '').trim();
+    return !t || /^untitled swipe$/i.test(t) ||
+      (/Facebook collection:/.test(s.why || '') && /\s(reel|video|post)$/i.test(t));
+  }
+  const needsCover = s => !!s.url && !thumbs[s.id] && !ytId(s.url);
+  const needsDetails = s => needsTitle(s) || needsCover(s) || !(s.author || /Creator:/i.test(s.why || ''));
+
+  async function enrich(s){
+    if(!window.LinkMeta || !s || !s.url) return false;
+    const m = await LinkMeta.get(s.url);
+    let changed = false;
+    /* TikTok short links become the full link, which also makes previews possible later */
+    if(m.finalUrl && m.finalUrl !== s.url && /vm\.tiktok|vt\.tiktok|tiktok\.com\/t\//i.test(s.url)){
+      s.url = m.finalUrl; s.source = detectSource(s.url); changed = true;
+    }
+    if(m.title && needsTitle(s)){ s.title = m.title; changed = true; }
+    /* the fields the rest of the app already reads for a swipe's creator and cover */
+    if(m.author && !s.author){ s.author = m.author; changed = true; }
+    if(m.image && !s.imageUrl){ s.imageUrl = m.image; changed = true; }
+    if(m.author && !/Creator:/i.test(s.why || '')){
+      s.why = [s.why, `Creator: ${m.author}${m.authorUrl ? ' ' + m.authorUrl : ''}`].filter(Boolean).join(' | ');
+      changed = true;
+    }
+    if(changed) await Store.put('swipes', s);
+    if(m.image && needsCover(s)){
+      const b = await LinkMeta.getImage(m.image);
+      if(b && b.size > 2000){
+        await Store.put('swipe-thumb', b, s.id);
+        thumbs[s.id] = URL.createObjectURL(b);
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  /* One fetch at a time with a short pause, so the sites don't start refusing.
+     It keeps going if you leave the Swipe tab. */
+  const fetchQ = { list:[], done:0, total:0, got:0, running:false, stop:false, onTick:null, onEnd:null };
+  function queueFetch(ids, onTick, onEnd){
+    ids.forEach(id => { if(!fetchQ.list.includes(id)){ fetchQ.list.push(id); fetchQ.total++; } });
+    fetchQ.onTick = onTick; fetchQ.onEnd = onEnd;
+    runQueue();
+  }
+  async function runQueue(){
+    if(fetchQ.running) return;
+    fetchQ.running = true; fetchQ.stop = false;
+    while(fetchQ.list.length && !fetchQ.stop){
+      const id = fetchQ.list.shift();
+      try { const rec = await Store.get('swipes', id); if(await enrich(rec)) fetchQ.got++; } catch(e){}
+      fetchQ.done++;
+      fetchQ.onTick && fetchQ.onTick();
+      await new Promise(r => setTimeout(r, 600));
+    }
+    const got = fetchQ.got, done = fetchQ.done;
+    Object.assign(fetchQ, { list:[], done:0, total:0, got:0, running:false });
+    U.toast(done ? `Details found for ${got} of ${done} swipe${done === 1 ? '' : 's'}` : 'Stopped');
+    fetchQ.onEnd && fetchQ.onEnd();
+  }
+  const fetchBarText = () => `Fetching details · ${fetchQ.done}/${fetchQ.total}`;
+
+  const all = async () => {
+    const { values } = await Store.all('swipes');
+    return values.sort((a,b) => b.createdAt - a.createdAt);
+  };
+  const uid = () => 'sw_' + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
+
+  /* ---------- gallery ---------- */
+  async function mountList(el, params){
+    /* hosted in the Content tab there is already a heading and a nav above */
+    const embedded = !!(params && params.embedded);
+    let q = '', intent = '', channel = '', src = '', target = '';
+    /* 'all' is the grid as it always was; 'folders' is the folder tiles; a
+       folder id (or '__none') is one folder open */
+    let view = (params && params.folder) || 'all';
+    const esc = t => String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+    const inFolder = () => view !== 'all' && view !== 'folders';
+
+    async function render(){
+      const folders = window.SwipeFolders ? await SwipeFolders.sorted() : [];
+      if(inFolder() && view !== '__none' && !folders.some(f => f.id === view)) view = 'folders';
+      if(view === 'folders') return renderFolders(folders);
+      const rows = (await all()).filter(s =>
+        (!inFolder() || (view === '__none'
+          ? !(s.folders || []).some(id => folders.some(f => f.id === id))
+          : (s.folders || []).includes(view))) &&
+        (!q || (s.title + ' ' + (s.hook||'') + ' ' + (s.myAngle||'')).toLowerCase().includes(q)) &&
+        (!intent  || s.intent === intent) &&
+        (!channel || (s.channels || []).includes(channel)) &&
+        (!src     || s.source === src) &&
+        (!target  || (s.targets || []).includes(target)));
+
+      /* Icon-only actions keep the header on one line without truncating the title. */
+      const IC_IMPORT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 18v-6"/><path d="M9 15l3 3 3-3"/></svg>`;
+      const IC_LINK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/></svg>`;
+      const ACTS = `<button class="iconbtn" data-a="csv" aria-label="Import CSV" title="Import CSV"
+                   style="width:34px;height:34px;color:var(--cream)">${IC_IMPORT}</button>
+                 <button class="iconbtn" data-a="paste" aria-label="Add links" title="Add links"
+                   style="width:34px;height:34px;background:var(--orange-grad);border:0;color:#fff">${IC_LINK}</button>`;
+      el.innerHTML = (embedded ? '' : Screens.bar({ kicker:'Creator studio', title:'Swipe file', actions:ACTS })) + `
+      <div class="view">
+        ${embedded ? `<div class="pagehead"><h1 class="page-title">Swipe file</h1>
+          <span class="headacts" style="display:flex;gap:8px;align-items:center">
+            ${ACTS}
+          </span></div>` : ''}
+        ${viewSwitch()}
+        ${inFolder() ? (() => {
+          const f = folders.find(x => x.id === view);
+          return `<div class="fd-head">
+            <button class="fd-back" data-view="folders" aria-label="All folders">‹ Folders</button>
+            <h2>${f ? `${esc(f.emoji || '📁')} ${esc(f.name)}` : 'Not in a folder'}</h2>
+            ${f ? `<button class="btn-sm" data-a="editfolder">Edit</button>` : ''}
+          </div>`;
+        })() : ''}
+        <div class="filterwrap">
+          <input class="wide" id="q" type="text" placeholder="${inFolder() ? 'Search this folder…' : 'Search swipes…'}" value="${q}">
+          ${inFolder() ? '' : `<select id="f-intent"><option value="">All intents</option>
+            ${INTENTS.map(i => `<option${intent===i?' selected':''}>${i}</option>`).join('')}</select>
+          <select id="f-src"><option value="">Any source</option>
+            ${Object.entries(SOURCES).map(([k,v]) => `<option value="${k}"${src===k?' selected':''}>${v.n}</option>`).join('')}</select>
+          <select id="f-channel"><option value="">Any channel</option>
+            ${CHANNELS.map(c => `<option${channel===c.n?' selected':''}>${c.n}</option>`).join('')}</select>
+          <select id="f-target"><option value="">Any target</option>
+            ${Object.entries(SOURCES).map(([k,v]) => `<option value="${k}"${target===k?' selected':''}>${v.n}</option>`).join('')}</select>`}
+        </div>
+
+        ${fetchQ.running ? `<div class="metaline" style="justify-content:space-between;align-items:center;
+          margin:0 0 12px;padding:9px 12px;border:1px solid #2B2822;border-radius:var(--r)">
+          <span id="fetchbar" style="font-size:13.5px;color:var(--muted)">${fetchBarText()}</span>
+          <button class="btn-sm" data-a="stopfetch">Stop</button></div>` : ''}
+
+        ${rows.length ? `<div class="swipegrid">${rows.map(s => {
+          const so = SOURCES[s.source] || SOURCES.reel;
+          return `<button class="swipecard" data-open="${s.id}">
+            <!-- Still pictures only. A live TikTok / Instagram / Facebook player
+                 here caught the finger on Android, so the grid could only be
+                 scrolled from its edges. The player is on the swipe itself. -->
+            <span class="thumb" style="background-image:${coverFor(s)};overflow:hidden">
+              <span class="src" style="color:${so.c}">${SHORT[s.source] || 'REEL'}</span>
+              <!-- the play badge opens the video itself: looking at the thing
+                   is the point of a swipe file, and it was three taps away -->
+              ${s.url ? `<span class="play" data-watch="${s.url.replace(/"/g,'&quot;')}"
+                role="button" aria-label="Watch it"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l11 7-11 7z"/></svg></span>` : ''}
+              ${!s.myAngle ? `<span class="noangle">No angle yet</span>` : ''}
+            </span>
+            <span class="tx">
+              <h3>${s.title || 'Untitled swipe'}</h3>
+              <span class="mini-tags">
+                ${(s.targets || []).slice(0,4).map(t =>
+                  `<span class="mt" style="color:${(SOURCES[t]||so).c}">${SHORT[t] || t}</span>`).join('')}
+              </span>
+            </span>
+          </button>`;
+        }).join('')}</div>`
+        : inFolder() ? `<div class="empty"><b>Nothing in here yet</b>Hold swipes in All and tap <b>+ Folder</b>,
+            or paste links straight into this folder.</div>`
+        : `<div class="empty"><b>Nothing saved yet</b>Paste a link and break down why it worked while it's fresh.</div>`}
+
+        <p class="note">${rows.length} entr${rows.length===1?'y':'ies'} · YouTube covers load automatically and Instagram posts show a live preview. Add your own cover from the entry for anything else.</p>
+      </div>`;
+      wireIgEmbeds(el);
+    }
+
+    function viewSwitch(){
+      if(!window.SwipeFolders) return '';
+      return `<div class="segmented" role="tablist" style="margin:0 0 12px">
+        <button role="tab" data-view="all" aria-selected="${view === 'all'}">All</button>
+        <button role="tab" data-view="folders" aria-selected="${view !== 'all'}">Folders</button>
+      </div>`;
+    }
+
+    /* the folder tiles: a 2×2 of covers from inside, the name, how many */
+    async function renderFolders(folders){
+      const box = await SwipeFolders.contents();
+      const mosaic = list => `<span class="fd-mosaic">${[0,1,2,3].map(i => list[i]
+        ? `<i style="background-image:${coverFor(list[i])}"></i>` : '<i class="blank"></i>').join('')}</span>`;
+      const tile = (id, emoji, name, list, pinned) => `<button class="fd-tile" data-view="${id}">
+        ${mosaic(list)}
+        <span class="fd-name">${esc(emoji)} ${esc(name)}${pinned ? ' <em>📌</em>' : ''}</span>
+        <span class="fd-n">${list.length} swipe${list.length === 1 ? '' : 's'}</span></button>`;
+      el.innerHTML = (embedded ? '' : Screens.bar({ kicker:'Creator studio', title:'Swipe file' })) + `
+      <div class="view">
+        ${embedded ? `<div class="pagehead"><h1 class="page-title">Swipe file</h1></div>` : ''}
+        ${viewSwitch()}
+        <div class="fd-grid">
+          ${folders.map(f => tile(f.id, f.emoji || '📁', f.name, box[f.id] || [], f.pinned)).join('')}
+          ${box.__none.length ? tile('__none', '🗂️', 'Not in a folder', box.__none, false) : ''}
+          <button class="fd-tile fd-new" data-a="newfolder"><span class="fd-mosaic plus">+</span>
+            <span class="fd-name">New folder</span><span class="fd-n">Back pain, study, crafts…</span></button>
+        </div>
+        ${folders.length ? '' : `<p class="note" style="text-align:left;margin-top:14px">Folders are for keeping
+          things together — a folder for back pain, one for studying with your daughter, one for crafts.
+          A swipe can be in more than one.</p>`}
+      </div>`;
+    }
+
+    /* name, emoji, and whether it's pinned to the top */
+    function folderSheet(f, after){
+      const isNew = !f;
+      const cur = f || { name:'', emoji:'📁', pinned:false };
+      App.sheet(`<h2>${isNew ? 'New folder' : 'Edit folder'}</h2>
+        <div class="field"><label for="fd-name">Name</label>
+          <input id="fd-name" type="text" value="${esc(cur.name)}" placeholder="Back pain" autocomplete="off"></div>
+        <div class="field"><label>Icon</label>
+          <div class="fd-emoji">${SwipeFolders.EMOJI.map(e2 => `<button type="button" data-emo="${e2}"
+            aria-pressed="${cur.emoji === e2}">${e2}</button>`).join('')}</div></div>
+        ${isNew ? '' : `<label style="display:flex;align-items:center;gap:10px;margin:0 0 14px;font-size:15px">
+          <input type="checkbox" id="fd-pin" ${cur.pinned ? 'checked' : ''} style="width:20px;height:20px"> Pin to the top</label>`}
+        <div class="sheetcta"><button class="btn-primary" data-save>${isNew ? 'Create folder' : 'Save'}</button>
+          <button class="btn-ghost" data-cancel>Cancel</button></div>
+        ${isNew ? '' : `<button class="btn-ghost" data-del style="width:100%;margin-top:10px;color:var(--red);
+          border-color:rgba(226,86,74,.4)">Delete folder</button>
+          <p class="hintline" style="margin:6px 0 0">The swipes in it stay in your swipe file.</p>`}`, sh => {
+        let emoji = cur.emoji || '📁';
+        sh.addEventListener('click', async e => {
+          const em = e.target.closest('[data-emo]');
+          if(em){ emoji = em.dataset.emo; sh.querySelectorAll('[data-emo]').forEach(b =>
+            b.setAttribute('aria-pressed', String(b === em))); return; }
+          if(e.target.closest('[data-cancel]')) return App.closeSheet();
+          if(e.target.closest('[data-del]')){
+            if(!confirm(`Delete the folder "${cur.name}"? The swipes in it stay.`)) return;
+            await SwipeFolders.remove(f.id);
+            App.closeSheet(); U.toast('Folder deleted');
+            view = 'folders'; return render();
+          }
+          if(!e.target.closest('[data-save]')) return;
+          const name = sh.querySelector('#fd-name').value.trim();
+          if(!name) return U.toast('Name the folder first');
+          let saved;
+          if(isNew) saved = await SwipeFolders.create(name, emoji);
+          else saved = await SwipeFolders.update(f.id, { name, emoji, pinned: sh.querySelector('#fd-pin').checked });
+          App.closeSheet();
+          if(after) return after(saved);
+          render();
+        });
+        /* the sheet can be gone by the time this fires */
+        setTimeout(() => { const f = sh.querySelector('#fd-name'); if(f) f.focus(); }, 180);
+      });
+    }
+
+    /* which folder should these go into? */
+    async function pickFolder(ids, done){
+      const folders = await SwipeFolders.sorted();
+      App.sheet(`<h2>Add ${ids.length} to a folder</h2>
+        <div class="group compact" style="margin:0 0 12px;max-height:50vh;overflow:auto">
+          ${folders.map(f => `<button class="row" data-pickf="${f.id}"><span class="lbl">${esc(f.emoji || '📁')} ${esc(f.name)}</span></button>`).join('')}
+        </div>
+        <div class="field" style="display:flex;gap:8px">
+          <input id="pf-new" type="text" placeholder="Or a new folder…" autocomplete="off" style="flex:1">
+          <button class="btn-sm accent" data-pfnew>Create</button></div>
+        <div class="sheetcta"><button class="btn-ghost" data-cancel>Cancel</button></div>`, sh => {
+        sh.addEventListener('click', async e => {
+          if(e.target.closest('[data-cancel]')) return App.closeSheet();
+          let fid = null, fname = '';
+          const b = e.target.closest('[data-pickf]');
+          if(b){ fid = b.dataset.pickf; fname = (folders.find(x => x.id === fid) || {}).name; }
+          if(e.target.closest('[data-pfnew]')){
+            const n = sh.querySelector('#pf-new').value.trim();
+            if(!n) return U.toast('Name the folder first');
+            const f = await SwipeFolders.create(n, '📁'); fid = f.id; fname = f.name;
+          }
+          if(!fid) return;
+          const n = await SwipeFolders.addTo(ids, fid);
+          App.closeSheet();
+          U.toast(n ? `Added ${n} to ${fname}` : `Already in ${fname}`);
+          done && done();
+        });
+      });
+    }
+
+    async function openPaste(){
+      const existing = await all();
+      const missing = existing.filter(needsDetails);
+      const pasteFolders = window.SwipeFolders ? await SwipeFolders.sorted() : [];
+      const inApp = window.LinkMeta && LinkMeta.native();
+      App.sheet(`
+        <h2>Add links</h2>
+        <div class="field"><label for="sw-urls">One link or a whole list</label>
+          <textarea id="sw-urls" rows="5" placeholder="https://www.instagram.com/reel/…&#10;https://youtu.be/…&#10;https://vm.tiktok.com/…"></textarea></div>
+        <p style="margin:0 0 14px;color:var(--muted);font-size:14px;line-height:1.55">
+          Paste links any way you like — one per line, or copied straight out of a note. The title, creator and
+          cover are fetched for each one${inApp ? '' : '. In a browser only YouTube can be read; in the app every platform works'}.
+          Links already in your swipe file are skipped.</p>
+        ${pasteFolders.length ? `<div class="field"><label for="sw-folder">Save into a folder</label>
+          <select id="sw-folder"><option value="">No folder</option>
+            ${pasteFolders.map(f => `<option value="${f.id}" ${view === f.id ? 'selected' : ''}>${esc(f.emoji || '📁')} ${esc(f.name)}</option>`).join('')}
+          </select></div>` : ''}
+        <div class="sheetcta">
+          <button class="btn-primary" data-go>Add</button>
+          <button class="btn-ghost" data-cancel>Cancel</button>
+        </div>
+        ${missing.length ? `<button class="btn-ghost" data-fill style="width:100%;margin-top:10px">
+          Fill in missing details for ${missing.length} swipe${missing.length === 1 ? '' : 's'}</button>
+          <p style="margin:6px 0 0;color:var(--dim);font-size:12.5px;line-height:1.5">Titles, creators and covers
+          wherever they're missing. Runs in the background — about a second per swipe.</p>` : ''}`, sheetEl => {
+        const ta = sheetEl.querySelector('#sw-urls');
+        const goBtn = sheetEl.querySelector('[data-go]');
+        const found = () => [...new Set((ta.value.match(/https?:\/\/[^\s<>"'`]+/gi) || [])
+          .map(u => cleanUrl(u.replace(/[),.;!?]+$/, ''))))];
+        ta.addEventListener('input', () => {
+          const n = found().length;
+          goBtn.textContent = n > 1 ? `Add ${n} links` : 'Add';
+        });
+        sheetEl.addEventListener('click', async e => {
+          if(e.target.closest('[data-cancel]')) return App.closeSheet();
+          if(e.target.closest('[data-fill]')){
+            App.closeSheet();
+            queueFetch(missing.map(x => x.id), tick, render);
+            return render();
+          }
+          if(!e.target.closest('[data-go]')) return;
+          const urls = found();
+          if(!urls.length) return U.toast("Couldn't find a link in that");
+          const seen = new Set(existing.map(x => urlKey(x.url)).filter(Boolean));
+          const recs = [];
+          urls.forEach((url, i) => {
+            const k = urlKey(url);
+            if(seen.has(k)) return;
+            seen.add(k);
+            recs.push({ id:uid() + i.toString(36), url, source:detectSource(url), title:'Untitled swipe',
+                        hook:'', beats:[], why:'', transferable:'', myAngle:'',
+                        intent:'Education', channels:[], targets:[], createdAt:Date.now() - i });
+          });
+          const skipped = urls.length - recs.length;
+          if(!recs.length) return U.toast(`Already in your swipe file`);
+          const fsel = sheetEl.querySelector('#sw-folder');
+          if(fsel && fsel.value) recs.forEach(r => { r.folders = [fsel.value]; });
+          for(const r of recs) await Store.put('swipes', r);
+          App.closeSheet();
+
+          /* one link: fetch it now, then open it so you can add the hook */
+          if(recs.length === 1){
+            U.toast('Fetching details…');
+            await enrich(recs[0]);
+            return Screens.push('swipe', { id:recs[0].id, onChange:render });
+          }
+          U.toast(`Added ${recs.length}${skipped ? ` · ${skipped} already in the file` : ''}`);
+          queueFetch(recs.map(r => r.id), tick, render);
+          render();
+        });
+        setTimeout(() => ta.focus(), 180);
+      });
+    }
+    /* drop share-tracking tails (?igsh=, ?si=, ?mibextid=) so the same video
+       always looks the same; YouTube keeps v and t */
+    function cleanUrl(u){
+      try {
+        const p = new URL(u);
+        const host = p.hostname.replace(/^(www\.|m\.)/, '');
+        const v = p.searchParams.get('v');
+        if(/^youtube\.com$/i.test(host) && v){
+          const t = p.searchParams.get('t');
+          return `https://www.youtube.com/watch?v=${v}${t ? '&t=' + t : ''}`;
+        }
+        if(/facebook\.com$/i.test(host) && v) return `https://www.facebook.com/watch/?v=${v}`;
+        if(/instagram|tiktok|facebook|fb\.watch|youtu\.be|threads|x\.com|twitter/i.test(host)){
+          p.search = ''; p.hash = '';
+        }
+        return p.toString();
+      } catch(e){ return u; }
+    }
+    function tick(){
+      const bar = el.querySelector('#fetchbar');
+      if(bar) bar.textContent = fetchBarText();
+    }
+
+    el.addEventListener('input', e => {
+      if(e.target.id === 'q'){ q = e.target.value.trim().toLowerCase(); return render(); }
+    });
+    el.addEventListener('change', e => {
+      const id = e.target.id;
+      if(id === 'f-intent')  intent  = e.target.value;
+      if(id === 'f-src')     src     = e.target.value;
+      if(id === 'f-channel') channel = e.target.value;
+      if(id === 'f-target')  target  = e.target.value;
+      render();
+    });
+    /* Hold one to pick several. The card is a button, so the guard in Select
+       stops a tap from opening an entry while you are choosing. */
+    if(window.Select) Select.enable(el, {
+      itemSelector: '.swipecard',
+      noun: 'swipe',
+      idOf: n => n.dataset.open || null,
+      warning: 'The entries go for good. Anything you wrote about them goes too.',
+      extra: () => !window.SwipeFolders ? [] : [
+        { label:'+ Folder', run: (ids, done) => pickFolder(ids, done) },
+        ...(inFolder() && view !== '__none' ? [{ label:'Remove', run: async (ids, done) => {
+          const n = await SwipeFolders.removeFrom(ids, view);
+          U.toast(`Removed ${n} from this folder`); done();
+        } }] : [])
+      ],
+      onDelete: async ids => {
+        for(const id of ids){
+          try { await Store.del('swipes', id); } catch(err){}
+          /* a cover you uploaded lives in its own store and would be orphaned */
+          try { await Store.del('swipe-thumb', id); } catch(err){}
+        }
+      },
+      onDone: async () => { await loadThumbs(); render(); }
+    });
+
+    el.addEventListener('click', async e => {
+      const vw = e.target.closest('[data-view]');
+      if(vw){ view = vw.dataset.view; q = ''; return render(); }
+      const a = e.target.closest('[data-a]');
+      if(a && a.dataset.a === 'newfolder') return folderSheet(null, f => { view = f ? f.id : 'folders'; render(); });
+      if(a && a.dataset.a === 'editfolder'){
+        const f = window.SwipeFolders ? await SwipeFolders.get(view) : null;
+        return f ? folderSheet(f) : null;
+      }
+      if(a && a.dataset.a === 'paste') return openPaste();
+      if(a && a.dataset.a === 'stopfetch'){ fetchQ.stop = true; a.textContent = 'Stopping…'; return; }
+      if(a && a.dataset.a === 'csv') return openCsv(render);
+      if(e.target.closest('[data-a="covers"]')){
+        /* Everything saved before this could fetch covers, and anything from a
+           platform that was down at the time. One at a time rather than a
+           hundred requests at once. */
+        const untitled = x => !x.title || /^untitled/i.test(x.title);
+        const rows = (await all()).filter(x => x.url && (!x.imageUrl || untitled(x)));
+        if(!rows.length) return U.toast('Every one is named and covered');
+        U.toast(`Looking at ${rows.length}…`);
+        const n = await Thumb.backfill(rows, 'swipe-thumb',
+          async r => { await Store.put('swipes', r); },
+          { nameIf: untitled });
+        await loadThumbs();
+        render();
+        if(n) return U.toast(`Updated ${n} of ${rows.length}`);
+
+        /* Saying "none of them worked" and stopping is how you end up guessing.
+           Say which wall you hit. */
+        const reason = Thumb.why && Thumb.why();
+        if(!Thumb.nativeHttp || !Thumb.nativeHttp()){
+          return U.toast('Needs the installed app — a browser blocks these requests');
+        }
+        return U.toast(reason || 'None of those platforms would answer');
+      }
+
+      /* before the card, or tapping play would open the entry instead */
+      const w2 = e.target.closest('[data-watch]');
+      if(w2){
+        e.stopPropagation();
+        try { window.open(w2.dataset.watch, '_blank', 'noopener'); } catch(err){}
+        return;
+      }
+
+      const o = e.target.closest('[data-open]');
+      if(o) Screens.push('swipe', { id:o.dataset.open, onChange:render });
+    });
+
+    await loadThumbs();
+    await loadChannels();
+    render();
+
+    /* Cards with no picture at all get one, quietly, on a device that can ask
+       the platforms (the phone and Windows apps; a browser cannot). Once a
+       session; the cover is saved and syncs to the other devices. */
+    if(!autoCovers && window.LinkMeta && LinkMeta.native && LinkMeta.native()){
+      autoCovers = true;
+      const bare = (await all()).filter(s => s.url && !thumbs[s.id] && !s.imageUrl && !ytId(s.url));
+      if(bare.length){ queueFetch(bare.map(s => s.id), tick, async () => { await loadThumbs(); render(); }); render(); }
+    }
+  }
+
+  /* ---------- CSV import ---------- */
+  /* Minimal RFC-4180 parse: handles quoted fields and embedded commas. */
+  function parseCSV(text){
+    const rows = [];
+    let row = [], field = '', quoted = false;
+    for(let i = 0; i < text.length; i++){
+      const c = text[i];
+      if(quoted){
+        if(c === '"' && text[i+1] === '"'){ field += '"'; i++; }
+        else if(c === '"') quoted = false;
+        else field += c;
+      } else if(c === '"') quoted = true;
+      else if(c === ','){ row.push(field); field = ''; }
+      else if(c === '\n'){ row.push(field); rows.push(row); row = []; field = ''; }
+      else if(c !== '\r') field += c;
+    }
+    if(field || row.length){ row.push(field); rows.push(row); }
+    return rows.filter(r => r.some(x => x.trim()));
+  }
+
+  /* Same video, however it was copied: tracking params and trailing slashes
+     don't count, and every YouTube form collapses to its 11-char id. */
+  function urlKey(url){
+    const u = String(url || '').trim();
+    if(!u) return '';
+    const yt = ytId(u);
+    if(yt) return 'yt:' + yt;
+    try {
+      const p = new URL(u);
+      const host = p.hostname.replace(/^(www\.|m\.)/, '');
+      const v = host.includes('facebook') ? (p.searchParams.get('v') || '') : '';
+      return (host + p.pathname.replace(/\/+$/, '') + (v ? '?v=' + v : '')).toLowerCase();
+    } catch(e){ return u.toLowerCase(); }
+  }
+
+  function openCsv(after){
+    App.sheet(`
+      <h2>Import swipes</h2>
+      <p style="margin:0 0 14px;color:var(--muted);font-size:14.5px;line-height:1.6">
+        One row per swipe. A header row is expected. Recognised columns, in any order:</p>
+      <p style="margin:0 0 16px;font-family:ui-monospace,monospace;font-size:12.5px;color:var(--cream);
+        background:var(--bg);border:1px solid var(--line);border-radius:var(--r);padding:11px;line-height:1.7">
+        title, url, source, hook, why, transferable, angle, intent, channels, targets</p>
+      <p style="margin:0 0 16px;color:var(--muted);font-size:14px;line-height:1.6">
+        <b style="color:var(--cream)">channels</b> and <b style="color:var(--cream)">targets</b> take several
+        values separated by semicolons. Anything missing is left blank — source is guessed from the link.
+        A link already in the swipe file is skipped, so importing the same file twice is safe.</p>
+      <div class="field">
+        <label for="csv-file">Choose a CSV file</label>
+        <input id="csv-file" type="file">
+      </div>
+      <div class="field"><label for="csv-text">…or paste the CSV</label>
+        <textarea id="csv-text" rows="6" placeholder="title,url,intent&#10;Mr2 tuesday,https://…,Education"></textarea></div>
+      <div class="sheetcta">
+        <button class="btn-primary" data-go>Import</button>
+        <button class="btn-ghost" data-cancel>Cancel</button>
+      </div>`, sheetEl => {
+      const fileIn = sheetEl.querySelector('#csv-file');
+      const textIn = sheetEl.querySelector('#csv-text');
+      const goBtn  = sheetEl.querySelector('[data-go]');
+      let busy = false;
+
+      /* Picking a file drops its contents into the box, so you can see what's coming in. */
+      fileIn.addEventListener('change', async () => {
+        const f = fileIn.files && fileIn.files[0];
+        if(!f) return;
+        /* No file-type filter on the picker: Android labels CSVs several ways
+           and greys out any it doesn't match. Check the name here instead. */
+        if(!/\.(csv|txt)$/i.test(f.name)) return U.toast('Pick a .csv file');
+        try {
+          textIn.value = (await f.text()).replace(/^\uFEFF/, '');
+          const n = parseCSV(textIn.value.trim()).length - 1;
+          U.toast(`${f.name}: ${Math.max(n,0)} row${n===1?'':'s'} ready`);
+        } catch(err){ console.error(err); U.toast("Couldn't read that file"); }
+      });
+
+      sheetEl.addEventListener('click', async e => {
+        if(e.target.closest('[data-cancel]')) return busy ? null : App.closeSheet();
+        if(!e.target.closest('[data-go]') || busy) return;
+
+        const rows = parseCSV(textIn.value.trim());
+        if(rows.length < 2) return U.toast('Needs a header row and at least one entry');
+
+        busy = true;
+        goBtn.disabled = true;
+        const label = goBtn.textContent;
+
+        try {
+          const head = rows[0].map(h => h.trim().toLowerCase());
+          const col = n => head.indexOf(n);
+          const list = n => String(n || '').split(';').map(x => x.trim()).filter(Boolean);
+
+          /* Everything already saved, plus what this file adds as it goes. */
+          const { values } = await Store.all('swipes');
+          const seen = new Set(values.map(s => urlKey(s.url)).filter(Boolean));
+
+          const body = rows.slice(1);
+          let added = 0, skipped = 0;
+          for(let i = 0; i < body.length; i++){
+            const r = body[i];
+            const get = n => { const c = col(n); return c === -1 ? '' : (r[c] || '').trim(); };
+            const url = get('url');
+            const key = urlKey(url);
+            if(key && seen.has(key)){ skipped++; continue; }
+            if(key) seen.add(key);
+
+            await Store.put('swipes', {
+              id: uid() + i.toString(36), url, title: get('title') || 'Untitled swipe',
+              source: get('source') || (url ? detectSource(url) : 'reel'),
+              hook: get('hook'), why: get('why'), transferable: get('transferable'),
+              myAngle: get('angle'), intent: get('intent') || 'Education',
+              channels: list(get('channels')), targets: list(get('targets')),
+              beats: [], createdAt: Date.now() - added
+            });
+            added++;
+            if(i % 10 === 0) goBtn.textContent = `Importing… ${i + 1}/${body.length}`;
+          }
+
+          App.closeSheet();
+          U.toast(`Imported ${added} swipe${added===1?'':'s'}` +
+                  (skipped ? ` · skipped ${skipped} already in the file` : ''));
+          after && after();
+        } catch(err){
+          console.error(err);
+          U.toast('Import stopped partway — run it again, saved rows will be skipped');
+          busy = false;
+          goBtn.disabled = false;
+          goBtn.textContent = label;
+        }
+      });
+    });
+  }
+
+  /* ---------- entry ---------- */
+  async function mountEntry(el, params){
+    let s;
+    const save = async () => { await Store.put('swipes', s); params.onChange && params.onChange(); };
+
+    async function render(){
+      s = await Store.get('swipes', params.id);
+      if(!s){ Screens.pop(); return; }
+      const so = SOURCES[s.source] || SOURCES.reel;
+
+      el.innerHTML = Screens.bar({ kicker:'Swipe file', title:s.title || 'Untitled swipe' }) + `
+      <div class="view">
+        ${(window.Embed && !thumbs[s.id] && Embed.can(s.url))
+          ? `<!-- the platform's own player: it draws its poster frame for free,
+                  which is what you wanted rather than a downloaded copy -->
+             ${Embed.html(s.url)}`
+          : `<div class="thumb" style="aspect-ratio:16/9;border-radius:var(--r);background-size:cover;
+               background-position:center;background-color:#221F1A;border:1px solid #2B2822;margin:0 0 12px;
+               background-image:${coverFor(s)}"></div>`}
+        <div class="metaline">
+          <button class="btn-sm" data-a="thumb">${thumbs[s.id] ? 'Change cover' : 'Add cover'}</button>
+          ${s.url ? `<button class="btn-sm" data-a="open">↗ Open source</button>` : ''}
+          <span class="tg" style="color:${so.c};border:1px solid ${so.c};background:transparent">${so.n}</span>
+        </div>
+
+        <div class="block">
+          <h4>Title</h4>
+          <input class="fld" data-f="title" type="text" value="${(s.title||'').replace(/"/g,'&quot;')}"
+            style="width:100%;height:44px;background:var(--bg);border:1px solid var(--line);
+            border-radius:var(--r);color:var(--cream);font-size:16px;padding:0 11px;outline:none">
+        </div>
+
+        <div class="block">
+          <h4>The hook, transcribed</h4>
+          <textarea class="fld" data-f="hook" rows="3" placeholder="Their opening line, word for word — paraphrasing loses what made it work."
+            style="width:100%;background:var(--bg);border:1px solid var(--line);border-radius:var(--r);
+            color:var(--cream);font-size:15.5px;padding:11px;outline:none;line-height:1.5;resize:vertical">${s.hook||''}</textarea>
+        </div>
+
+        <div class="block">
+          <h4>Structure — the beats in order</h4>
+          ${(s.beats||[]).length ? (s.beats||[]).map((b,i) =>
+            `<div class="beatrow"><span class="n">${i+1}</span><span style="flex:1;font-size:15px">${b}</span>
+             <button class="x" data-beat="${i}">×</button></div>`).join('')
+            : `<p style="color:var(--muted);margin:0 0 10px;font-size:14.5px">No beats yet — walk the post and add one line per move it makes.</p>`}
+          <div style="display:flex;gap:9px;margin-top:10px">
+            <input id="beat" type="text" placeholder='e.g. "Accusation in frame one"'
+              style="flex:1;height:44px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r);
+              color:var(--cream);font-size:15px;padding:0 11px;outline:none">
+            <button class="btn-sm" data-a="addbeat" style="width:52px;justify-content:center">+</button>
+          </div>
+        </div>
+
+        <div class="block">
+          <h4>Why it worked</h4>
+          <textarea class="fld" data-f="why" rows="3" placeholder="What is actually doing the work here — and what is just decoration?"
+            style="width:100%;background:var(--bg);border:1px solid var(--line);border-radius:var(--r);
+            color:var(--cream);font-size:15.5px;padding:11px;outline:none;line-height:1.5;resize:vertical">${s.why||''}</textarea>
+        </div>
+
+        <div class="block">
+          <h4>What is transferable</h4>
+          <textarea class="fld" data-f="transferable" rows="3" placeholder="The part that survives being lifted out of their topic and dropped into yours."
+            style="width:100%;background:var(--bg);border:1px solid var(--line);border-radius:var(--r);
+            color:var(--cream);font-size:15.5px;padding:11px;outline:none;line-height:1.5;resize:vertical">${s.transferable||''}</textarea>
+        </div>
+
+        <div class="block">
+          <h4>My angle</h4>
+          <textarea class="fld" data-f="myAngle" rows="4" placeholder="Your version. First line becomes the idea title, the whole note becomes its script notes."
+            style="width:100%;background:var(--bg);border:1px solid var(--line);border-radius:var(--r);
+            color:var(--cream);font-size:15.5px;padding:11px;outline:none;line-height:1.5;resize:vertical">${s.myAngle||''}</textarea>
+        </div>
+
+        <div class="block">
+          <h4>Intent</h4>
+          <div class="opts">${INTENTS.map(i =>
+            `<button class="opt" data-set="intent" data-v="${i}" aria-pressed="${s.intent===i}">${i}</button>`).join('')}</div>
+        </div>
+
+        <div class="block">
+          <h4>Channels — which of your brands this suits</h4>
+          <div class="opts">${CHANNELS.map(c =>
+            `<button class="opt" data-tog="channels" data-v="${c.n}" aria-pressed="${(s.channels||[]).includes(c.n)}">
+              <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${c.c};margin-right:6px"></span>${c.n}</button>`).join('')}</div>
+        </div>
+
+        <div class="block">
+          <h4>Is this the bar?</h4>
+          <p class="note" style="text-align:left;margin:0 0 10px">One channel only. A video
+            that is the standard for everything is the standard for nothing — this is the
+            one you would point at and say <i>exactly this</i>.</p>
+          <div class="opts">
+            <button class="opt" data-bar="" aria-pressed="${!s.barFor}">Not the bar</button>
+            ${(s.channels || []).length
+              ? (s.channels || []).map(n => {
+                  const c = CHANNELS.find(x => x.n === n) || { c:'var(--orange)' };
+                  return `<button class="opt" data-bar="${n.replace(/"/g,'&quot;')}"
+                    aria-pressed="${s.barFor === n}">
+                    <span style="display:inline-block;width:7px;height:7px;border-radius:50%;
+                      background:${c.c};margin-right:6px"></span>${n}</button>`;
+                }).join('')
+              : '<span class="note" style="text-align:left">Pick a channel above first.</span>'}
+          </div>
+        </div>
+
+        <div class="block">
+          <h4>Target platforms — where your version would run</h4>
+          <div class="opts">${Object.entries(SOURCES).map(([k,v]) =>
+            `<button class="opt" data-tog="targets" data-v="${k}" aria-pressed="${(s.targets||[]).includes(k)}">
+              <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${v.c};margin-right:6px"></span>${v.n}</button>`).join('')}</div>
+        </div>
+
+        ${await entryFoldersHTML(s)}
+
+        ${await usedInHTML(s)}
+
+        <div class="metaline" style="margin-top:4px">
+          <button class="btn-sm accent" data-a="toclip">Use for a clip</button>
+          ${s.url ? `<button class="btn-sm" data-a="refetch">Fetch details</button>` : ''}
+          <button class="btn-sm" data-a="piece">Attach to piece</button>
+          <button class="btn-sm" data-a="idea">Convert to idea</button>
+          <button class="btn-sm" data-a="delete" style="color:var(--red);border-color:rgba(226,86,74,.4)">Delete</button>
+        </div>
+      </div>`;
+    }
+
+    el.addEventListener('input', e => {
+      const f = e.target.closest('.fld');
+      if(!f) return;
+      s[f.dataset.f] = e.target.value;
+      clearTimeout(el._t);
+      el._t = setTimeout(save, 400);   /* debounce so typing isn't a write per keystroke */
+    });
+
+    /* Hold one to pick several. The card is a button, so the guard in Select
+       stops a tap from opening an entry while you are choosing. */
+    if(window.Select) Select.enable(el, {
+      itemSelector: '.swipecard',
+      noun: 'swipe',
+      idOf: n => n.dataset.open || null,
+      warning: 'The entries go for good. Anything you wrote about them goes too.',
+      onDelete: async ids => {
+        for(const id of ids){
+          try { await Store.del('swipes', id); } catch(err){}
+          /* a cover you uploaded lives in its own store and would be orphaned */
+          try { await Store.del('swipe-thumb', id); } catch(err){}
+        }
+      },
+      onDone: async () => { await loadThumbs(); render(); }
+    });
+
+    el.addEventListener('click', async e => {
+      const set = e.target.closest('[data-set]');
+      if(set){ s[set.dataset.set] = set.dataset.v; await save(); return render(); }
+
+      const fo = e.target.closest('[data-fold]');
+      if(fo){
+        const id = fo.dataset.fold;
+        s.folders = (s.folders || []).includes(id) ? s.folders.filter(x => x !== id) : (s.folders || []).concat(id);
+        await save(); return render();
+      }
+      if(e.target.closest('[data-a="foldnew"]')){
+        const n = (prompt('Name the new folder') || '').trim();
+        if(!n) return;
+        const f = await SwipeFolders.create(n, '📁');
+        s.folders = [...new Set((s.folders || []).concat(f.id))];
+        await save(); U.toast(`Added to ${f.name}`); return render();
+      }
+
+      const uc = e.target.closest('[data-used-clip]');
+      if(uc) return Screens.push('clip', { id: uc.dataset.usedClip });
+      const ut = e.target.closest('[data-used-task]');
+      if(ut) return Screens.push('task', { id: ut.dataset.usedTask });
+
+      const barBtn = e.target.closest('[data-bar]');
+      if(barBtn){
+        /* one channel per benchmark, so this replaces rather than adds */
+        s.barFor = barBtn.dataset.bar || null;
+        await save();
+        return render();
+      }
+
+      const tog = e.target.closest('[data-tog]');
+      if(tog){
+        const k = tog.dataset.tog, v = tog.dataset.v;
+        s[k] = s[k] || [];
+        s[k].includes(v) ? s[k] = s[k].filter(x => x !== v) : s[k].push(v);
+        await save(); return render();
+      }
+
+      const b = e.target.closest('[data-beat]');
+      if(b){ s.beats.splice(+b.dataset.beat, 1); await save(); return render(); }
+
+      const a = e.target.closest('[data-a]');
+      if(!a) return;
+      if(a.dataset.a === 'addbeat'){
+        const input = el.querySelector('#beat');
+        const v = input.value.trim();
+        if(!v) return;
+        s.beats = s.beats || []; s.beats.push(v);
+        await save(); return render();
+      }
+      if(a.dataset.a === 'thumb'){
+        App.pickImage(async file => {
+          await Store.put('swipe-thumb', file, s.id);
+          await loadThumbs(); render(); params.onChange && params.onChange();
+        });
+      }
+      if(a.dataset.a === 'open' && s.url) window.open(s.url, '_blank');
+      if(a.dataset.a === 'idea'){
+        if(!s.myAngle) return U.toast('Write your angle first — that becomes the idea');
+        const lines = s.myAngle.split('\n').map(x => x.trim()).filter(Boolean);
+        await Data.saveClip({ title:lines[0], plat:(s.targets||[])[0] === 'tiktok' ? 'tiktok' : 'youtube',
+                              state:'raw', seriesId:null, dur:'0:00' });
+        U.toast('Added to Clips as a raw idea');
+      }
+      if(a.dataset.a === 'piece') return attachToPiece(s, render);
+      if(a.dataset.a === 'toclip') return linkToClip(s, render);
+      if(a.dataset.a === 'refetch'){
+        a.textContent = 'Fetching…';
+        const got = await enrich(s);
+        U.toast(got ? 'Details updated' : (window.LinkMeta && LinkMeta.native()
+          ? 'Nothing new found for this link' : 'Only YouTube can be read in a browser — try it in the app'));
+        params.onChange && params.onChange();
+        return render();
+      }
+      if(a.dataset.a === 'delete'){
+        await Store.del('swipes', s.id);
+        await Store.del('swipe-thumb', s.id);
+        params.onChange && params.onChange();
+        Screens.pop();
+      }
+    });
+
+    await loadThumbs();
+    await loadChannels();
+    render();
+  }
+
+  /* ---------- the folders a swipe is in, as chips you tap on and off ---------- */
+  async function entryFoldersHTML(s){
+    if(!window.SwipeFolders) return '';
+    const folders = await SwipeFolders.sorted();
+    const esc = t => String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    return `<div class="block">
+      <h4>Folders</h4>
+      <div class="opts" style="flex-wrap:wrap">
+        ${folders.map(f => `<button class="opt" data-fold="${f.id}" aria-pressed="${(s.folders || []).includes(f.id)}"
+          >${esc(f.emoji || '📁')} ${esc(f.name)}</button>`).join('')}
+        <button class="opt" data-a="foldnew">+ New folder</button>
+      </div>
+    </div>`;
+  }
+
+  /* ---------- where this swipe is being used ---------- */
+  async function usedInHTML(swipe){
+    const [clips, tasks] = await Promise.all([Data.clips(), Data.tasks()]);
+    const inClips = clips.filter(c => c.plan && (
+      (c.plan.swipeIds || []).includes(swipe.id) ||
+      (c.plan.versions || []).some(v => v.swipeId === swipe.id)));
+    const inTasks = tasks.filter(t => t.swipeId === swipe.id || (t.swipeIds || []).includes(swipe.id));
+    if(!inClips.length && !inTasks.length) return '';
+    return `<div class="block">
+      <h4>Used in</h4>
+      <div class="metaline" style="margin:0;flex-wrap:wrap">
+        ${inClips.map(c => `<button class="btn-sm" data-used-clip="${c.id}">▶ ${c.title || 'Untitled clip'}</button>`).join('')}
+        ${inTasks.map(t => `<button class="btn-sm" data-used-task="${t.id}">✓ ${t.title}</button>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  /* ---------- link this swipe to a clip's references ---------- */
+  async function linkToClip(swipe, after){
+    const clips = (await Data.clips()).slice()
+      .sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
+    if(!clips.length) return U.toast('No clips yet — add one in the Clips tab');
+    const row = c => {
+      const has = c.plan && (c.plan.swipeIds || []).includes(swipe.id);
+      return `<button class="opt" data-clip="${c.id}" aria-pressed="${!!has}"
+        style="width:100%;justify-content:space-between;margin:0 0 6px;text-align:left">
+        <span>${c.title || 'Untitled clip'}</span>
+        <small style="opacity:.7">${has ? 'linked' : c.state || ''}</small></button>`;
+    };
+    App.sheet(`
+      <h2>Use for a clip</h2>
+      <div class="field"><input id="lc-q" type="text" placeholder="Search clips…"></div>
+      <div id="lc-list" style="max-height:52vh;overflow:auto">${clips.map(row).join('')}</div>
+      <div class="sheetcta"><button class="btn-ghost" data-cancel>Done</button></div>`, sheetEl => {
+      const q = sheetEl.querySelector('#lc-q'), list = sheetEl.querySelector('#lc-list');
+      q.addEventListener('input', () => {
+        const v = q.value.trim().toLowerCase();
+        list.innerHTML = clips.filter(c => !v || (c.title || '').toLowerCase().includes(v)).map(row).join('');
+      });
+      sheetEl.addEventListener('click', async e => {
+        if(e.target.closest('[data-cancel]')){ App.closeSheet(); return after && after(); }
+        const b = e.target.closest('[data-clip]');
+        if(!b) return;
+        const c = clips.find(x => x.id === b.dataset.clip);
+        c.plan = c.plan || {};
+        const ids = c.plan.swipeIds = c.plan.swipeIds || [];
+        const i = ids.indexOf(swipe.id);
+        i === -1 ? ids.push(swipe.id) : ids.splice(i, 1);
+        await Data.saveClip(c);
+        U.toast(i === -1 ? `Linked to ${c.title || 'the clip'}` : 'Unlinked');
+        list.innerHTML = clips.filter(x => !q.value.trim() ||
+          (x.title || '').toLowerCase().includes(q.value.trim().toLowerCase())).map(row).join('');
+      });
+    });
+  }
+
+  /* ---------- attach to a piece (a task you'll shoot) ---------- */
+  async function attachToPiece(swipe, after){
+    const [tasks, today] = await Promise.all([Data.tasks(), Data.currentDay()]);
+    const upcoming = tasks.filter(t => t.day >= today && t.view !== 'done')
+                          .sort((a,b) => a.day - b.day).slice(0, 12);
+    const suggested = (swipe.myAngle || '').split('\n')[0].trim() || swipe.title;
+
+    const dayField = await U.dayField('pc-day', today);
+    App.sheet(`
+      <h2>Attach to a piece</h2>
+      <p style="margin:0 0 16px;color:var(--muted);font-size:14.5px;line-height:1.6">
+        A piece is something you'll shoot. Attaching puts it on Today, with this swipe one tap away
+        while you're filming.</p>
+      <div class="field"><label for="pc-title">New piece</label>
+        <input id="pc-title" type="text" value="${suggested.replace(/"/g,'&quot;')}" placeholder="Shoot: cold open">
+      </div>
+      ${dayField}
+      <div class="sheetcta">
+        <button class="btn-primary" data-new>Create piece</button>
+        <button class="btn-ghost" data-cancel>Cancel</button>
+      </div>
+      ${upcoming.length ? `<p class="caps muted" style="font-size:11.5px;margin:22px 0 10px">Or attach to an existing one</p>
+        <div class="group compact" style="margin:0">
+          ${upcoming.map(t => `<button class="row" data-task="${t.id}">
+            <span class="lbl">${t.title}<small>Day ${t.day}${t.swipeId ? ' · already has a swipe' : ''}</small></span>
+            ${U.ICON.chevR}</button>`).join('')}
+        </div>` : ''}`, sheetEl => {
+      U.wireDayField(sheetEl, 'pc-day');
+      sheetEl.addEventListener('click', async e => {
+        if(e.target.closest('[data-cancel]')) return App.closeSheet();
+
+        const ex = e.target.closest('[data-task]');
+        if(ex){
+          const t = tasks.find(x => x.id === +ex.dataset.task);
+          t.swipeId = swipe.id;
+          await Store.put('tasks', t);
+          Data.invalidate('tasks');
+          App.closeSheet(); U.toast('Attached — it is on Today'); after && after();
+          return;
+        }
+        if(!e.target.closest('[data-new]')) return;
+
+        const title = sheetEl.querySelector('#pc-title').value.trim();
+        if(!title) return U.toast('Name the piece first');
+        const day = (await U.readDayField(sheetEl, 'pc-day')) || today;
+        const id = U.taskId();
+
+        await Store.put('tasks', { id, day, title, cad:'Shoot day', pri:'med', prog:'',
+                                   subs:[], view:'todo', swipeId:swipe.id });
+        Data.invalidate('tasks');
+        App.closeSheet();
+        U.toast(`Added to Day ${day}`);
+        after && after();
+      });
+    });
+  }
+
+  /* Other screens (a clip's references, a task's references) borrow the same
+     covers and Instagram previews the swipe file uses. */
+  window.SwipeView = { SOURCES, SHORT, coverFor, igId, loadThumbs, mountIgEmbed,
+                       hasThumb: id => !!thumbs[id] };
+
+  /* folders: tiles, the open folder's header, the icon picker, the extra bar button */
+  (function folderCSS(){
+    if(document.getElementById('fd-css')) return;
+    const st = document.createElement('style');
+    st.id = 'fd-css';
+    st.textContent = `
+    .fd-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .fd-tile{display:flex;flex-direction:column;padding:0;text-align:left;cursor:pointer;overflow:hidden;
+      border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);color:var(--cream)}
+    .fd-mosaic{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px;aspect-ratio:1/1;
+      background:var(--surface-1)}
+    .fd-mosaic i{display:block;background-size:cover;background-position:center;background-color:#221F1A}
+    .fd-mosaic i.blank{background:var(--surface-1)}
+    .fd-mosaic.plus{display:flex;align-items:center;justify-content:center;font-size:44px;color:var(--muted);
+      border-bottom:1px dashed var(--line)}
+    .fd-new{border-style:dashed;background:none}
+    .fd-name{display:block;padding:9px 10px 0;font-family:var(--display),sans-serif;font-weight:900;font-size:15.5px;
+      line-height:1.25}
+    .fd-name em{font-style:normal;font-size:12px}
+    .fd-n{display:block;padding:3px 10px 10px;font-size:12.5px;color:var(--muted)}
+    .fd-head{display:flex;align-items:center;gap:10px;margin:0 0 12px}
+    .fd-head h2{flex:1;min-width:0;margin:0;font-family:var(--display),sans-serif;font-weight:900;font-size:22px;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .fd-back{padding:6px 10px;border:1px solid var(--line);border-radius:var(--r);background:none;
+      color:var(--muted);font-size:13.5px;cursor:pointer}
+    .fd-emoji{display:flex;flex-wrap:wrap;gap:6px}
+    .fd-emoji button{width:42px;height:42px;font-size:21px;border:1px solid var(--line);border-radius:var(--r);
+      background:none;cursor:pointer}
+    .fd-emoji button[aria-pressed="true"]{border-color:var(--orange);background:rgba(251,105,0,.12)}
+    .selbar .sb-extra{background:var(--surface-2);color:var(--cream)}`;
+    document.head.appendChild(st);
+  })();
+
+  Screens.register('swipe-file', mountList);
+  Screens.register('swipe', mountEntry);
+})();

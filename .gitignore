@@ -1,0 +1,15 @@
+node_modules/
+www/
+dist/
+_site/
+backups/
+creator-studio-preview.html
+android/.gradle/
+android/build/
+android/app/build/
+android/app/src/main/assets/public/
+android/capacitor-cordova-android-plugins/build/
+android/local.properties
+android/.idea/
+shots/
+app/update.json

@@ -1,0 +1,61 @@
+# Publishes the web app to GitHub Pages, which is what the iPad installs from.
+#
+# Only app/ is published, minus the tests — everything else in the repo (the
+# Android project, Electron, the docs) stays in the repo and off the web.
+name: Pages
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:        # so a deploy can be kicked off by hand
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; never cancel one midway, or Pages can be left serving
+# a half-written build.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Stage the web app
+        run: |
+          mkdir -p _site
+          cp -r app/. _site/
+          rm -rf _site/tests _site/build-preview.sh
+          # Pages runs Jekyll by default, which silently drops files and folders
+          # beginning with an underscore. This app has none today, but a future
+          # one would vanish without a word.
+          touch _site/.nojekyll
+
+      - name: Stamp the service worker
+        run: node scripts/build-sw.js _site
+
+      - name: Check nothing is missing
+        run: node scripts/check-site.js _site
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

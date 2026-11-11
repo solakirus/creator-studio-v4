@@ -1,0 +1,61 @@
+Creator Studio 3 on the iPad
+============================
+
+ONE-TIME SETUP (about 10 minutes)
+
+1. Push this repo to GitHub.
+      cd C:\Users\Khale\Projects\creator-studio-3
+      git remote add origin https://github.com/solakirus/creator-studio-3.git
+      git push -u origin main
+
+   (If the remote already exists, just push.)
+
+2. Turn Pages on.
+      GitHub > your repo > Settings > Pages
+      Under "Build and deployment", set Source to "GitHub Actions".
+   That is the only setting. The workflow is already in the repo.
+
+3. Wait for the green tick on the Actions tab. Your address will be:
+      https://solakirus.github.io/creator-studio-3/
+
+ON THE IPAD
+
+4. Open that address in SAFARI. Not Chrome — only Safari can install.
+5. Share button > Add to Home Screen > Add.
+6. Open it from the home screen icon, not from Safari.
+
+   THIS STEP IS NOT OPTIONAL. Safari wipes an ordinary website's data after
+   7 unused days. A home-screen app is exempt. A bookmark would lose
+   everything in a week.
+
+AFTER THAT
+
+   It works with no signal. It updates itself whenever you push and the
+   Actions run goes green — open it with signal once and the new version is
+   there.
+
+WHAT IS AND IS NOT THERE
+
+   Everything works except the Android-only pieces: notifications, the home
+   screen widgets, and the share-into-the-app shortcuts. The Apple Pencil
+   works properly in the paper planner — pressure, and your palm is ignored
+   once the Pencil has touched the page.
+
+IMPORTANT: THE IPAD IS A SEPARATE DATABASE
+
+   The iPad, the phone and the laptop each keep their own. Nothing syncs on
+   its own. To move things across: Settings > Export everything on one,
+   Restore from backup on the other.
+
+TWO THINGS THAT WILL BE PUBLIC
+
+   The repo is public, so the code is readable by anyone. Your data never
+   leaves your devices — it is not in the repo and never gets uploaded.
+   But two things in the code name you:
+     - the Settings footer says "Made in Plant City"
+     - the name field placeholder says "Khaleem Catten"
+   Say the word and I will change both.
+
+IF SOMETHING LOOKS STALE
+   Open it with signal and give it a moment — the page is fetched fresh
+   whenever the network answers, and it reloads itself onto the new build.

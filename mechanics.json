@@ -1,0 +1,519 @@
+{
+    "version":  1,
+    "values":  [
+                   {
+                       "name":  "library kinds",
+                       "group":  "library",
+                       "value":  "GIF, Clip, Still",
+                       "source":  "Shotline library.rs kind_of (31)"
+                   },
+                   {
+                       "name":  "biggest moving GIF",
+                       "group":  "library",
+                       "value":  30,
+                       "unit":  "MB",
+                       "source":  "Shotline clips.js MAX_GIF (13)"
+                   },
+                   {
+                       "name":  "folder depth read",
+                       "group":  "library",
+                       "value":  6,
+                       "unit":  "levels",
+                       "source":  "Shotline library.rs walk (144)"
+                   },
+                   {
+                       "name":  "default library folder",
+                       "group":  "library",
+                       "value":  "~/Shot Library",
+                       "source":  "Shotline model.rs default_root (667)"
+                   },
+                   {
+                       "name":  "board groups",
+                       "group":  "library",
+                       "value":  "Activity, Location, Mood, Subject, Other",
+                       "source":  "Shotline library.rs BOARD_GROUPS (370)"
+                   },
+                   {
+                       "name":  "board group length",
+                       "group":  "library",
+                       "value":  30,
+                       "unit":  "characters",
+                       "source":  "Shotline ui_lib.rs (581)"
+                   },
+                   {
+                       "name":  "safe file name length",
+                       "group":  "library",
+                       "value":  120,
+                       "unit":  "characters",
+                       "source":  "Shotline library.rs safe_name (413)"
+                   },
+                   {
+                       "name":  "clips play",
+                       "group":  "library",
+                       "value":  "while pointed at, muted, looping",
+                       "source":  "Shotline views-clips.js hoverPlay (29-39)"
+                   },
+                   {
+                       "name":  "grab max pages",
+                       "group":  "grab",
+                       "value":  500,
+                       "source":  "Shotline grab.rs start_grab (217)"
+                   },
+                   {
+                       "name":  "grab max stills",
+                       "group":  "grab",
+                       "value":  10000,
+                       "source":  "Shotline grab.rs start_grab (223)"
+                   },
+                   {
+                       "name":  "grab GIF length max",
+                       "group":  "grab",
+                       "value":  15,
+                       "unit":  "s",
+                       "source":  "Shotline grab.rs start_grab (231)"
+                   },
+                   {
+                       "name":  "find links max",
+                       "group":  "grab",
+                       "value":  2000,
+                       "source":  "Shotline grab.rs start_scan (249)"
+                   },
+                   {
+                       "name":  "template kinds",
+                       "group":  "templates",
+                       "value":  "Notebook pages, Weekly video, Short, Vlog day, Task list",
+                       "source":  "Shotline model.rs TEMPLATE_KINDS (410)"
+                   },
+                   {
+                       "name":  "shot lengths offered",
+                       "group":  "templates",
+                       "value":  "0.5 1 1.5 2 2.5 3 4 5 6 8 10 12 15 20 30",
+                       "unit":  "s",
+                       "source":  "Shotline model.rs DURATIONS (101)"
+                   },
+                   {
+                       "name":  "shot length weekly video",
+                       "group":  "templates",
+                       "value":  4,
+                       "unit":  "s",
+                       "source":  "Shotline model.rs VLOG_SHOT_SECONDS (108)"
+                   },
+                   {
+                       "name":  "shot length short",
+                       "group":  "templates",
+                       "value":  2,
+                       "unit":  "s",
+                       "source":  "Shotline model.rs SHORT_SHOT_SECONDS (109)"
+                   },
+                   {
+                       "name":  "still dropped on a shot",
+                       "group":  "templates",
+                       "value":  3,
+                       "unit":  "s",
+                       "source":  "Shotline app.rs shot_from_item (359)"
+                   },
+                   {
+                       "name":  "clip or GIF dropped on a shot",
+                       "group":  "templates",
+                       "value":  2,
+                       "unit":  "s",
+                       "source":  "Shotline app.rs shot_from_item (359)"
+                   },
+                   {
+                       "name":  "GIF length when unreadable",
+                       "group":  "templates",
+                       "value":  2.5,
+                       "unit":  "s",
+                       "source":  "Shotline clips.js gifInfo / thumbs.rs GIF_GUESS_SECONDS"
+                   },
+                   {
+                       "name":  "roles every task needs",
+                       "group":  "templates",
+                       "value":  "Action, Insert, B-roll, Reaction",
+                       "source":  "Shotline sheet.rs TASK_NEEDS (212)"
+                   },
+                   {
+                       "name":  "look palette colours max",
+                       "group":  "templates",
+                       "value":  8,
+                       "source":  "Shotline ui_plan.rs look_editor (433)"
+                   },
+                   {
+                       "name":  "page width",
+                       "group":  "notebook",
+                       "value":  720,
+                       "unit":  "px",
+                       "source":  "Shotline sheet.rs PAGE_W (10)"
+                   },
+                   {
+                       "name":  "page height",
+                       "group":  "notebook",
+                       "value":  900,
+                       "unit":  "px",
+                       "source":  "Shotline sheet.rs PAGE_H (11)"
+                   },
+                   {
+                       "name":  "page video frame rate",
+                       "group":  "notebook",
+                       "value":  24,
+                       "unit":  "fps",
+                       "source":  "Shotline sheet.rs PAGE_FPS (13)"
+                   },
+                   {
+                       "name":  "graph squares across",
+                       "group":  "notebook",
+                       "value":  29,
+                       "source":  "Shotline sheet.rs GRID_SQUARES (15)"
+                   },
+                   {
+                       "name":  "sensor width for field of view",
+                       "group":  "notebook",
+                       "value":  36,
+                       "unit":  "mm",
+                       "source":  "Shotline sheet.rs SENSOR_W_MM (17)"
+                   },
+                   {
+                       "name":  "task sequence steps max",
+                       "group":  "notebook",
+                       "value":  14,
+                       "source":  "Shotline sheet.rs MAX_STEPS (30)"
+                   },
+                   {
+                       "name":  "task shots min",
+                       "group":  "notebook",
+                       "value":  8,
+                       "source":  "Shotline sheet.rs TASK_SHOTS_MIN (31)"
+                   },
+                   {
+                       "name":  "steps per row",
+                       "group":  "notebook",
+                       "value":  3,
+                       "source":  "Shotline sheet.rs STEP_COLS (32)"
+                   },
+                   {
+                       "name":  "red dot radius",
+                       "group":  "notebook",
+                       "value":  18,
+                       "unit":  "px",
+                       "source":  "Shotline ui_pages.rs deco_frames (585)"
+                   },
+                   {
+                       "name":  "cover red dot radius",
+                       "group":  "notebook",
+                       "value":  14,
+                       "unit":  "px",
+                       "source":  "Shotline ui_pages.rs deco_cover (1160)"
+                   },
+                   {
+                       "name":  "palette k-means rounds",
+                       "group":  "notebook",
+                       "value":  12,
+                       "source":  "Shotline sheet.rs palette_of (596)"
+                   },
+                   {
+                       "name":  "palette sample size",
+                       "group":  "notebook",
+                       "value":  48,
+                       "unit":  "px",
+                       "source":  "Shotline MECHANICS / thumbs.rs small_pixels"
+                   },
+                   {
+                       "name":  "waveform bars",
+                       "group":  "notebook",
+                       "value":  150,
+                       "source":  "Shotline ui_pages.rs deco_soundtrack (1133)"
+                   },
+                   {
+                       "name":  "saved picture width",
+                       "group":  "notebook",
+                       "value":  1080,
+                       "unit":  "px",
+                       "source":  "Shotline MECHANICS Saving (picture 1080 x 1350)"
+                   },
+                   {
+                       "name":  "music name length",
+                       "group":  "notebook",
+                       "value":  80,
+                       "unit":  "characters",
+                       "source":  "Shotline ui_pages.rs MUSIC_NAME_MAX (192)"
+                   },
+                   {
+                       "name":  "handwriting font",
+                       "group":  "notebook",
+                       "value":  "Caveat 700 (stand-in)",
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "saved video format",
+                       "group":  "notebook",
+                       "value":  "MP4 when the device can record it, else WebM",
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "batch page name",
+                       "group":  "library",
+                       "value":  "Added \u003cdate time\u003e",
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "task screen sections shown",
+                       "group":  "tasks",
+                       "value":  "Notes, Steps, Details (Shot list and Required coverage hidden)",
+                       "source":  "person\u0027s request 2026-11-11"
+                   },
+                   {
+                       "name":  "shot page per task",
+                       "group":  "tasks",
+                       "value":  "own copy of a Templates notebook page",
+                       "source":  "person\u0027s request 2026-11-11"
+                   },
+                   {
+                       "name":  "nine-shot task sequence shots",
+                       "group":  "tasks",
+                       "value":  9,
+                       "source":  "sheet.rs TASK_STEPS (199)"
+                   },
+                   {
+                       "name":  "shot done when",
+                       "group":  "tasks",
+                       "value":  "all steps standing for it are ticked",
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "done shots hidden by default",
+                       "group":  "tasks",
+                       "value":  true,
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "next shot marker colour",
+                       "group":  "tasks",
+                       "value":  "#F59E0B",
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "steps section layout",
+                       "group":  "tasks",
+                       "value":  "steps left, shot page right",
+                       "source":  "person\u0027s request 2026-11-11 round 3"
+                   },
+                   {
+                       "name":  "shot page column width",
+                       "group":  "tasks",
+                       "value":  "half the Steps section (50/50)",
+                       "source":  "person\u0027s request round 5"
+                   },
+                   {
+                       "name":  "stack below width",
+                       "group":  "tasks",
+                       "value":  900,
+                       "unit":  "px",
+                       "source":  "original app/styles.css line 3963 @media (min-width: 900px)"
+                   },
+                   {
+                       "name":  "extra page actions",
+                       "group":  "tasks",
+                       "value":  "in a More menu",
+                       "source":  "person\u0027s request 2026-11-11 round 3"
+                   },
+                   {
+                       "name":  "pages per task",
+                       "group":  "tasks",
+                       "value":  "one shot page plus any extra pages",
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "Today card opens pages",
+                       "group":  "tasks",
+                       "value":  true,
+                       "source":  "person\u0027s request 2026-11-11 round 3"
+                   },
+                   {
+                       "name":  "laptop rail width",
+                       "group":  "layout",
+                       "value":  92,
+                       "unit":  "px",
+                       "source":  "original app/styles.css line 3964 --rail"
+                   },
+                   {
+                       "name":  "shot page size",
+                       "group":  "tasks",
+                       "value":  "720 x 900",
+                       "unit":  "px",
+                       "source":  "Shotline src/sheet.rs:10-11 PAGE_W/PAGE_H"
+                   },
+                   {
+                       "name":  "max steps on a page",
+                       "group":  "tasks",
+                       "value":  14,
+                       "source":  "Shotline src/sheet.rs:30 MAX_STEPS"
+                   },
+                   {
+                       "name":  "task shots minimum",
+                       "group":  "tasks",
+                       "value":  8,
+                       "source":  "Shotline src/sheet.rs:31 TASK_SHOTS_MIN"
+                   },
+                   {
+                       "name":  "today card steps percent",
+                       "group":  "tasks",
+                       "value":  "round(done / steps * 100)",
+                       "source":  "original www/js/views/today.js subStats line 24"
+                   },
+                   {
+                       "name":  "default shot page",
+                       "group":  "tasks",
+                       "value":  "Sequence Ã‚Â· Task (9 shots)",
+                       "source":  "Shotline src/sheet.rs:199 TASK_STEPS; person request round 4"
+                   },
+                   {
+                       "name":  "removed page stays off",
+                       "group":  "tasks",
+                       "value":  true,
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "grab video max height",
+                       "group":  "grabber",
+                       "value":  720,
+                       "unit":  "px",
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "scene threshold high",
+                       "group":  "grabber",
+                       "value":  0.2,
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "scene threshold normal",
+                       "group":  "grabber",
+                       "value":  0.3,
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "scene threshold low",
+                       "group":  "grabber",
+                       "value":  0.45,
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "shortest shot",
+                       "group":  "grabber",
+                       "value":  0.6,
+                       "unit":  "s",
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "gif fps",
+                       "group":  "grabber",
+                       "value":  12,
+                       "unit":  "fps",
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "gif width",
+                       "group":  "grabber",
+                       "value":  480,
+                       "unit":  "px",
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "gif length default",
+                       "group":  "grabber",
+                       "value":  3,
+                       "unit":  "s",
+                       "source":  "Shotline UI default gifSecs (electron/library.js)"
+                   },
+                   {
+                       "name":  "still width",
+                       "group":  "grabber",
+                       "value":  1280,
+                       "unit":  "px",
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "page files max",
+                       "group":  "grabber",
+                       "value":  300,
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "grabber tools",
+                       "group":  "grabber",
+                       "value":  "yt-dlp + ffmpeg (built in), outside grab.mjs kit if set up",
+                       "source":  "Shotline src/grab.rs:70,97; this laptop"
+                   },
+                   {
+                       "name":  "shot page max width",
+                       "group":  "tasks",
+                       "value":  600,
+                       "unit":  "px",
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "check wait before showing window",
+                       "group":  "grabber",
+                       "value":  20,
+                       "unit":  "s",
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "person check wait",
+                       "group":  "grabber",
+                       "value":  180,
+                       "unit":  "s",
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "scroll passes max",
+                       "group":  "grabber",
+                       "value":  40,
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "thumbnail min side",
+                       "group":  "grabber",
+                       "value":  120,
+                       "unit":  "px",
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "popups per page max",
+                       "group":  "grabber",
+                       "value":  400,
+                       "estimated":  true
+                   },
+                   {
+                       "name":  "placeholder size limit",
+                       "group":  "grabber",
+                       "value":  20,
+                       "unit":  "KB",
+                       "source":  "eyecannndy CACHE gifs ~6 KB (round 6 test)"
+                   },
+                   {
+                       "name":  "bigger GIF default",
+                       "group":  "grabber",
+                       "value":  "save thumbnail, link bigger GIF",
+                       "source":  "person\u0027s request round 6"
+                   },
+                   {
+                       "name":  "bigger GIF location",
+                       "group":  "grabber",
+                       "value":  "base64 URL inside the popup Download link",
+                       "source":  "eyecannndy /clip_info_g/ popup (round 6)"
+                   },
+                   {
+                       "name":  "phone file stores",
+                       "group":  "sync",
+                       "value":  "lib-items, lib-blob, lib-poster, lib-boards, shot-templates, tasks",
+                       "source":  "person\u0027s request round 6"
+                   },
+                   {
+                       "name":  "phone import mode",
+                       "group":  "sync",
+                       "value":  "merge",
+                       "source":  "transfer.js importAll"
+                   }
+               ]
+}

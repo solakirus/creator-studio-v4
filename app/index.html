@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Creator Studio 3</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="paper.css">
+<link rel="stylesheet" href="library.css">
+<meta name="theme-color" content="#151515">
+
+<!-- Installed as a web app: Safari's Add to Home Screen, and Android's install.
+     Every path here is relative so the same files work from the APK, from
+     Electron, and from a project subpath on GitHub Pages. -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Studio">
+<!-- black-translucent puts the page under the status bar; the safe-area insets
+     the layout already uses keep the content clear of it. -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- The palette is read and applied before the body renders, or the app flashes
+     charcoal and then turns pink on every launch. -->
+<script src="js/palette.js"></script>
+<script>Palette.boot();</script>
+</head>
+<body>
+
+<div class="app">
+  <div class="view" id="view"></div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<div class="dock" id="dock">
+  <nav class="tabbar" id="tabbar"></nav>
+  <section class="panel" id="panel">
+    <h2>Tools</h2>
+    <div class="grid"></div>
+  </section>
+</div>
+
+<section class="sheet" id="sheet" role="dialog" aria-modal="true"></section>
+
+<div class="screens" id="screens"></div>
+
+<input type="file" id="imgInput" accept="image/*" hidden>
+
+<script src="js/aspectfix.js"></script>
+<script src="js/util.js"></script>
+<script src="js/updater.js"></script>
+<script src="js/lifecycle.js"></script>
+<script src="js/store.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/shotids.js"></script>
+<script src="js/data.js"></script>
+<script src="js/nutrition.js"></script>
+<script src="js/foodgroups.js"></script>
+<script src="js/shopping.js"></script>
+<script src="js/channels.js"></script>
+<script src="js/units.js"></script>
+<script src="js/exercises.js"></script>
+<script src="js/loads.js"></script>
+<script src="js/routines.js"></script>
+<script src="js/workouttypes.js"></script>
+<script src="js/timeline.js"></script>
+<script src="js/swipecards.js"></script>
+<script src="js/levels.js"></script>
+<script src="js/avatars.js"></script>
+<script src="js/metrics.js"></script>
+<script src="js/awards.js"></script>
+<script src="js/rating.js"></script>
+<script src="js/celebrate.js"></script>
+<script src="js/challenges.js"></script>
+<script src="js/months.js"></script>
+<script src="js/coverage.js"></script>
+<script src="js/shotlib.js"></script>
+<script src="js/shots.js"></script>
+<script src="js/pipeline.js"></script>
+<script src="js/saver.js"></script>
+<script src="js/datasets.js"></script>
+<script src="js/transfer.js"></script>
+<script src="js/backup.js"></script>
+<script src="js/planpack.js"></script>
+<script src="js/notify.js"></script>
+<script src="js/reminders.js"></script>
+<script src="js/screens.js"></script>
+<script src="js/clipcraft.js"></script>
+<script src="js/versions.js"></script>
+<script src="js/swiperefs.js"></script>
+<script src="js/linkmeta.js"></script>
+<script src="js/screens/clip.js"></script>
+<script src="js/screens/clips-screen.js"></script>
+<script src="js/screens/avatars.js"></script>
+<script src="js/coverart.js"></script>
+<script src="js/sectionart.js"></script>
+<script src="js/academy.js"></script>
+<script src="js/screens/academy.js"></script>
+<script src="js/screens/academy-write.js"></script>
+<script src="js/screens/streak.js"></script>
+<script src="js/screens/profile.js"></script>
+<script src="js/screens/data-hub.js"></script>
+<script src="js/screens/settings.js"></script>
+<script src="js/screens/workout.js"></script>
+<script src="js/screens/exercise-picker.js"></script>
+<script src="js/screens/exercise-library.js"></script>
+<script src="js/refs.js"></script>
+<script src="js/demoplay.js"></script>
+<script src="js/screens/exercise.js"></script>
+<script src="js/screens/shot-list.js"></script>
+<script src="js/screens/shots-console.js"></script>
+<script src="js/screens/task.js"></script>
+<script src="js/screens/session.js"></script>
+<script src="js/screens/routines.js"></script>
+<script src="js/screens/workout-gallery.js"></script>
+<script src="js/screens/loads.js"></script>
+<script src="js/screens/runs.js"></script>
+<script src="js/screens/run-live.js"></script>
+<script src="js/screens/meals.js"></script>
+<script src="js/screens/nutrition-home.js"></script>
+<script src="js/screens/nutrition-plan.js"></script>
+<script src="js/screens/nutrition-shop.js"></script>
+<script src="js/screens/inventory.js"></script>
+<script src="js/screens/nutrition-prep.js"></script>
+<script src="js/screens/swipe.js"></script>
+<script src="js/screens/reference.js"></script>
+<script src="js/screens/calendar.js"></script>
+<script src="js/screens/months.js"></script>
+<script src="js/screens/channel.js"></script>
+<script src="js/screens/channels-list.js"></script>
+<script src="js/screens/planning.js"></script>
+<script src="js/screens/research.js"></script>
+<script src="js/boardlink.js"></script>
+<script src="js/boardsync.js"></script>
+<script src="js/stillspicker.js"></script>
+<script src="js/shotai.js"></script>
+<script src="js/screens/board.js"></script>
+<script src="js/screens/week-board.js"></script>
+<script src="js/paper.js"></script>
+<script src="js/screens/paper-screen.js"></script>
+<script src="js/inkpad.js"></script>
+<script src="js/screens/ink-note.js"></script>
+<script src="js/clipideas.js"></script>
+<script src="js/screens/clip-ideas.js"></script>
+<script src="js/scoreboard.js"></script>
+<script src="js/planimport.js"></script>
+<script src="js/folders.js"></script>
+<script src="js/screens/capture.js"></script>
+<script src="js/screens/daysheet.js"></script>
+<script src="js/screens/inbox.js"></script>
+<script src="js/screens/journal.js"></script>
+<script src="js/story.js"></script>
+<script src="js/program.js"></script>
+<script src="js/tasklib.js"></script>
+<script src="js/quarters.js"></script>
+<script src="js/research.js"></script>
+<script src="js/seqlib.js"></script>
+<script src="js/vlogtasks.js"></script>
+<script src="js/videos.js"></script>
+<script src="js/videosheet.js"></script>
+<script src="js/notes.js"></script>
+<script src="js/embed.js"></script>
+<script src="js/thumb.js"></script>
+<script src="js/share.js"></script>
+<script src="js/storyboard.js"></script>
+<script src="js/shortcuts.js"></script>
+<script src="js/widget.js"></script>
+<script src="js/multiselect.js"></script>
+<script src="js/physique.js"></script>
+<script src="js/rungps.js"></script>
+<script src="js/quickadd.js"></script>
+<script src="js/taskform.js"></script>
+<script src="js/screens/program.js"></script>
+<script src="js/screens/quarter.js"></script>
+<script src="js/screens/videos.js"></script>
+<script src="js/screens/series-view.js"></script>
+<script src="js/screens/notes.js"></script>
+<script src="js/screens/physique.js"></script>
+<script src="js/screens/physique-compare.js"></script>
+<script src="js/screens/session-view.js"></script>
+<script src="js/screens/awards.js"></script>
+<script src="js/screens/rating.js"></script>
+<script src="js/screens/vlog.js"></script>
+<script src="js/screens/vlog-day.js"></script>
+<script src="js/screens/seq-templates.js"></script>
+<!-- Library and Templates, carried over from Shotline -->
+<script src="js/medialib.js"></script>
+<script src="js/libview.js"></script>
+<script src="js/notebook.js"></script>
+<script src="js/pageseditor.js"></script>
+<script src="js/taskpages.js"></script>
+<script src="js/shottemplates.js"></script>
+<script src="js/screens/library.js"></script>
+<script src="js/screens/shot-templates.js"></script>
+<script src="js/screens/challenges.js"></script>
+<script src="js/views/today.js"></script>
+<script src="js/views/weekly.js"></script>
+<script src="js/views/series.js"></script>
+<script src="js/views/month.js"></script>
+<script src="js/views/content.js"></script>
+<script src="js/views/clips.js"></script>
+<script src="js/app.js"></script>
+<div class="fb" id="flameburst"></div>
+<div class="aw" id="awardpop"></div>
+<div class="lu" id="levelup"></div>
+<div class="inv" id="inventory"></div>
+<div class="demoview" id="demoview"></div>
+<div class="refview" id="refview"></div>
+<div class="pd" id="perfectday"></div>
+
+<!-- Installed-web-app support. Deliberately not registered inside the Android
+     APK or Electron: there the files come off disk already, a worker would add
+     a second cache of them, and a stale one could override the real build. -->
+<script>
+(function(){
+  var native = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform())
+            || location.protocol === 'file:'
+            || !!(window.process && window.process.versions && window.process.versions.electron);
+  if(native || !('serviceWorker' in navigator)) return;
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('sw.js').catch(function(e){
+      console.warn('[sw] not registered:', e && e.message);
+    });
+  });
+  /* One reload when a new build takes over, so an update never needs the app
+     to be force-quit. The guard stops the reload loop that otherwise happens
+     when the worker claims a page that is already current. */
+  var reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function(){
+    if(reloaded) return; reloaded = true; location.reload();
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+Creator Studio 3
+================
+
+THIS IS THE WHOLE PROJECT. You do not copy anything into an existing folder.
+
+WHERE TO PUT IT
+  Drag the  creator-studio-3  folder into  C:\Users\Khale\Projects\
+  so you end up with:  C:\Users\Khale\Projects\creator-studio-3\
+
+  It must sit NEXT TO creator-studio-v2, because the first build borrows v2's
+  Android project to get started. v2 itself is never changed.
+
+HOW TO BUILD
+  Double-click  build.bat  inside that folder.
+
+  It asks two questions — Windows app? Android APK? — and does everything
+  else itself: installs packages, copies app\ into www\, builds, and commits.
+  The first run takes a few minutes because of npm install.
+
+  The APK installs BESIDE Creator Studio v2. It does not replace it.
+
+WHICH FOLDER IS WHICH
+  creator-studio-v2\www\        the phone app you use today. Edit www\.
+  creator-studio-3\app\         the new app. Edit app\; www\ is generated.
+  Creator Studio Planner\       the built laptop Planner .exe. Not a project;
+                                its source lives in resources\app\.
+
+WHAT CHANGED IN THIS VERSION (2026-10-13)
+  - Day 0 is a real date again. 17 places treated it as "no day at all".
+  - The run-up to Day 1 has a name: Settings > Program start ("Prep").
+  - Moving Day 1 no longer drags your plans onto different real dates.
+    This was a live bug.
+  - store.js survives meeting a newer database instead of refusing to open.
+  - The task page no longer shows "undefined" where cadence and priority go.
+
+CHECK IT WITHOUT BUILDING
+  npm test        runs all six test files. No install needed beyond npm.

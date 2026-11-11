@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Notification small icon.
+
+  Android draws this as a silhouette: every non-transparent pixel is forced to
+  white (or the system tint). Colour and gradients are discarded, so the shape
+  has to carry the meaning on its own. Keep it solid, keep it chunky, and leave
+  a margin — anything thinner than about 2dp disappears at status-bar size.
+
+  This is a clapperboard: a slate with an angled top bar.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- the slate body -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M3,10.2h18v8.3a1.5,1.5 0 0,1 -1.5,1.5h-15a1.5,1.5 0 0,1 -1.5,-1.5z" />
+
+    <!-- the clapper bar, with the stripes cut out of it -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M3.6,5.4 L19.9,3.1 L21,8.1 L4.7,10.4 Z M7.4,5.6 L6.2,7.6 L8.2,7.3 L9.4,5.3 Z M12,5 L10.8,7 L12.8,6.7 L14,4.7 Z M16.6,4.3 L15.4,6.3 L17.4,6.1 L18.6,4.1 Z" />
+</vector>

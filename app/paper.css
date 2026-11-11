@@ -1,0 +1,228 @@
+/* Creator Studio — paper planner pages. Sizes on the sheet are in sheet pixels
+   (a page is 1000 × 1400); the whole sheet is scaled to fit the screen. */
+
+.pp-host{--pp-ink:#2A2620;--pp-paper:#F4EFE3;--pp-rule:#D6CCB6;--pp-soft:#7A6F5C;
+  display:flex;flex-direction:column;gap:12px;min-width:0}
+
+/* ---- the dark toolbar ---- */
+.pp-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#1F1C17;border:1px solid #2F2C26;
+  border-radius:4px;padding:8px 10px;position:sticky;top:0;z-index:10}
+.pp-grp{display:flex;align-items:center;gap:6px}
+.pp-grow{flex:1}
+.pp-b{min-width:40px;height:40px;padding:0;display:grid;place-items:center;border:1px solid #2F2C26;border-radius:4px;
+  background:#151515;color:#C9C1AE;cursor:pointer;font:700 13px/1 "DM Sans",sans-serif}
+.pp-b svg{width:19px;height:19px}
+.pp-b.pp-txt{padding:0 12px;display:flex;align-items:center}
+.pp-b.on{border-color:#FB6900;color:#FB6900}
+.pp-b:hover{color:#EDE5D2}
+.pp-seg{gap:0}.pp-seg .pp-b{border-radius:0}.pp-seg .pp-b:first-child{border-radius:4px 0 0 4px}.pp-seg .pp-b:last-child{border-radius:0 4px 4px 0}
+.pp-seg .pp-b+.pp-b{margin-left:-1px}.pp-seg .pp-b.on{position:relative;z-index:1}
+.pp-title{font:900 16px/1.1 "Red Hat Display",sans-serif;letter-spacing:.02em;color:#EDE5D2;text-transform:uppercase}
+.pp-sw{width:28px;height:28px;border-radius:50%;border:2px solid #2F2C26;background:var(--c);padding:0;cursor:pointer}
+.pp-sw.on{border-color:#FB6900;box-shadow:0 0 0 2px #151515 inset}
+.pp-size{height:40px;border:1px solid #2F2C26;border-radius:4px;background:#151515;color:#EDE5D2;font:500 13px "DM Sans",sans-serif;padding:0 6px}
+.pp-sides{display:flex;gap:6px}
+.pp-sides .pp-b{flex:1}
+
+/* ---- the sheet ---- */
+.pp-stage{min-width:0}
+.pp-spread{position:relative;margin:0 auto;box-shadow:5px 5px 0 #0A0806;border-radius:4px;overflow:hidden;background:#0E0D0B}
+.pp-scale{position:absolute;left:0;top:0;transform-origin:0 0;display:flex}
+.pp-page{position:relative;width:1000px;height:1400px;flex:none;box-sizing:border-box;padding:44px 48px;
+  display:flex;flex-direction:column;gap:22px;overflow:hidden;color:var(--pp-ink);
+  font:400 22px/1.3 "DM Sans",sans-serif;
+  background:var(--pp-paper) radial-gradient(#DCD3BF 1.6px,transparent 1.8px) 0 0/26px 26px}
+.pp-page.pp-L+.pp-page.pp-R{box-shadow:inset 14px 0 18px -14px rgba(60,45,20,.45)}
+.pp-scale .pp-page.pp-L:not(:only-child){box-shadow:inset -14px 0 18px -14px rgba(60,45,20,.45)}
+.pp-ink{position:absolute;left:0;top:0;width:1000px;height:1400px;z-index:2;cursor:crosshair}
+.pp-handmode .pp-ink{pointer-events:none}
+
+.pp-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;height:96px;flex:none}
+.pp-big{font:900 64px/0.95 "Red Hat Display",sans-serif;letter-spacing:-.01em}
+.pp-sub{font:700 17px/1 "DM Sans",sans-serif;letter-spacing:.18em;color:#9A7B55;margin-top:10px}
+
+.pp-cols{display:flex;gap:22px;flex:none;min-height:0}
+.pp-stack{display:flex;flex-direction:column;gap:22px;min-height:0;flex:1}
+.pp-z{position:relative;display:flex;flex-direction:column;min-height:0;border:2.5px solid var(--pp-ink);border-radius:6px;
+  background:rgba(244,239,227,.7);overflow:hidden}
+.pp-z.now{box-shadow:0 0 0 4px #FB6900}
+.pp-zh{display:flex;align-items:center;gap:10px;height:50px;flex:none;box-sizing:border-box;padding:0 8px 0 16px;
+  border-bottom:2.5px solid var(--pp-ink);font:900 17px/1 "Red Hat Display",sans-serif;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
+.pp-tag{font:700 14px/1 "DM Sans",sans-serif;font-style:normal;letter-spacing:.02em;text-transform:none;color:#9A7B55}
+.pp-zb-btn{position:relative;z-index:3;height:36px;padding:0 12px;border:2px solid #C24F00;border-radius:4px;background:var(--pp-paper);
+  color:#C24F00;font:700 15px/1 "DM Sans",sans-serif;letter-spacing:0;text-transform:none;cursor:pointer;white-space:nowrap}
+.pp-zb-btn:hover{background:#C24F00;color:#F4EFE3}
+.pp-typed{border-color:#3E8E4E;color:#3E8E4E}
+.pp-zbody{flex:1;position:relative;padding:0 16px;min-height:0;overflow:hidden}
+.pp-zbody.ruled{background:repeating-linear-gradient(to bottom,transparent 0 51px,var(--pp-rule) 51px 52px)}
+
+.pp-row{height:52px;display:flex;align-items:center;gap:14px;white-space:nowrap;overflow:hidden}
+.pp-box,.pp-pbox{flex:none;width:26px;height:26px;box-sizing:border-box;border:2.5px solid var(--pp-ink);border-radius:4px;
+  display:grid;place-items:center;font:900 20px/1 "DM Sans",sans-serif;color:#C24F00}
+.pp-box.pp-tap,.pp-pbox{cursor:pointer;background:#fff8}
+.pp-num{flex:none;width:30px;height:30px;border-radius:50%;background:#E4DBC6;display:grid;place-items:center;font:700 16px/1 "DM Sans",sans-serif;color:var(--pp-soft)}
+.pp-k{flex:none;width:6px;height:26px;border-radius:2px;background:var(--k)}
+.pp-print{font-weight:700;overflow:hidden;text-overflow:ellipsis}
+.pp-meta{margin-left:auto;font:700 15px/1 "DM Sans",sans-serif;color:var(--pp-soft);text-transform:uppercase;letter-spacing:.06em;flex:none}
+.pp-row.done .pp-print{text-decoration:line-through;text-decoration-color:#C24F00;text-decoration-thickness:3px;opacity:.55}
+.pp-more{color:var(--pp-soft);font-weight:700;font-size:18px}
+.pp-prompt{position:absolute;left:16px;font:700 14px/1 "DM Sans",sans-serif;letter-spacing:.14em;color:var(--pp-soft)}
+
+/* thermometer */
+.pp-thermo{flex:0 0 120px;display:flex;flex-direction:column;align-items:center;gap:10px;padding-top:6px}
+.pp-thermo b{font:900 15px/1 "Red Hat Display",sans-serif;letter-spacing:.16em}
+.pp-tube{flex:1;width:58px;border:2.5px solid var(--pp-ink);border-radius:29px;position:relative;overflow:hidden;background:#FFF8}
+.pp-tube i{position:absolute;left:0;right:0;bottom:0;background:#FB6900}
+.pp-pct{font:900 26px/1 "Red Hat Display",sans-serif}
+.pp-thermo small{font:700 14px/1.2 "DM Sans",sans-serif;color:var(--pp-soft);text-align:center}
+
+/* rating, mood */
+.pp-rate{display:flex;gap:12px;align-items:center;height:100%;padding:0 4px}
+.pp-rate span{width:52px;height:52px;border:2.5px solid var(--pp-ink);border-radius:50%;display:grid;place-items:center;
+  font:900 22px/1 "Red Hat Display",sans-serif;cursor:pointer}
+.pp-rate span.on{background:#C24F00;border-color:#C24F00;color:#F4EFE3}
+.pp-mood{display:flex;gap:8px;align-items:center}
+.pp-mood b{font:900 14px/1 "Red Hat Display",sans-serif;letter-spacing:.16em;color:var(--pp-soft);margin-right:4px}
+.pp-mood span{padding:8px 12px;border:2px solid var(--pp-ink);border-radius:20px;font:700 15px/1 "DM Sans",sans-serif;cursor:pointer}
+.pp-mood span.on{background:var(--pp-ink);color:var(--pp-paper)}
+
+/* schedule */
+.pp-hours{position:absolute;inset:0}
+.pp-hr{height:66px;box-sizing:border-box;border-bottom:1.5px solid var(--pp-rule);position:relative}
+.pp-hr:last-of-type{border-bottom:0}
+.pp-hr span{position:absolute;left:0;top:6px;width:84px;font:700 15px/1 "DM Sans",sans-serif;color:var(--pp-soft)}
+.pp-hours::before{content:"";position:absolute;left:92px;top:0;bottom:0;border-left:2.5px solid var(--pp-ink)}
+.pp-blocks{position:absolute;left:104px;right:6px;top:0;bottom:0}
+.pp-blk{position:absolute;left:0;right:0;box-sizing:border-box;padding:6px 12px;border-radius:6px;background:var(--pp-ink);color:#EDE5D2;
+  border-left:8px solid var(--k);display:flex;gap:12px;align-items:flex-start;font:500 16px/1.25 "DM Sans",sans-serif;overflow:hidden}
+.pp-blk b{font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pp-blk span:last-child{opacity:.7;white-space:nowrap}
+.pp-blk .pp-pbox{width:22px;height:22px;border-color:#EDE5D2;color:#FDB37E;background:transparent;font-size:16px}
+.pp-blk.done{opacity:.55}.pp-blk.done b{text-decoration:line-through}
+
+/* week overview */
+.pp-mini{width:330px;flex:none}
+.pp-mini b{display:block;font:900 15px/1 "Red Hat Display",sans-serif;letter-spacing:.14em;margin-bottom:8px}
+.pp-mini .g{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;font:700 15px/1 "DM Sans",sans-serif;text-align:center}
+.pp-mini .g span{padding:5px 0;border-radius:3px}
+.pp-mini .g .h{background:var(--pp-ink);color:var(--pp-paper);font-size:12px}
+.pp-mini .g .pp-tap{cursor:pointer}
+.pp-mini .g .on{background:#FB6900;color:#151515}
+.pp-mini .g .now{outline:2px solid #C24F00}
+.pp-mini .g .off{opacity:.3}
+.pp-grid2{flex:1;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr;gap:18px;min-height:0}
+.pp-go{cursor:pointer;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:5px}
+.pp-pills{display:flex;flex-direction:column;gap:6px;padding-top:10px}
+.pp-pill{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 6px;border-radius:5px;background:var(--pp-ink);color:#EDE5D2;
+  border-left:6px solid var(--k);font:700 15px/1.2 "DM Sans",sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pp-pill .pp-pbox{width:20px;height:20px;border-color:#EDE5D2;color:#FDB37E;background:transparent;font-size:14px}
+.pp-pill.done{opacity:.55;text-decoration:line-through}
+
+/* month */
+.pp-glance{display:grid;grid-template-columns:repeat(8,1fr);gap:10px;padding-top:16px}
+.pp-glance span{height:46px;border:2.5px solid var(--pp-ink);border-radius:6px;display:grid;place-items:center;font:700 17px/1 "DM Sans",sans-serif;cursor:pointer}
+.pp-glance span.on{background:var(--pp-ink);color:var(--pp-paper)}
+.pp-hint{display:block;margin-top:10px;font:500 14px/1.3 "DM Sans",sans-serif;color:var(--pp-soft)}
+.pp-cal{position:absolute;inset:0;display:grid;grid-template-columns:56px repeat(7,1fr)}
+.pp-cal .h{background:var(--pp-ink);color:var(--pp-paper);display:grid;place-items:center;font:900 14px/1 "Red Hat Display",sans-serif;letter-spacing:.12em}
+.pp-cal .wk{background:var(--pp-ink);color:var(--pp-paper);display:flex;justify-content:center;padding-top:10px;font:900 16px/1 "Red Hat Display",sans-serif;
+  cursor:pointer;border-top:1.5px solid #5A5246}
+.pp-cal .c{border-right:1.5px solid var(--pp-rule);border-bottom:1.5px solid var(--pp-rule);padding:6px 6px 0;overflow:hidden;display:flex;flex-direction:column;gap:4px;min-width:0}
+.pp-cal .c.off{background:rgba(214,204,182,.35)}
+.pp-cal .c.off .n{opacity:.4}
+.pp-cal .c.now{box-shadow:inset 0 0 0 4px #FB6900}
+.pp-cal .n{font:900 17px/1 "Red Hat Display",sans-serif;cursor:pointer;align-self:flex-start;padding:2px 4px}
+.pp-cpill{display:block;padding:3px 6px;border-radius:4px;background:var(--pp-ink);color:#EDE5D2;border-left:5px solid var(--k);
+  font:700 13px/1.2 "DM Sans",sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pp-cpill.done{opacity:.5;text-decoration:line-through}
+
+/* ---- dialogs (the Planner's dialog look, kept here so the phone gets it too) ---- */
+dialog.pp-dlg{border:1px solid #2F2C26;border-radius:4px;background:#1F1C17;color:#EDE5D2;padding:22px;width:min(720px,94vw);
+  box-shadow:5px 5px 0 #0A0806;font:400 14px/1.4 "DM Sans",sans-serif}
+dialog.pp-dlg::backdrop{background:rgba(0,0,0,.6)}
+.pp-dlg h2{margin:0 0 8px;font:900 22px/1 "Red Hat Display",sans-serif}
+.pp-dnote{margin:0 0 14px;color:#969185}
+.pp-rv{display:flex;flex-direction:column;gap:8px;max-height:55vh;overflow:auto}
+.pp-rvrow{display:flex;gap:8px;align-items:center}
+.pp-rvrow input[type=checkbox]{width:20px;height:20px;accent-color:#FB6900;flex:none}
+.pp-in{height:38px;box-sizing:border-box;border:1px solid #2F2C26;border-radius:4px;background:#151515;color:#EDE5D2;font:inherit;padding:0 10px;min-width:0}
+.pp-rvrow [data-f=title]{flex:1}
+.pp-mins{width:80px}
+.pp-ta{width:100%;height:auto;padding:10px;resize:vertical}
+.pp-chk{display:flex;gap:8px;align-items:center;margin-top:14px;color:#C9C1AE}
+.pp-chk input{accent-color:#FB6900;width:18px;height:18px}
+.pp-acts{display:flex;gap:8px;margin-top:18px;align-items:center}
+.pp-btn{height:40px;padding:0 16px;border:1px solid #2F2C26;border-radius:4px;background:#151515;color:#EDE5D2;font:700 14px "DM Sans",sans-serif;cursor:pointer}
+.pp-btn.pri{background:#FB6900;border-color:#FB6900;color:#151515}
+
+/* ---------- Full view, and turning the pages ----------
+   A class rather than the Fullscreen API: the dialogs, the toolbar and the pen
+   all have to keep working, and a real fullscreen request puts the dialogs
+   behind the page. */
+.pp-host.pp-full{position:fixed;inset:0;z-index:90;margin:0;padding:0;
+  background:var(--bg);overflow:auto;display:flex;flex-direction:column}
+/* In full view the toolbar stops being a bar that eats the top of the screen
+   and becomes two floating groups over the page, the way a canvas app does it:
+   where you are and which page down the left, what you are drawing with along
+   the bottom. The sheet then gets the whole window. */
+/* The blur lives on a pseudo-element, not on .pp-bar itself. An element with
+   a backdrop-filter becomes the containing block for its position:fixed
+   children, which pinned the navigation groups inside the toolbar instead of
+   to the window — they came out at the bottom of the screen, stacked in the
+   bar, rather than up in the corner. */
+.pp-host.pp-full .pp-bar{position:fixed;left:0;right:0;top:auto;z-index:6;
+  display:flex;flex-wrap:nowrap;justify-content:center;align-items:center;gap:8px;
+  width:max-content;max-width:calc(100vw - 24px);margin:0 auto;
+  bottom:calc(env(safe-area-inset-bottom, 0px) + 14px);
+  padding:8px 12px;background:none;border:0;box-shadow:none;
+  overflow:visible;scrollbar-width:none}
+.pp-host.pp-full .pp-bar::before{content:"";position:absolute;inset:0;z-index:-1;
+  border-radius:999px;border:1px solid #333028;
+  background:rgba(23,21,18,.9);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.pp-host.pp-full .pp-bar::-webkit-scrollbar{display:none}
+
+/* where you are, and the page you are on: down the left, out of the way of a
+   right hand resting on the sheet */
+.pp-host.pp-full .pp-bar > .pp-grp:nth-child(1),
+.pp-host.pp-full .pp-bar > .pp-grp:nth-child(2),
+.pp-host.pp-full .pp-bar > .pp-title{
+  position:fixed;left:calc(env(safe-area-inset-left, 0px) + 14px);z-index:6;
+  padding:7px 9px;border-radius:12px;border:1px solid #333028;
+  background:rgba(23,21,18,.86);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  box-shadow:0 8px 24px rgba(0,0,0,.45)}
+.pp-host.pp-full .pp-bar > .pp-grp:nth-child(1){top:calc(env(safe-area-inset-top, 0px) + 14px)}
+.pp-host.pp-full .pp-bar > .pp-grp:nth-child(2){top:calc(env(safe-area-inset-top, 0px) + 66px);flex-direction:column}
+.pp-host.pp-full .pp-bar > .pp-title{top:calc(env(safe-area-inset-top, 0px) + 188px);
+  max-width:170px;font-size:13px;line-height:1.3;white-space:normal}
+.pp-host.pp-full .pp-bar > .pp-grow{display:none}
+
+/* the page gets the window, with just enough room for the floating pieces */
+.pp-host.pp-full .pp-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;
+  padding:0 0 86px}
+.pp-host.pp-full .pp-sides{position:fixed;z-index:6;
+  left:calc(env(safe-area-inset-left, 0px) + 14px);
+  top:calc(env(safe-area-inset-top, 0px) + 246px);flex-direction:column;gap:4px}
+
+/* a finger or pen near the floating menus must not scroll them away */
+.pp-host.pp-full .pp-bar,
+.pp-host.pp-full .pp-sides{touch-action:manipulation}
+.pp-host.pp-full .pp-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
+
+/* The edge of the book. A wide strip rather than a small button, so turning a
+   page is a glance-free click near the edge — the toolbar's labelled arrows
+   stay for anyone navigating by keyboard or screen reader. */
+.pp-stage{position:relative}
+.pp-turn{position:absolute;top:0;bottom:0;z-index:1;display:none;
+  align-items:center;justify-content:center;padding:0;cursor:pointer;
+  background:none;border:0;color:var(--muted);opacity:0;transition:opacity .15s}
+.pp-turn.prev{left:0}
+.pp-turn.next{right:0}
+.pp-turn svg{width:26px;height:26px}
+.pp-host.pp-full .pp-turn{display:flex}
+.pp-stage:hover .pp-turn{opacity:.55}
+.pp-turn:hover{opacity:1;color:var(--cream);background:linear-gradient(to right,rgba(0,0,0,.28),transparent)}
+.pp-turn.next:hover{background:linear-gradient(to left,rgba(0,0,0,.28),transparent)}
+/* a pen near the edge must not turn the page */
+.pp-host.pp-handmode .pp-turn{opacity:.55}
+/* width is set in fit(): the margin beside the sheet, or nothing */

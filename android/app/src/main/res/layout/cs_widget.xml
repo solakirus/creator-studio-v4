@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The widget's layout.
+     Goes in: android/app/src/main/res/layout/cs_widget.xml
+
+     A widget can only use a small set of views — no custom fonts, no flexbox.
+     LinearLayout and TextView is the whole toolkit, which is why this is plain.
+     The colours are the app's: #151515 ground, cream text, orange accent. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="14dp"
+    android:background="@drawable/cs_widget_bg">
+
+    <TextView
+        android:id="@+id/w_day"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#EDE5D2"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:maxLines="1"
+        android:text="Day 1" />
+
+    <TextView
+        android:id="@+id/w_progress"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textColor="#FB6900"
+        android:textSize="13sp"
+        android:maxLines="1"
+        android:text="0/0 done" />
+
+    <TextView
+        android:id="@+id/w_next"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:textColor="#B9B2A6"
+        android:textSize="13sp"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:text="" />
+
+    <TextView
+        android:id="@+id/w_shoot"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:textColor="#7A736A"
+        android:textSize="12sp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:text="" />
+
+</LinearLayout>

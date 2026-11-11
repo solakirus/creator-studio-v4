@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- How the launcher offers and sizes the widget.
+     Goes in: android/app/src/main/res/xml/cs_widget_info.xml
+
+     updatePeriodMillis is 0 on purpose: the app pokes the widget whenever the
+     numbers change, so a timer would only redraw the same thing and cost
+     battery. Android ignores anything under 30 minutes anyway. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="180dp"
+    android:minHeight="70dp"
+    android:targetCellWidth="3"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/cs_widget"
+    android:previewLayout="@layout/cs_widget"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen" />

@@ -1,0 +1,118 @@
+Creator Studio 3 → GitHub → your iPad
+=====================================
+
+Follow this top to bottom. It assumes nothing has been pushed yet.
+
+
+STEP 1 — REPLACE YOUR LOCAL FOLDER WITH THIS ONE
+
+  Do this BEFORE pushing, or you publish an old version and have to push twice.
+
+  a) Rename what you have now, as a safety net:
+       C:\Users\Khale\Projects\creator-studio-3
+     becomes
+       C:\Users\Khale\Projects\creator-studio-3-old
+
+  b) Extract this zip into C:\Users\Khale\Projects\
+     You should end up with C:\Users\Khale\Projects\creator-studio-3
+     containing app\, docs\, electron\, build.bat and this file.
+
+  c) Check it is the new one — open PowerShell:
+       cd C:\Users\Khale\Projects\creator-studio-3
+       git log --oneline -1
+     It should say:  Backup: a copy that survives the app being deleted
+
+  Nothing is lost by replacing the folder: your DATA is on your devices, not
+  in this folder. This folder is only code.
+
+
+STEP 2 — THE REPO ON GITHUB
+
+  If you have NOT made it yet:
+     github.com/new  →  name it  creator-studio-3  →  Public
+     Do NOT tick "Add a README file". It must be empty.
+
+  If you ALREADY made it and it has a README in it, that is fine — see the
+  note at the bottom under "If the push is rejected".
+
+
+STEP 3 — PUSH
+
+  In PowerShell, in C:\Users\Khale\Projects\creator-studio-3 :
+
+     git remote add origin https://github.com/solakirus/creator-studio-3.git
+     git branch -M main
+     git push -u origin main
+
+  If it says "remote origin already exists", use this instead of the first line:
+     git remote set-url origin https://github.com/solakirus/creator-studio-3.git
+
+  A browser window may open asking you to sign in to GitHub. That is normal.
+
+  When it finishes, refresh the repo page — your files should be there.
+
+
+STEP 4 — TURN ON PAGES   (one setting, once)
+
+     Your repo  →  Settings  →  Pages
+     Under "Build and deployment", set  Source: GitHub Actions
+     Nothing else. Do not pick a branch.
+
+  The workflow is already in the zip at .github/workflows/pages.yml
+
+
+STEP 5 — WATCH IT BUILD
+
+     Your repo  →  Actions tab
+     There will be a run called "Pages". Wait for the green tick (1-2 min).
+
+  If it goes red, open it, click the failed step, and send me what it says.
+
+
+STEP 6 — INSTALL IT ON THE IPAD
+
+     Open SAFARI on the iPad (not Chrome — only Safari can install)
+     Go to:   https://solakirus.github.io/creator-studio-3/
+     Share button (the square with the up arrow)  →  Add to Home Screen  →  Add
+     Then open it from the NEW HOME SCREEN ICON, not from Safari.
+
+  ADD TO HOME SCREEN IS NOT OPTIONAL. Safari erases a normal website's data
+  after 7 unused days. A home-screen app is exempt. A bookmark would lose
+  everything in a week.
+
+
+STEP 7 — TURN ON THE BACKUP, ON EVERY DEVICE
+
+     Settings  →  Automatic backup
+
+  Phone and laptop: it already runs daily on its own. Check the light is green.
+  iPad: it cannot write a file without you, so tap "Back up now" once a week,
+        OR put your server address in the box and it becomes automatic there too.
+
+
+FROM THEN ON
+
+  To ship a change:   git add -A
+                      git commit -m "what changed"
+                      git push
+  The Actions run goes green, and the iPad picks it up next time it has signal.
+
+
+IF THE PUSH IS REJECTED
+
+  You will see "Updates were rejected because the remote contains work that
+  you do not have locally". That means the repo was created with a README.
+  Because nothing on GitHub matters yet, overwrite it:
+
+     git push -u origin main --force
+
+  Only do this on the very first push to an empty-ish repo. Not later.
+
+
+TWO THINGS THAT BECOME PUBLIC
+
+  The repo is public, so anyone can read the code. Your data never leaves your
+  devices — it is not in the repo. But two lines name you:
+     - Settings footer says "Made in Plant City"
+     - the name field placeholder says "Khaleem Catten"
+  Say the word and I will change both before you push.

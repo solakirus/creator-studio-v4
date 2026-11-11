@@ -1,0 +1,102 @@
+/* Self-hosted, so the app looks the same with no network.
+   Only the weights actually used are here — every extra file is dead weight
+   in the APK and a request that never pays for itself. */
+
+/* Red Hat Display — headings, numbers, anything set in the display face */
+@font-face{
+  font-family:"Red Hat Display";
+  font-style:normal;
+  font-weight:700;
+  font-display:swap;
+  src:url("red-hat-display-latin-700-normal.woff2") format("woff2");
+}
+@font-face{
+  font-family:"Red Hat Display";
+  font-style:normal;
+  font-weight:800;
+  font-display:swap;
+  src:url("red-hat-display-latin-800-normal.woff2") format("woff2");
+}
+@font-face{
+  font-family:"Red Hat Display";
+  font-style:normal;
+  font-weight:900;
+  font-display:swap;
+  src:url("red-hat-display-latin-900-normal.woff2") format("woff2");
+}
+
+/* DM Sans — body copy */
+@font-face{
+  font-family:"DM Sans";
+  font-style:normal;
+  font-weight:400;
+  font-display:swap;
+  src:url("dm-sans-latin-400-normal.woff2") format("woff2");
+}
+@font-face{
+  font-family:"DM Sans";
+  font-style:italic;
+  font-weight:400;
+  font-display:swap;
+  src:url("dm-sans-latin-400-italic.woff2") format("woff2");
+}
+@font-face{
+  font-family:"DM Sans";
+  font-style:normal;
+  font-weight:500;
+  font-display:swap;
+  src:url("dm-sans-latin-500-normal.woff2") format("woff2");
+}
+@font-face{
+  font-family:"DM Sans";
+  font-style:normal;
+  font-weight:700;
+  font-display:swap;
+  src:url("dm-sans-latin-700-normal.woff2") format("woff2");
+}
+
+/* ---- the soft set ----
+   Rounded terminals and a lower contrast than Red Hat Display. Bundled rather
+   than fetched, so it works offline like everything else. */
+@font-face{
+  font-family:"Quicksand";
+  font-style:normal;
+  font-weight:500;
+  font-display:swap;
+  src:url("quicksand-latin-500-normal.woff2") format("woff2");
+}
+@font-face{
+  font-family:"Quicksand";
+  font-style:normal;
+  font-weight:600;
+  font-display:swap;
+  src:url("quicksand-latin-600-normal.woff2") format("woff2");
+}
+@font-face{
+  font-family:"Quicksand";
+  font-style:normal;
+  font-weight:700;
+  font-display:swap;
+  src:url("quicksand-latin-700-normal.woff2") format("woff2");
+}
+@font-face{
+  font-family:"Nunito";
+  font-style:normal;
+  font-weight:400;
+  font-display:swap;
+  src:url("nunito-latin-400-normal.woff2") format("woff2");
+}
+@font-face{
+  font-family:"Nunito";
+  font-style:normal;
+  font-weight:600;
+  font-display:swap;
+  src:url("nunito-latin-600-normal.woff2") format("woff2");
+}
+@font-face{
+  font-family:"Nunito";
+  font-style:normal;
+  font-weight:700;
+  font-display:swap;
+  src:url("nunito-latin-700-normal.woff2") format("woff2");
+}

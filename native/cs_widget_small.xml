@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The small widget: the number and the tally.
+     Goes in: android/app/src/main/res/layout/cs_widget_small.xml
+
+     No "next" or "shoot" view — the shared draw tells them to hide, and
+     RemoteViews ignores a call about a view that is not in the layout. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_vertical"
+    android:padding="12dp"
+    android:background="@drawable/cs_widget_bg">
+
+    <TextView
+        android:id="@+id/w_day"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#EDE5D2"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:maxLines="1"
+        android:text="Day 1" />
+
+    <TextView
+        android:id="@+id/w_progress"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textColor="#FB6900"
+        android:textSize="12sp"
+        android:maxLines="1"
+        android:text="0/0 done" />
+
+</LinearLayout>

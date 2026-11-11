@@ -1,0 +1,71 @@
+{
+  "name": "creator-studio-3",
+  "productName": "Creator Studio 3",
+  "version": "3.0.0",
+  "description": "Creator Studio with the storyboard canvas built in. One codebase: Android (Capacitor) and Windows (Electron).",
+  "author": "Kris Catten",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "web": "node scripts/copy-web.js",
+    "build": "node scripts/copy-web.js && electron-builder --win dir --x64",
+    "start": "node scripts/copy-web.js && electron .",
+    "dist:win": "node scripts/copy-web.js && electron-builder --win nsis portable --x64",
+    "android:setup": "node scripts/android-setup.js",
+    "android:sync": "node scripts/copy-web.js && npx cap sync android && node scripts/android-setup.js --patch-only",
+    "android:open": "npx cap open android",
+    "test": "node scripts/run-tests.js",
+    "site": "node scripts/build-sw.js app && node scripts/stage-site.js && node scripts/build-sw.js _site && node scripts/check-site.js _site"
+  },
+  "build": {
+    "appId": "com.solakirus.creatorstudio3",
+    "productName": "Creator Studio 3",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**",
+      "www/**",
+      "build/icon.png"
+    ],
+    "protocols": [
+      {
+        "name": "Creator Studio 3",
+        "schemes": [
+          "cs3"
+        ]
+      }
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Creator Studio 3"
+    },
+    "portable": {
+      "artifactName": "CreatorStudio3-portable-${version}.exe"
+    }
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/app": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/filesystem": "^7.0.0",
+    "@capacitor/local-notifications": "^7.0.0",
+    "@capacitor/share": "^7.0.0",
+    "playwright-core": "^1.64.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  }
+}

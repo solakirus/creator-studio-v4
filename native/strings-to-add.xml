@@ -1,0 +1,18 @@
+<!-- Merge these into android/app/src/main/res/values/strings.xml,
+     inside the existing <resources> block. Android requires the labels to be
+     string resources; it will not accept literals in shortcuts.xml.
+
+     Apostrophes must be escaped with a backslash — an unescaped one is a build
+     error, not a warning. -->
+
+<string name="sc_run_short">Run</string>
+<string name="sc_run_long">Start a run</string>
+
+<string name="sc_capture_short">Capture</string>
+<string name="sc_capture_long">Quick capture</string>
+
+<string name="sc_shoot_short">Shoot</string>
+<string name="sc_shoot_long">Today\'s filming</string>
+
+<string name="sc_workout_short">Workout</string>
+<string name="sc_workout_long">Start a workout</string>
