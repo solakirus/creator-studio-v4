@@ -421,7 +421,7 @@
           const data = await Transfer.exportAll({ photos:true, only:PHONE_STORES });
           data.kind = 'library-templates';
           const text = JSON.stringify(data);
-          const name = `CS3 Library & Templates ${new Date().toISOString().slice(0, 10)}.json`;
+          const name = `CSv4 Library & Templates ${new Date().toISOString().slice(0, 10)}.json`;
           const ok = await Transfer.download(name, text, 'application/json');
           const lib = await MediaLib.load(true);
           const onDisk = lib.items.filter(it => it.src === 'h').length;

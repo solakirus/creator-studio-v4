@@ -7,7 +7,7 @@
    installs beside v2 as a separate app.
 
    What changes in the copy (v2's folder is only read):
-     applicationId        com.creatorstudio.v2  -> com.solakirus.creatorstudio3
+     applicationId        com.creatorstudio.v2  -> com.solakirus.creatorstudio4 (or from CS3)
      app name             Creator Studio        -> Creator Studio 3
      link scheme          com.creatorstudio.v2  -> cs3
      file provider        hard-coded authority  -> ${applicationId}.fileprovider
@@ -27,9 +27,9 @@ const ROOT = path.join(__dirname, '..');
 const ANDROID = path.join(ROOT, 'android');
 const NATIVE = path.join(ROOT, 'native');
 const OLD_ID = 'com.creatorstudio.v2';
-const NEW_ID = 'com.solakirus.creatorstudio3';
-const SCHEME = 'cs3';
-const LABEL = 'Creator Studio 3';
+const NEW_ID = 'com.solakirus.creatorstudio4';
+const SCHEME = 'cs4';
+const LABEL = 'Creator Studio v4';
 
 const args = process.argv.slice(2);
 const patchOnly = args.includes('--patch-only');

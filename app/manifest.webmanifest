@@ -1,6 +1,6 @@
 {
-  "name": "Creator Studio 3",
-  "short_name": "Studio",
+  "name": "Creator Studio v4",
+  "short_name": "Studio v4",
   "description": "Plan the week, shoot the days, keep the whole operation in one place.",
   "start_url": "./index.html",
   "scope": "./",

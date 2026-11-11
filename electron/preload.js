@@ -5,7 +5,7 @@
    Electron, this offers the same names and call shapes Capacitor does, backed
    by main.js. Only these exist on Windows:
 
-     App               deep links (cs3://), launch URL
+     App               deep links (cs4://), launch URL
      CapacitorHttp     requests without cross-site limits
      Filesystem/Share  write a file, then Save As
      LocalNotifications reminders while the app is open
@@ -29,7 +29,7 @@ const App = {
   removeAllListeners() { Object.values(listeners).forEach(s => s.clear()); return Promise.resolve(); },
   getLaunchUrl: async () => { const url = await ipcRenderer.invoke('cs3:launch-url'); return url ? { url } : undefined; },
   exitApp: () => ipcRenderer.send('cs3:quit'),
-  getInfo: async () => ({ name: 'Creator Studio 3', id: 'com.solakirus.creatorstudio3' })
+  getInfo: async () => ({ name: 'Creator Studio v4', id: 'com.solakirus.creatorstudio4' })
 };
 
 const CapacitorHttp = {

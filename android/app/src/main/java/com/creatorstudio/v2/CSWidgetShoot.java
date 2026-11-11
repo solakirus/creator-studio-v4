@@ -5,5 +5,5 @@ package com.creatorstudio.v2;
  */
 public class CSWidgetShoot extends CSWidgetBase {
     @Override protected int layoutId() { return R.layout.cs_widget_shoot; }
-    @Override protected String link() { return "cs3://go/shoot"; }
+    @Override protected String link() { return "cs4://go/shoot"; }
 }

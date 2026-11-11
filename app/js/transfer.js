@@ -85,7 +85,7 @@
   async function exportAll(opts){
     const photos = !opts || opts.photos !== false;
     const stats = { blobs:0, bytes:0, dropped:0, records:0 };
-    const out = { format:FORMAT, version:VERSION, app:'creator-studio-3',
+    const out = { format:FORMAT, version:VERSION, app:'creator-studio-v4',
                   exportedAt:new Date().toISOString(), photos, data:{}, keyed:{} };
     const shape = await layout();
     /* opts.only — just these stores (the Library & Templates file for the phone) */

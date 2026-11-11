@@ -1,7 +1,7 @@
 {
-  "name": "creator-studio-3",
-  "productName": "Creator Studio 3",
-  "version": "3.0.0",
+  "name": "creator-studio-v4",
+  "productName": "Creator Studio v4",
+  "version": "4.0.0",
   "description": "Creator Studio with the storyboard canvas built in. One codebase: Android (Capacitor) and Windows (Electron).",
   "author": "Kris Catten",
   "private": true,
@@ -18,8 +18,8 @@
     "site": "node scripts/build-sw.js app && node scripts/stage-site.js && node scripts/build-sw.js _site && node scripts/check-site.js _site"
   },
   "build": {
-    "appId": "com.solakirus.creatorstudio3",
-    "productName": "Creator Studio 3",
+    "appId": "com.solakirus.creatorstudio4",
+    "productName": "Creator Studio v4",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -31,9 +31,9 @@
     ],
     "protocols": [
       {
-        "name": "Creator Studio 3",
+        "name": "Creator Studio v4",
         "schemes": [
-          "cs3"
+          "cs4"
         ]
       }
     ],
@@ -48,7 +48,7 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "Creator Studio 3"
+      "shortcutName": "Creator Studio v4"
     },
     "portable": {
       "artifactName": "CreatorStudio3-portable-${version}.exe"

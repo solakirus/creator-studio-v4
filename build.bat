@@ -1,13 +1,13 @@
 @echo off
 setlocal EnableExtensions
-title Creator Studio 3 - build
+title Creator Studio v4 - build
 cd /d "%~dp0"
 
 rem Where Creator Studio v2 lives. Only read, the first time, to copy its Android project.
 set "V2=C:\Users\Khale\Projects\creator-studio-v2"
 
 echo.
-echo  ===== Creator Studio 3 =====
+echo  ===== Creator Studio v4 =====
 echo.
 
 where npm >nul 2>nul
@@ -36,7 +36,7 @@ rem --- 2. Windows app
 echo.
 choice /c YN /n /m " Build the Windows app? [Y/N] "
 if errorlevel 2 goto :android
-taskkill /im "Creator Studio 3.exe" /f >nul 2>nul
+taskkill /im "Creator Studio v4.exe" /f >nul 2>nul
 rem electron-builder's Windows tools archive contains Mac symlinks Windows won't create
 rem without Developer Mode. Unpack it once ourselves, skipping those.
 set "WCS=%LOCALAPPDATA%\electron-builder\Cache\winCodeSign"
@@ -75,9 +75,9 @@ if errorlevel 1 (
   goto :failed
 )
 popd
-copy /y android\app\build\outputs\apk\debug\app-debug.apk "dist\Creator Studio 3.apk" >nul
-if exist "dist\Creator Studio 3.apk" set "APKOUT=%~dp0dist\Creator Studio 3.apk"
-echo  APK ready. It installs beside Creator Studio v2 - it does not replace it.
+copy /y android\app\build\outputs\apk\debug\app-debug.apk "dist\Creator Studio v4.apk" >nul
+if exist "dist\Creator Studio v4.apk" set "APKOUT=%~dp0dist\Creator Studio v4.apk"
+echo  APK ready. It installs beside Creator Studio 3 and v2 - it does not replace them.
 
 rem --- 4. Save this version in git
 :git

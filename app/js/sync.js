@@ -4,7 +4,7 @@
    not. This only watches what changes and swaps it with the server:
 
      - every Store.put / del / clear is noted as "this key changed at this time"
-       in a small side database (creator-studio-3-sync), never in the app's own
+       in a small side database (creator-studio-4-sync), never in the app's own
      - a sync pushes those keys up (reading the record as it is NOW, so ten edits
        to one task are one upload, and a key that no longer exists goes up as a
        delete), then pulls everything other devices sent since last time
@@ -19,8 +19,8 @@
    belong to one device. Pictures ARE synced; they travel inside the records as
    the same { __blob, b64 } shape "Export everything" uses. */
 (function(global){
-  const APP      = 'creator-studio-3';
-  const DB_NAME  = (global.CS_DB_NAME || 'creator-studio-3') + '-sync';
+  const APP      = 'creator-studio-4';
+  const DB_NAME  = (global.CS_DB_NAME || 'creator-studio-4') + '-sync';
   const PUSH_MAX_BYTES = 4 * 1024 * 1024;   /* per request, well under the server's 50 MB */
   const PUSH_MAX_ITEMS = 300;
   const EVERY    = 3 * 60 * 1000;           /* background sync while open */

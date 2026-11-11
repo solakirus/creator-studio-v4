@@ -59,7 +59,7 @@ function available() { return !!(E && E.app && E.app.isReady && E.app.isReady())
 function session() {
   const ses = E.session.fromPartition(PARTITION);
   /* look like the Chrome it is, without the app's own name in it */
-  const ua = ses.getUserAgent().replace(/\s(Electron|creator-studio-3|Creator ?Studio ?3)\/\S+/gi, '');
+  const ua = ses.getUserAgent().replace(/\s(Electron|creator-studio-[\w-]+|Creator ?Studio ?v?\d)\/\S+/gi, '');
   ses.setUserAgent(ua);
   return ses;
 }

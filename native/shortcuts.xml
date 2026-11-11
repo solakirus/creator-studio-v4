@@ -19,9 +19,9 @@
       android:shortcutLongLabel="@string/sc_run_long">
     <intent
         android:action="android.intent.action.VIEW"
-        android:targetPackage="com.solakirus.creatorstudio3"
+        android:targetPackage="com.solakirus.creatorstudio4"
         android:targetClass="com.creatorstudio.v2.MainActivity"
-        android:data="cs3://go/run" />
+        android:data="cs4://go/run" />
     <categories android:name="android.shortcut.conversation" />
   </shortcut>
 
@@ -33,9 +33,9 @@
       android:shortcutLongLabel="@string/sc_capture_long">
     <intent
         android:action="android.intent.action.VIEW"
-        android:targetPackage="com.solakirus.creatorstudio3"
+        android:targetPackage="com.solakirus.creatorstudio4"
         android:targetClass="com.creatorstudio.v2.MainActivity"
-        android:data="cs3://go/capture" />
+        android:data="cs4://go/capture" />
     <categories android:name="android.shortcut.conversation" />
   </shortcut>
 
@@ -47,9 +47,9 @@
       android:shortcutLongLabel="@string/sc_shoot_long">
     <intent
         android:action="android.intent.action.VIEW"
-        android:targetPackage="com.solakirus.creatorstudio3"
+        android:targetPackage="com.solakirus.creatorstudio4"
         android:targetClass="com.creatorstudio.v2.MainActivity"
-        android:data="cs3://go/shoot" />
+        android:data="cs4://go/shoot" />
     <categories android:name="android.shortcut.conversation" />
   </shortcut>
 
@@ -61,9 +61,9 @@
       android:shortcutLongLabel="@string/sc_workout_long">
     <intent
         android:action="android.intent.action.VIEW"
-        android:targetPackage="com.solakirus.creatorstudio3"
+        android:targetPackage="com.solakirus.creatorstudio4"
         android:targetClass="com.creatorstudio.v2.MainActivity"
-        android:data="cs3://go/workout" />
+        android:data="cs4://go/workout" />
     <categories android:name="android.shortcut.conversation" />
   </shortcut>
 

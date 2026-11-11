@@ -1,7 +1,7 @@
 /* Updater — the Android app keeps itself current from GitHub Pages.
 
    The web half of the app (everything in app/) is the same code the iPad runs
-   from https://solakirus.github.io/creator-studio-3/. Rather than rebuild the
+   from https://solakirus.github.io/creator-studio-v4/. Rather than rebuild the
    APK for every change, the phone downloads new versions of those files from
    there and runs them; only native changes (widgets, plugins) need a new APK.
 
@@ -26,8 +26,8 @@
   const C = global.Capacitor;
   const isAndroid = !!(C && C.isNativePlatform && C.isNativePlatform() &&
                        C.getPlatform && C.getPlatform() === 'android');
-  const REMOTE = global.CS_UPDATE_REMOTE || 'https://solakirus.github.io/creator-studio-3/';   /* tests point it elsewhere */
-  const KEY = 'cs3-updater';
+  const REMOTE = global.CS_UPDATE_REMOTE || 'https://solakirus.github.io/creator-studio-v4/';   /* tests point it elsewhere */
+  const KEY = 'cs4-updater';
   const MAX_TRIES = 3;
 
   const plugin = name => {

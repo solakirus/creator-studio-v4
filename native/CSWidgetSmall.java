@@ -5,5 +5,5 @@ package com.creatorstudio.v2;
  */
 public class CSWidgetSmall extends CSWidgetBase {
     @Override protected int layoutId() { return R.layout.cs_widget_small; }
-    @Override protected String link() { return "cs3://go/today"; }
+    @Override protected String link() { return "cs4://go/today"; }
 }

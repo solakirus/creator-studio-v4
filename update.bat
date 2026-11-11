@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
-title Creator Studio 3 - publish an update
+title Creator Studio v4 - publish an update
 cd /d "%~dp0"
 
 echo.
@@ -19,7 +19,7 @@ if errorlevel 1 (
 
 if not exist .git (
   echo  This folder is not a git repository.
-  echo  Extract the zip OVER your existing creator-studio-3 folder, so the
+  echo  Extract the zip OVER your existing creator-studio-v4 folder, so the
   echo  hidden .git folder is kept, then run this again.
   goto :done
 )
@@ -28,7 +28,7 @@ rem --- the remote, re-added if a zip replaced .git and took it away
 git remote get-url origin >nul 2>nul
 if errorlevel 1 (
   echo  Setting the GitHub address, which this folder had lost...
-  git remote add origin https://github.com/solakirus/creator-studio-3.git
+  git remote add origin https://github.com/solakirus/creator-studio-v4.git
 )
 
 rem --- is there anything to publish?
@@ -64,14 +64,14 @@ if errorlevel 1 goto :failed
 echo.
 echo  Done. GitHub is building it now - about a minute.
 echo.
-echo    Watch it:  https://github.com/solakirus/creator-studio-3/actions
-echo    The app:   https://solakirus.github.io/creator-studio-3/
+echo    Watch it:  https://github.com/solakirus/creator-studio-v4/actions
+echo    The app:   https://solakirus.github.io/creator-studio-v4/
 echo.
 echo  On the iPad, open the app with signal and it updates itself.
 echo.
 choice /c YN /n /m "  Open the Actions page to watch? [Y/N] "
 if errorlevel 2 goto :done
-start "" "https://github.com/solakirus/creator-studio-3/actions"
+start "" "https://github.com/solakirus/creator-studio-v4/actions"
 goto :done
 
 :failed

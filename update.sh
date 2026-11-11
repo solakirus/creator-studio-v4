@@ -16,12 +16,12 @@ echo
 
 command -v git >/dev/null || { echo " Git is not installed:  sudo apt install git"; exit 1; }
 [ -d .git ] || { echo " This folder is not a git repository. Extract the zip OVER your"
-                 echo " existing creator-studio-3 folder so its .git folder is kept."; exit 1; }
+                 echo " existing creator-studio-v4 folder so its .git folder is kept."; exit 1; }
 
 # a zip extracted over the folder can take the remote with it — put it back
 git remote get-url origin >/dev/null 2>&1 || {
   echo " Setting the GitHub address, which this folder had lost..."
-  git remote add origin https://github.com/solakirus/creator-studio-3.git
+  git remote add origin https://github.com/solakirus/creator-studio-v4.git
 }
 
 if [ -z "$(git status --porcelain)" ]; then
@@ -47,6 +47,6 @@ fi
 
 echo
 echo " Done. GitHub is building it now — about a minute."
-echo "   Watch it:  https://github.com/solakirus/creator-studio-3/actions"
-echo "   The app:   https://solakirus.github.io/creator-studio-3/"
+echo "   Watch it:  https://github.com/solakirus/creator-studio-v4/actions"
+echo "   The app:   https://solakirus.github.io/creator-studio-v4/"
 echo

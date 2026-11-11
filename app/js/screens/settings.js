@@ -1049,7 +1049,7 @@
           const st = obj.stats || {};
           delete obj.stats;
           const d = new Date();
-          const name = `creator-studio-3-${d.getFullYear()}-${U.pad(d.getMonth()+1)}-${U.pad(d.getDate())}${photos ? '' : '-no-photos'}.json`;
+          const name = `creator-studio-v4-${d.getFullYear()}-${U.pad(d.getMonth()+1)}-${U.pad(d.getDate())}${photos ? '' : '-no-photos'}.json`;
           const ok = await Transfer.download(name, JSON.stringify(obj), 'application/json');
           App.closeSheet();
           if(ok) U.toast(`Exported ${st.records || 0} records${photos ? ` and ${st.blobs || 0} pictures` : ''}`);
@@ -1095,7 +1095,7 @@
     App.sheet(`
       <h2>Restore from backup</h2>
       <p style="margin:0 0 14px;color:var(--muted);font-size:14.5px;line-height:1.6">
-        Pick a Creator Studio JSON file — from Creator Studio 3, or a backup made in Creator Studio v2.
+        Pick a Creator Studio JSON file — from Creator Studio v4 or 3, or a backup made in Creator Studio v2.
         Pictures come along if the backup has them.</p>
       <div class="field"><label>How to bring it in</label><div class="opts" data-group="setmode">
         <button type="button" class="opt" data-v="merge" aria-pressed="true">Add to what's here</button>

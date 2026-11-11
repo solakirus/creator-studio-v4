@@ -1,6 +1,6 @@
 {
-  "appId": "com.solakirus.creatorstudio3",
-  "appName": "Creator Studio 3",
+  "appId": "com.solakirus.creatorstudio4",
+  "appName": "Creator Studio v4",
   "webDir": "www",
   "server": {
     "cleartext": true

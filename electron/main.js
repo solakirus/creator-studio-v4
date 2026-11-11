@@ -1,9 +1,9 @@
-/* Creator Studio 3 — Windows shell.
+/* Creator Studio v4 — Windows shell.
 
    Runs the same www/ the Android app runs. The web layer was written against
    Capacitor, so preload.js hands it a small Capacitor-shaped bridge and this
    file does the native half: HTTP without cross-site limits, saving files,
-   reminders, and cs3:// deep links. Anything the bridge doesn't offer
+   reminders, and cs4:// deep links. Anything the bridge doesn't offer
    (widgets, live notification, share-in, GPS) is simply absent, and the web
    code already treats an absent plugin as "not on this device". */
 const { app, BrowserWindow, protocol, net, shell, Menu, ipcMain, dialog,
@@ -12,8 +12,8 @@ const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 
-const SCHEME = 'cs3';                  /* deep links: cs3://go/today */
-const NAME = 'Creator Studio 3';
+const SCHEME = 'cs4';                  /* deep links: cs4://go/today */
+const NAME = 'Creator Studio v4';
 
 /* The page is served from app://cs3/ rather than file://, so IndexedDB,
    fetch and clipboard behave like a real site and the origin never changes
@@ -32,11 +32,11 @@ protocol.registerSchemesAsPrivileged([{ scheme: 'app',
 const argAfter = flag => { const i = process.argv.indexOf(flag); return i >= 0 ? process.argv[i + 1] : null; };
 const SHOT = argAfter('--screenshot');
 const SHOT_VIEW = argAfter('--view');
-if (SHOT) app.setPath('userData', path.join(app.getPath('temp'), 'creator-studio-3-screenshot'));
+if (SHOT) app.setPath('userData', path.join(app.getPath('temp'), 'creator-studio-v4-screenshot'));
 
 if (!app.requestSingleInstanceLock()) { app.quit(); }
 
-/* Register cs3:// with Windows. In development the exe is electron.exe, so it
+/* Register cs4:// with Windows. In development the exe is electron.exe, so it
    needs the script path passed along. */
 if (SHOT) {
   /* a picture for a check: register nothing */
@@ -96,7 +96,7 @@ app.on('second-instance', (e, argv) => {
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
-  app.setAppUserModelId('com.solakirus.creatorstudio3');   /* Windows needs this for notifications */
+  app.setAppUserModelId('com.solakirus.creatorstudio4');   /* Windows needs this for notifications */
 
   const root = WebUpdate.choose();
   protocol.handle('app', req => {
@@ -181,7 +181,7 @@ Library.wire({ ipcMain, dialog, shell, net, app, getWin: () => win });
    dropped for the one before it. Running a new installer always starts from
    that installer's copy. */
 const WebUpdate = (() => {
-  const REMOTE = process.env.CS_UPDATE_REMOTE || 'https://solakirus.github.io/creator-studio-3/';   /* tests point it elsewhere */
+  const REMOTE = process.env.CS_UPDATE_REMOTE || 'https://solakirus.github.io/creator-studio-v4/';   /* tests point it elsewhere */
   const crypto = require('crypto');
   const shipped = path.join(__dirname, '..', 'www');
   const base = () => path.join(app.getPath('userData'), 'web');
@@ -331,7 +331,7 @@ ipcMain.handle('cs3:http', async (e, o) => {
    writeFile + share is how the phone saves a backup or CSV. Here "share"
    becomes a Save As dialog, so the file lands wherever you choose. */
 const docsDir = () => path.join(app.getPath('documents'), NAME);
-const cacheDir = () => path.join(app.getPath('temp'), 'creator-studio-3');
+const cacheDir = () => path.join(app.getPath('temp'), 'creator-studio-v4');
 
 ipcMain.handle('cs3:fs-write', async (e, o) => {
   const dir = o.directory === 'DOCUMENTS' ? docsDir() : cacheDir();

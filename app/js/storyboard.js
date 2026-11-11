@@ -17,7 +17,7 @@
 (function(global){
 
   const SCHEME = 'storyboard';
-  const SELF = 'cs3';
+  const SELF = 'cs4';
 
   /* Whether anything can open a link at all. In a browser this is a no-op that
      opens a tab and fails quietly; on the phone it switches apps. */

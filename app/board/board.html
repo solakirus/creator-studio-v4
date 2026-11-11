@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Board · Creator Studio 3</title>
+<title>Board · Creator Studio v4</title>
 <script>
 /* Creator Studio 3: this page runs inside the app (an iframe on the Board
    screen). The theme and colours follow Creator Studio's, read from the
@@ -836,7 +836,7 @@ let view = { x: 60, y: 60, z: 1 }, zTop = 1;
 /* ---------- Storage (IndexedDB) ---------- */
 const DB = {
   db: null, mem: false,
-  /* Creator Studio 3: boards live in the app's database ('creator-studio-3',
+  /* Creator Studio 3: boards live in the app's database ('creator-studio-4',
      store 'board-items'), so Export everything carries them. Inside the app the
      page borrows the app's open connection; on its own it opens the database
      at whatever version the app made. */
@@ -845,7 +845,7 @@ const DB = {
       const P = window.parent !== window ? window.parent : null;
       if (P && P.Store && P.Store.db) this.db = await P.Store.db();
       else this.db = await new Promise((res, rej) => {
-        const r = indexedDB.open('creator-studio-3');
+        const r = indexedDB.open((() => { try { return window.CS_DB_NAME || (window.parent && window.parent.CS_DB_NAME) || 'creator-studio-4'; } catch (e) { return 'creator-studio-4'; } })());
         r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
       });
       if (!this.db.objectStoreNames.contains('board-items')) throw new Error('no board store');
@@ -2760,7 +2760,7 @@ updateThemeBtn();
 /* ---------- Deep links with Creator Studio (see STORYBOARD.md) ----------
    A board's id is the board item's own id: the short random string made by uid(), e.g. "k3f9x2a1b2c".
    It never changes once made, so a link keeps working after renames and moves on the same device. */
-const boardLink = id => `cs3://board/${id}`;
+const boardLink = id => `cs4://board/${id}`;
 let returnLink = null;
 function rememberReturnLink(link) {
   returnLink = link || null;

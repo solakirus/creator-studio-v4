@@ -1,9 +1,9 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Creator Studio 3</string>
-    <string name="title_activity_main">Creator Studio 3</string>
-    <string name="package_name">com.solakirus.creatorstudio3</string>
-    <string name="custom_url_scheme">cs3</string>
+    <string name="app_name">Creator Studio v4</string>
+    <string name="title_activity_main">Creator Studio v4</string>
+    <string name="package_name">com.solakirus.creatorstudio4</string>
+    <string name="custom_url_scheme">cs4</string>
 	<string name="sc_run_short">Run</string>
 	<string name="sc_run_long">Start a run</string>
 	<string name="sc_capture_short">Capture</string>

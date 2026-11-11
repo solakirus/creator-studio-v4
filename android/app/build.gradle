@@ -4,7 +4,7 @@ android {
     namespace = "com.creatorstudio.v2"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.solakirus.creatorstudio3"
+        applicationId "com.solakirus.creatorstudio4"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
