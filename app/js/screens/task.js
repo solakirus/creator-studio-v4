@@ -20,6 +20,11 @@
       .shotline.done button.bx{color:#fff}
       .shotline.done button.bx{background:var(--green)}
       .shotline.tk-ps .mini{margin-top:2px}
+      /* v4: on a phone the name field kept its own width and pushed the move
+         buttons off the screen; the text column takes what is left instead */
+      .shotline.tk-ps .tx{flex:1 1 auto;min-width:0}
+      @media (max-width:520px){ .shotline.tk-ps{gap:6px} .shotline.tk-ps .mini{width:28px;flex-basis:28px} .shotline.tk-ps .tk-rolesel{max-width:110px;margin-right:6px}
+        .shotline.tk-ps .tk-line{flex-wrap:wrap;row-gap:3px} .shotline.tk-ps .tk-name{flex:1 1 100%} }
       .tk-line{display:flex;align-items:center;min-width:0}
       .tk-rolesel{appearance:none;-webkit-appearance:none;flex:0 0 auto;width:auto;min-width:0;max-width:150px;height:auto;margin-right:8px;padding:3px 7px;border:1px solid transparent;border-radius:3px;
         background:rgba(237,229,210,.1);color:var(--cream);font-family:var(--display),sans-serif;font-weight:900;font-size:10px;
