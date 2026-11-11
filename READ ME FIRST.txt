@@ -54,6 +54,11 @@ HOW THE SHOT LIBRARY GETS TO THE PHONE (it doesn't — only what you use)
   time). Trim long clips or use a GIF.
 
 
+HABITS
+  Year in dots is in: the Habits strip on Today, "Year in dots ›" for the
+  grid, "+ Habit" to add one. Habits sync to the phone like everything else.
+
+
 THE LOGO
   Three are in branding\ (see logo-options.png). Clapper Bolt is installed.
   To switch:   node scripts\use-logo.js rec4        (or viewfinder, clapbolt)

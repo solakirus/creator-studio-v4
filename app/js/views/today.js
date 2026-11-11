@@ -170,6 +170,8 @@
         new Date(dayDate).toLocaleDateString(undefined,{ weekday:'long', month:'short', day:'numeric' })}</p>
     </div>
 
+    <div id="habitStrip"></div>
+
     <div class="segrow" role="tablist">
       ${['todo','done','skipped'].map(v => `
         <button class="seg" role="tab" aria-selected="${filter===v}" data-filter="${v}">
@@ -327,7 +329,15 @@
     el.innerHTML = Timeline.render(timelineItems());
   }
 
+  /* Habits (js/screens/habits.js) fill the strip above and tag the cards a
+     habit is counting, after every draw. Optional: without it, nothing here
+     changes. */
   function renderList(){
+    drawList();
+    if(global.HabitsUI) HabitsUI.decorate(root, tasks, day).catch(e => console.warn('Habits unavailable', e));
+  }
+
+  function drawList(){
     freqMap = freqLabels();
     if(mode === 'time') return renderTimeline();
     const rows = filter === 'prod'

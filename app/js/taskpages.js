@@ -84,6 +84,8 @@
   /* the default page on a task that has none and never had it removed */
   async function attachDefault(t){
     if(!t || t.page || t.pageOff) return false;
+    /* v4: a habit's own task ("Drink water") is a tick, not a shoot — no shot page */
+    if(t.habitId) return false;
     const d = await defaultSource();
     if(!d) return false;
     attach(t, d.tp, d.sh);

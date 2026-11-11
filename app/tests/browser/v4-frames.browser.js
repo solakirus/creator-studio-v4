@@ -167,6 +167,30 @@ const head = s => console.log(`\n— ${s} —`);
   await phone.screenshot({ path: path.join(out, 'phone-video.png') });
   await phone.evaluate(() => App.closeSheet && App.closeSheet());
 
+  head('habits come along, and stay simple');
+  const hb = await laptop.evaluate(async () => {
+    const h = await Habits.save({ name: 'Drink water', source: { type: 'own', amount: 8, unit: 'cups' } });
+    await Habits.ensureTasks(await Data.currentDay(), 7);
+    const t = (await Store.all('tasks')).values.find(x => x.habitId === h.id);
+    Screens.push('task', { id: t.id });
+    await new Promise(z => setTimeout(z, 1500));
+    const after = (await Store.all('tasks')).values.find(x => x.id === t.id);
+    Screens.pop();
+    await Sync.syncNow();
+    return { id: h.id, tid: t.id, page: !!after.page, steps: (after.subs || []).length };
+  });
+  ok(!hb.page && hb.steps === 0, 'opening a habit task leaves it a plain tick — no shot page, no steps', `${hb.steps} steps`);
+  const hp = await phone.evaluate(async ({ id, tid }) => {
+    await Sync.syncNow();
+    const h = await Habits.get(id);
+    const t = (await Store.all('tasks')).values.find(x => x.id === tid);
+    App.go('today');
+    await new Promise(z => setTimeout(z, 800));
+    return { habit: !!h, name: h && h.name, task: !!t, strip: !!document.querySelector('#habitStrip') && document.querySelector('#habitStrip').textContent.includes('Drink water') };
+  }, hb);
+  ok(hp.habit && hp.task, 'the habit and its tasks reach the phone', hp.name);
+  ok(hp.strip, 'and the phone\'s Today shows it in the habit strip');
+
   head('sync catch-up: a device that passed over a store');
   const cu = await phone.evaluate(async () => {
     /* make the phone look like it came from a build without task-frames: no
