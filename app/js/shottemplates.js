@@ -218,11 +218,14 @@
       .filter(Boolean).join('\n\n');
     const shots = t.shots.length ? t.shots.map(shotLine)
       : t.sheets.flatMap(s => s.layout === 'steps' ? s.slots.map(x => x.text).filter(Boolean) : [s.name]);
-    const page = pageFrom(t);
+    /* the shot list, frames and all (shotlist.js) — it goes on a shoot task
+       from the clip's Shoot tab */
+    const shotList = t.shots.length && global.ShotList ? t.shots.map(ShotList.fromTplShot)
+      : (global.ShotList ? ShotList.norm(shots) : []);
     const clip = await Data.saveClip({ title:t.name, plat:t.format === 'Short' ? 'shorts' : 'youtube', stage:'idea',
       channel:'', seriesId:null, dur:'0:00', pct:(Data.PCT_FOR || {}).raw || 0,
-      plan:{ hook:t.description || '', notes }, shots, tags:[t.kind], template:t.id,
-      page, pageFrom: page ? { tid:t.id, sid:page.id, template:t.name } : null });
+      plan:{ hook:t.description || '', notes }, shots, shotList, tags:[t.kind], template:t.id,
+      pageFrom:{ tid:t.id, template:t.name } });
     if(Data.invalidate) Data.invalidate('clips');
     return clip;
   }

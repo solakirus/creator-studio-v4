@@ -105,7 +105,7 @@ const head = s => console.log(`\n— ${s} —`);
     return task.id;
   }, { png: FX('still.png') });
   await p.waitForTimeout(1200);
-  const shootIt = await p.$(`[data-shootseq="${ep}"]`);
+  const shootIt = await p.$('[data-shootseq="bq1"]');   /* on its task (ep), since it's on your days */
   ok(!!shootIt, 'a sequence on your tasks has “Shoot it”');
   if (shootIt) { await shootIt.click(); await p.waitForTimeout(1000); }
   const sr = await p.evaluate(() => ({ n: (document.querySelector('.sr-n') || {}).textContent, t: (document.querySelector('.sr-t') || {}).textContent,

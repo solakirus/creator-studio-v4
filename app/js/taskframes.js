@@ -83,6 +83,11 @@
     /* a template's frames are ready on the phone before it's ever used —
        "Morning routine" at 6 am doesn't wait for the laptop to be on */
     for(const t of await all('shot-templates')) collect(t, want);
+    for(const t of await all('seq-template')) collect(t, want);
+    /* v4: an episode's sequences — while their day is in the window (or unset) */
+    for(const v of await all('vlogs'))
+      for(const a of (v.acts || [])) for(const b of (a.beats || []))
+        if(await taskLive({ day:b.day }, cutoff)) collect(b.shots, want);
     for(const t of await all('tasks')) if(await taskLive(t, cutoff)) collect(t, want);
     for(const v of await all('videos')){
       /* a video published before v4 stamped the date: stamp it now, so the
@@ -93,9 +98,9 @@
       }
       if(videoLive(v, cutoff)) collect(v, want);
     }
-    /* v4: clips made from a template carry its shot page */
+    /* v4: a clip's shot list (and the shot page a template gave it) */
     for(const c of await all('clips')){
-      if(!c || !c.page) continue;
+      if(!c || !(c.page || (c.shotList || []).length)) continue;
       const posted = global.Versions && Versions.isPublished ? Versions.isPublished(c) : c.stage === 'published';
       if(posted && !c.postedAt){
         c.postedAt = now();
@@ -180,7 +185,7 @@
     const put = Store.put;
     const wrapped = async function(store, value, key){
       const r = await put.call(Store, store, value, key);
-      if(store === 'tasks' || store === 'videos' || store === 'clips' || store === 'star-groups' || store === 'shot-templates') soon();
+      if(['tasks', 'videos', 'clips', 'vlogs', 'seq-template', 'star-groups', 'shot-templates'].includes(store)) soon();
       return r;
     };
     wrapped._tf = true;

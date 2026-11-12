@@ -509,7 +509,7 @@
       const used = new Set();
       (await allBoards()).forEach(b => b.items.forEach(u => used.add(u)));
       (await allStars()).forEach(g => g.items.forEach(u => used.add(u)));
-      if(global.TaskFrames) for(const st of ['tasks', 'videos', 'clips', 'shot-templates']){
+      if(global.TaskFrames) for(const st of ['tasks', 'videos', 'clips', 'vlogs', 'seq-template', 'shot-templates']){
         try { (await Store.all(st)).values.forEach(v => TaskFrames.collect(v, used)); } catch(e){}
       }
       const isUsed = it => used.has(it.uid) || (it.from && used.has(it.from));

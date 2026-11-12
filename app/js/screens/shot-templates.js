@@ -372,7 +372,7 @@
         await save(true);
         const v = await T().newClip(t.id);
         if(!v) return U.toast('Clips are not available');
-        App.sheet(`<h2 style="margin:0 0 8px">Clip made</h2><p class="hintline">“${esc(v.title)}” is in Clips → Plan with ${plural((v.shots || []).length, 'shot')}${v.page ? ' and their frames' : ''}${t.use_look ? ', the look' : ''} and the tasks in its notes.</p>
+        App.sheet(`<h2 style="margin:0 0 8px">Clip made</h2><p class="hintline">“${esc(v.title)}” is in Clips → Plan with ${plural((v.shots || []).length, 'shot')}${(v.shotList || []).some(x => x.item) ? ' and their frames' : ''}${t.use_look ? ', the look' : ''} and the tasks in its notes.</p>
           <div class="sheetcta"><button class="btn-primary" data-go>Open the clip</button><button class="btn-ghost" data-no>Stay here</button></div>`, sh => sh.addEventListener('click', ev => {
             if(ev.target.closest('[data-no]')) return App.closeSheet();
             if(ev.target.closest('[data-go]')){ App.closeSheet(); Screens.push('clip', { id:v.id }); }

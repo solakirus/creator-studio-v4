@@ -12,8 +12,6 @@
   };
   const LENGTHS = ['3','8','15','20'];
   const LEN_LABEL = { '3':'3 min', '8':'8 min', '15':'15 min', '20':'20 min+' };
-  const FRAMING  = ['Wide','Medium','Close','Over-shoulder','POV','Top-down'];
-  const MOVEMENT = ['Static','Pan','Tilt','Push in','Pull out','Tracking','Handheld'];
 
   /* Starting shapes. A weekly vlog is acts by day; the rest are acts by story. */
   const PRESETS = {
@@ -638,6 +636,7 @@
             <div class="sq-list">
               ${b.shots.map(s => `<div class="shotline${s.done ? ' done' : ''}" data-shot="${b.id}:${s.id}">
                 <span class="bx">${ICON.check}</span>
+                ${ShotList.thumbHTML(s)}
                 <span class="tx">${s.text}</span>
                 ${s.framing ? `<span class="tag">${s.framing}</span>` : ''}
                 ${s.movement ? `<span class="tag">${s.movement}</span>` : ''}
@@ -672,7 +671,13 @@
       </article>`;
     }
 
+    /* v4: every view here shows shot frames — fill them once it's drawn */
     function render(){
+      const r = render0();
+      Promise.resolve(r).then(() => { if(window.ShotList) ShotList.fillPics(el); });
+      return r;
+    }
+    function render0(){
       if(!v){ Screens.pop(); return; }
       if(mode === 'plan') return renderPlan();
       if(mode === 'week') return renderWeek();
@@ -1156,6 +1161,7 @@
                        return c.onTasks ? `${c.onTasks} on your days` : ''; })()
                     ].filter(Boolean).join(' · ')
                   : 'Nothing planned yet'}</small>
+                ${ShotList.stripHTML(items.flatMap(x => x.beat.shots || []), 9)}
               </span>
               ${shots ? `<span class="dr-c${got === shots ? ' all' : ''}">${got}/${shots}</span>` : ''}
               ${ICON.chevR}
@@ -1323,6 +1329,7 @@
                 ${sh.map(x => `<div class="shotline${x.done ? ' done' : ''}"
                   data-shot="${b.id}:${x.id}">
                   <span class="bx">${ICON.check}</span>
+                  ${ShotList.thumbHTML(x)}
                   <span class="tx">${x.text}</span>
                   ${x.framing ? `<span class="tag">${x.framing}</span>` : ''}
                 </div>`).join('')}
@@ -1932,15 +1939,14 @@
     function render(){
       if(!b){ Screens.pop(); return; }
       const clip = clips.find(c => c.id === b.clipId);
-      const done = (b.shots || []).filter(s => s.done).length;
 
       el.innerHTML = Screens.bar({ kicker:act.title, title:b.title,
         actions:`<button class="btn-sm" data-a="rename">Rename</button>` }) + `
       <div class="view">
         ${(() => {
           const cur = b.fn ? Story.fn(b.fn) : null;
-          return `<details class="nu-fold" style="--nu:${cur ? cur.c : 'var(--muted)'}"${
-            cur ? '' : ' open'}>
+          /* folded either way — the shots come first (its line still says "Not set") */
+          return `<details class="nu-fold" style="--nu:${cur ? cur.c : 'var(--muted)'}">
             <summary>
               <span class="ic">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
@@ -1962,6 +1968,14 @@
             </div>
           </details>`;
         })()}
+
+        <!-- v4: the shots first — what you film, each with its frame, the same
+             list as a task's (shotlist.js). The rest is the thinking behind it. -->
+        <div class="block">
+          <h4>Shots</h4>
+          <div id="beatShots"></div>
+          <button class="addbeat" data-a="suggestshots" style="width:100%;margin-top:8px">✦ Suggest shots</button>
+        </div>
 
         <div class="block">
           <h4>How it gets shot</h4>
@@ -1993,24 +2007,6 @@
         </div>
 
         <div class="block">
-          <h4>Shots · ${done} of ${(b.shots||[]).length} captured</h4>
-          ${(b.shots||[]).length ? (b.shots||[]).map((s,i) => `
-            <div class="shotline${s.done ? ' done' : ''}" data-shot="${s.id}">
-              <span class="bx">${ICON.check}</span>
-              <span class="tx">${s.text}${s.note ? `<br><span style="color:var(--dim);font-size:12.5px">${s.note}</span>` : ''}</span>
-              ${s.framing ? `<span class="tag">${s.framing}</span>` : ''}
-              ${s.movement ? `<span class="tag">${s.movement}</span>` : ''}
-              <button class="mini" data-editshot="${s.id}" aria-label="Edit">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4-1 10-10-3-3L5 16z"/><path d="M14.5 6.5l3 3"/></svg></button>
-            </div>`).join('')
-            : `<p style="margin:0;color:var(--muted);font-size:14.5px">No shots yet. Add the setups you need for this sequence.</p>`}
-          <div style="display:flex;gap:8px">
-            <button class="addbeat" data-a="addshot" style="flex:1">+ Add a shot</button>
-            <button class="addbeat" data-a="suggestshots" style="flex:1">✦ Suggest shots</button>
-          </div>
-        </div>
-
-        <div class="block">
           <h4>Scheduling</h4>
           <div class="metaline" style="margin:0">
             <button class="btn-sm" data-a="sched">
@@ -2039,59 +2035,13 @@
 
         <button class="btn-ghost" data-a="delete" style="width:100%;color:var(--red);border-color:rgba(226,86,74,.4)">Delete sequence</button>
       </div>`;
-    }
-
-    function editShot(shot){
-      const isNew = !shot;
-      const s = shot || { id:uid('s'), text:'', note:'', framing:'', movement:'', done:false };
-      App.sheet(`
-        <h2>${isNew ? 'New shot' : 'Edit shot'}</h2>
-        <div class="field"><label for="st">The shot</label>
-          <input id="st" type="text" value="${(s.text||'').replace(/"/g,'&quot;')}" placeholder="Hands on the bar, sunrise behind"></div>
-        <div class="field"><label for="sn">Note <span style="text-transform:none;letter-spacing:0;font-weight:400">(optional)</span></label>
-          <input id="sn" type="text" value="${(s.note||'').replace(/"/g,'&quot;')}" placeholder="Wait for the light"></div>
-        <div class="field"><label>Framing</label><div class="opts" data-group="framing">
-          ${FRAMING.map(f => `<button type="button" class="opt" data-v="${f}" aria-pressed="${s.framing===f}">${f}</button>`).join('')}
-        </div></div>
-        <div class="field"><label>Movement</label><div class="opts" data-group="movement">
-          ${MOVEMENT.map(m => `<button type="button" class="opt" data-v="${m}" aria-pressed="${s.movement===m}">${m}</button>`).join('')}
-        </div></div>
-        <div class="sheetcta">
-          <button class="btn-primary" data-save>${isNew ? 'Add shot' : 'Save'}</button>
-          <button class="btn-ghost" data-cancel>Cancel</button>
-        </div>
-        ${isNew ? '' : `<button class="btn-ghost" data-delete style="width:100%;margin-top:10px;color:var(--red);border-color:rgba(226,86,74,.4)">Delete shot</button>`}`,
-      sheetEl => {
-        sheetEl.addEventListener('click', async e => {
-          const opt = e.target.closest('.opt');
-          if(opt){
-            const g = opt.closest('.opts');
-            const was = opt.getAttribute('aria-pressed') === 'true';
-            g.querySelectorAll('.opt').forEach(o => o.setAttribute('aria-pressed','false'));
-            opt.setAttribute('aria-pressed', String(!was));   /* tapping again clears it */
-            return;
-          }
-          if(e.target.closest('[data-cancel]')) return App.closeSheet();
-          if(e.target.closest('[data-delete]')){
-            b.shots = b.shots.filter(x => x.id !== s.id);
-            await save(); App.closeSheet(); return render();
-          }
-          if(!e.target.closest('[data-save]')) return;
-          const t = sheetEl.querySelector('#st').value.trim();
-          if(!t) return U.toast('Describe the shot');
-          const pick = g => {
-            const el2 = sheetEl.querySelector(`[data-group="${g}"] .opt[aria-pressed="true"]`);
-            return el2 ? el2.dataset.v : '';
-          };
-          s.text = t;
-          s.note = sheetEl.querySelector('#sn').value.trim();
-          s.framing = pick('framing');
-          s.movement = pick('movement');
-          b.shots = b.shots || [];
-          if(isNew) b.shots.push(s);
-          await save(); App.closeSheet(); render();
-        });
-        setTimeout(() => { const f = sheetEl.querySelector('#st'); if(f) f.focus(); }, 180);
+      /* the shots: frames, shoot mode, templates (shotlist.js) */
+      ShotList.mount(el.querySelector('#beatShots'), {
+        title:b.title,
+        empty:'No shots yet. Add the setups this sequence needs — with a frame each, so you know the look.',
+        get:() => b.shots || [],
+        save:async list => { b.shots = list; await save(); },
+        onShootClose:async () => { await load(); render(); }
       });
     }
 
@@ -2128,18 +2078,9 @@
         return;
       }
 
-      const sh = e.target.closest('[data-shot]');
-      if(sh && !e.target.closest('[data-editshot]')){
-        const s = b.shots.find(x => x.id === sh.dataset.shot);
-        s.done = !s.done; await save(); return render();
-      }
-      const es = e.target.closest('[data-editshot]');
-      if(es) return editShot(b.shots.find(x => x.id === es.dataset.editshot));
-
       const a = e.target.closest('[data-a]');
       if(!a) return;
 
-      if(a.dataset.a === 'addshot') return editShot(null);
       /* break this action into its shots (Creator Studio 3) */
       if(a.dataset.a === 'suggestshots')
         return ShotAI.forBeat(v.id, b.id, async () => { await load(); render(); params.onChange && params.onChange(); });

@@ -66,8 +66,9 @@
           t.day = day;
           t.title = 'Shoot — ' + v.title;
           t.subs = (v.shots || []).map(s => ({ t:s, done:false }));
-          /* v4: a video made from a template carries its shot page, frames and all */
-          if(v.page && global.Notebook){ t.page = Notebook.copyNew(v.page); t.page.slots.forEach(sl => { sl.done = false; });
+          /* v4: its shot list goes on as the task's shot page, frames and all */
+          if((v.shotList || []).length && global.ShotList){ t.subs = []; ShotList.toTask(t, v.shotList, v.title); }
+          else if(v.page && global.Notebook){ t.page = Notebook.copyNew(v.page); t.page.slots.forEach(sl => { sl.done = false; });
                       t.pageFrom = v.pageFrom || null; delete t.pageOff; if(global.TaskPages) TaskPages.match(t); }
           await Store.put('tasks', t);
           if(global.Data && Data.invalidate) Data.invalidate('tasks');
@@ -83,8 +84,13 @@
       note: v.hook || v.notes || '',
       source: v.channel || '',
       subs: (v.shots || []).map(s => ({ t:s, done:false })),
-      page: v.page || null, pageFrom: v.pageFrom || null
+      page: (v.shotList || []).length ? null : (v.page || null), pageFrom: v.pageFrom || null
     });
+    if((v.shotList || []).length && global.ShotList){
+      task.subs = [];
+      ShotList.toTask(task, v.shotList, v.title);
+      await Store.put('tasks', task);
+    }
     return save({ ...v, taskId: task.id, stage: v.stage === 'idea' ? 'planned' : v.stage });
   }
 

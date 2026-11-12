@@ -62,7 +62,9 @@
             <div class="meta"><span class="st">${when}</span>
               ${(v.tags || []).length ? `<span class="sep">|</span>
                 <span class="st">${v.tags.map(t => '#' + esc(t)).join(' ')}</span>` : ''}
+              ${(v.shotList || v.shots || []).length ? `<span class="sep">|</span><span class="st">${(v.shotList || v.shots).length} shots</span>` : ''}
             </div>
+            ${window.ShotList ? ShotList.stripHTML(v.shotList, 7) : ''}
           </div>
           <div class="progress"><i style="width:${pct}%"></i></div>
         </div></article>`;
@@ -184,6 +186,7 @@
           <button class="btn-ghost" data-a="bulkideas" style="width:100%;margin:8px 0 0">
             Add several ideas at once</button>
         </div>`;
+      if(window.ShotList) ShotList.fillPics(el);
     }
 
     const refresh = async () => { await load(); render(); if(params.onChange) params.onChange(); };
@@ -196,6 +199,7 @@
       const html = n.length ? `<div class="list" id="sv-list">${n.map(videoCard).join('')}</div>`
         : `<div class="empty" id="sv-list"><b>Nothing matches</b>Try another word or stage.</div>`;
       if(list) list.outerHTML = html;
+      if(window.ShotList) ShotList.fillPics(el);
       const alt = el.querySelector('.sec .alt');
       if(alt) alt.textContent = n.length === vids.length ? vids.length : `${n.length} of ${vids.length}`;
     });

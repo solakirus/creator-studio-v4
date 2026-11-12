@@ -92,7 +92,8 @@
                     <small>${[
                       b.day ? dayLabel(b.day) : 'no day yet',
                       b.script ? 'scripted' : ''
-                    ].filter(Boolean).join(' · ')}</small></span>
+                    ].filter(Boolean).join(' · ')}</small>
+                    ${ShotList.stripHTML(sh, 8)}</span>
                   ${ICON.chevR}
                 </button>
 
@@ -106,6 +107,7 @@
                       ${sh.map(s => `<div class="shotline${s.done ? ' done' : ''}"
                         data-shot="${b.id}:${s.id}">
                         <span class="bx">${ICON.check}</span>
+                        ${ShotList.thumbHTML(s)}
                         <span class="tx">${esc(s.text)}</span>
                         ${s.framing ? `<span class="tag">${esc(s.framing)}</span>` : ''}
                       </div>`).join('')}
@@ -113,7 +115,7 @@
                   </details>`
                   : `<p class="sc-none">No shots listed yet — open it to add them.</p>`}
                 <div class="sc-foot">
-                  ${b.taskId && sh.length ? `<button data-shootseq="${b.taskId}" style="color:var(--orange);font-weight:700">▶ Shoot it</button>` : ''}
+                  ${sh.length ? `<button data-shootseq="${b.id}" style="color:var(--orange);font-weight:700">▶ Shoot it</button>` : ''}
                   <button data-moveto="${b.id}">Move to another day</button>
                   ${sh.length ? `<button data-keep="${b.id}">Save as a template</button>` : ''}
                 </div>
@@ -141,6 +143,7 @@
           <p class="note">A sequence is one thing you film — name it for what it is,
             not for the day it sits on.</p>
         </div>`;
+      ShotList.fillPics(el);
     }
 
     /* A template is a named sequence with its shots already in it — the same
@@ -148,6 +151,9 @@
        makes weekly planning expensive. */
     async function addSheet(){
       const templates = await SeqLib.all();
+      /* v4: the Library's shot templates too — their shots come with frames */
+      let shotTpls = [];
+      try { shotTpls = (await ShotTemplates.all()).filter(t => (t.shots || []).length); } catch(e){ shotTpls = []; }
 
       App.sheet(`
         <h2 style="margin:0 0 3px">Add to ${esc(act.title)}</h2>
@@ -163,6 +169,16 @@
               ${ICON.chevR}
             </button>`).join('')}
         </div>
+
+        ${shotTpls.length ? `<h3 class="pgh" style="margin:4px 0 6px">Shot templates — with frames</h3>
+        <div class="group compact" style="margin:0 0 12px;max-height:30vh;overflow-y:auto">
+          ${shotTpls.map(t => `
+            <button class="row" data-stpl="${t.id}">
+              <span class="lbl">${esc(t.name)}
+                <small>${t.shots.length} shot${t.shots.length === 1 ? '' : 's'} · ${t.shots.filter(x => x.item).length} with frames</small></span>
+              ${ICON.chevR}
+            </button>`).join('')}
+        </div>` : ''}
 
         <button class="btn-ghost" data-manage style="width:100%;margin:0 0 10px">
           Edit these templates</button>
@@ -188,6 +204,18 @@
             App.closeSheet();
             return Screens.push('vlog-beat', { vlogId:v.id, beatId:b.id,
               onChange:async () => { await load(); render(); } });
+          }
+
+          const st = ev.target.closest('[data-stpl]');
+          if(st){
+            const t = shotTpls.find(x => x.id === st.dataset.stpl);
+            if(!t) return;
+            act.beats.push({ id:uid('b'), title:t.name, purpose:t.description || '', setup:'talking', script:'', sourceId:null,
+              shots:t.shots.map(ShotList.fromTplShot), day:act.day ?? null, at:null, done:false, clipId:null });
+            await save();
+            App.closeSheet();
+            await load(); render();
+            return U.toast(`${t.name} · ${t.shots.length} shots`);
           }
 
           const pick = ev.target.closest('[data-tpl]');
@@ -245,8 +273,17 @@
 
       /* Picking the day from a list beats dragging a dozen cards around. */
       /* v4: the one shoot mode — one shot at a time, full screen */
+      /* shoot it: on its task when it's on your days (the ticks land there),
+         otherwise over the sequence's own shots */
       const ss = e.target.closest('[data-shootseq]');
-      if(ss){ Screens.push('shoot-run', { id:+ss.dataset.shootseq || ss.dataset.shootseq, onChange: async () => { await load(); render(); } }); return; }
+      if(ss){
+        const b = (act.beats || []).find(x => x.id === ss.dataset.shootseq);
+        if(!b) return;
+        const after = async () => { await load(); render(); };
+        const task = b.taskId ? await Store.get('tasks', b.taskId).catch(() => null) : null;
+        if(task) return Screens.push('shoot-run', { id:task.id, onChange:after });
+        return ShotList.shoot({ title:b.title, get:() => b.shots || [], save:async list => { b.shots = list; await save(); }, onShootClose:after });
+      }
       const mv = e.target.closest('[data-moveto]');
       if(mv){
         const b = (act.beats || []).find(x => x.id === mv.dataset.moveto);

@@ -23,7 +23,10 @@
       if(global.TaskPages) TaskPages.match(t);
       return t.page.slots.map((sl, i) => {
         const step = (t.subs || []).find(s2 => s2.shot === i) || {};
-        return { i, item:sl.item || '', role:sl.role || '', text:sl.text || `Shot ${i + 1}`, note:step.note || sl.note || '', done:!!step.done };
+        /* a spot with no frame: an episode shot's Reference Library still, if it has one */
+        const sh = !sl.item && (t.shots || [])[i];
+        const ref = sh ? (sh.angles || []).flatMap(a => a.refIds || [])[0] : null;
+        return { i, item:sl.item || '', ref:ref || null, role:sl.role || '', text:sl.text || `Shot ${i + 1}`, note:step.note || sl.note || '', done:!!step.done };
       });
     }
     /* steps: an episode sequence's shots keep their Reference Library stills on
@@ -105,11 +108,15 @@
   async function mount(el, params){
     if(!document.getElementById('sr-css')){ const st = document.createElement('style'); st.id = 'sr-css'; st.textContent = CSS; document.head.appendChild(st); }
     el.classList.add('sr-screen');
+    /* v4: any shot list can be shot — an episode's sequence, a clip, a series
+       video (shotlist.js passes params.list: { title, shots(), setDone(i, v),
+       setFrame(i, uid), swapNote }); otherwise it's a task (params.id) */
+    const L = params.list || null;
     const id = params.id;
-    let t = await Store.get('tasks', id);
+    let t = L ? { title:L.title || 'Shots' } : await Store.get('tasks', id);
     if(!t){ el.innerHTML = '<div class="sr"><div class="sr-pic"><div class="sr-none"><b>Gone</b>This task isn’t here any more.</div></div></div>'; return; }
-    let shots = shotsOf(t);
-    if(!shots.length){ el.innerHTML = '<div class="sr"><div class="sr-top"><button class="sr-x" data-x>✕</button></div><div class="sr-pic"><div class="sr-none"><b>No shots</b>Add steps or a shot page to this task first.</div></div></div>';
+    let shots = L ? await L.shots() : shotsOf(t);
+    if(!shots.length){ el.innerHTML = `<div class="sr"><div class="sr-top"><button class="sr-x" data-x>✕</button></div><div class="sr-pic"><div class="sr-none"><b>No shots</b>${L ? 'Add a shot to the list first.' : 'Add steps or a shot page to this task first.'}</div></div></div>`;
       el.querySelector('[data-x]').onclick = () => Screens.pop(); return; }
     const firstOpen = () => { const k = shots.findIndex(s => !s.done); return k < 0 ? 0 : k; };
     let at = params.at != null && shots[params.at] ? params.at : firstOpen();
@@ -175,6 +182,7 @@
       if(pic && global.StarPick) U.onHold(pic, () => {
         const s2 = shots[at];
         StarPick.open({ title:`Shot ${at + 1} — swap its frame for today`, clear:!!s2.item, onPick: async uid => {
+          if(L){ await L.setFrame(s2.i, uid); shots = await L.shots(); await render(); if(L.swapNote && uid) U.toast(L.swapNote); return; }
           const fresh = await setFrame(id, s2.i, uid);
           if(fresh){ t = fresh; shots = shotsOf(t); }
           await render();
@@ -187,8 +195,11 @@
     async function got(){
       const s = shots[at];
       const v = !s.done;
-      const fresh = await setDone(id, s.i, v);
-      if(fresh){ t = fresh; shots = shotsOf(t); }
+      if(L){ await L.setDone(s.i, v); shots = await L.shots(); }
+      else {
+        const fresh = await setDone(id, s.i, v);
+        if(fresh){ t = fresh; shots = shotsOf(t); }
+      }
       if(!v) return render();
       if(navigator.vibrate) try { navigator.vibrate(30); } catch(e){}
       const n = nextAfter(at);
@@ -220,7 +231,7 @@
       if(e.key === 'ArrowRight') go(at + 1);
       else if(e.key === 'ArrowLeft') go(at - 1);
       else if(e.key === ' ' || e.key === 'Enter'){ e.preventDefault(); got(); }
-      else if(e.key === 'Escape') Screens.pop();
+      /* Esc: screens.js already closes the top screen — popping here too closed two */
     };
     document.addEventListener('keydown', onKey);
     /* let go of the screen lock and listeners once closed */

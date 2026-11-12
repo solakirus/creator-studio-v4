@@ -68,7 +68,8 @@
     const t = { ...rec };
     if(!t.id) t.id = uid('sq_');
     t.name = (t.name || '').trim() || 'Untitled sequence';
-    t.shots = (t.shots || []).map(x => String(x).trim()).filter(Boolean);
+    /* v4: a shot can carry its frame — kept as { text, item, … }; plain lines stay text */
+    t.shots = (t.shots || []).map(keepShot).filter(Boolean);
     await Store.put('seq-template', t, t.id);
     invalidate();
     return t;
@@ -87,6 +88,15 @@
     invalidate();
   }
 
+  function keepShot(x){
+    if(x == null) return null;
+    if(typeof x === 'string') return x.trim() || null;
+    const o = { text:String(x.text || x.label || x.name || '').trim() };
+    ['item', 'framing', 'movement', 'note', 'role'].forEach(k => { if(x[k]) o[k] = x[k]; });
+    if(!o.text && !o.item) return null;
+    return o.item || o.framing || o.movement || o.note || o.role ? o : o.text;
+  }
+
   /* What a template becomes once it is in a day. */
   function toSequence(t, day){
     return {
@@ -96,7 +106,8 @@
       setup: t.setup || 'talking',
       script: '',
       sourceId: null,
-      shots: (t.shots || []).map(text => ({ id: uid('s'), text, done:false })),
+      shots: (t.shots || []).map(x => typeof x === 'string' ? { id: uid('s'), text:x, done:false }
+        : { ...x, id: uid('s'), text:x.text || '', done:false }),
       day: day || null, at:null, done:false, clipId:null
     };
   }
@@ -107,7 +118,7 @@
       name: b.title || 'Untitled sequence',
       setup: b.setup || 'talking',
       purpose: b.purpose || '',
-      shots: (b.shots || []).map(s => s.text || s.name || String(s)).filter(Boolean)
+      shots: (b.shots || []).map(s => typeof s === 'string' ? s : keepShot(s)).filter(Boolean)
     };
   }
 

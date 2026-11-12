@@ -15,7 +15,7 @@
      A section can sit on more than one tab; it is the same data either way. */
   const TABS = {
     plan:  ['ready','purpose','type','audience','promise','hook','retain','flow','length','cta','script','refs'],
-    shoot: ['needs','shots','flow','script','notes','refs','toshoot'],
+    shoot: ['shots','toshoot','needs','flow','script','notes','refs'],
     edit:  ['versions','script','length','refs','notes'],
     post:  ['versions','cuts','titles','caption','keywords','metric','where']
   };
@@ -90,9 +90,23 @@
     let tab = null;           /* plan · shoot · edit · post */
     injectVersionCSS();
 
+    /* v4: the clip's shots — its shot list, or what older clips had: a template's
+       shot page, or plain lines */
+    let shootTask = null, shootWhen = '';
+    const esc = t => U.esc(t);
+    function shotList(){
+      if(Array.isArray(clip.shotList)) return clip.shotList;
+      if(clip.page && (clip.page.slots || []).some(x => x.item))
+        return clip.page.slots.map(sl => ({ text:sl.text || '', item:sl.item || '', role:sl.role || '', done:false }));
+      return ShotList.norm(clip.shots);
+    }
+
     async function load(){
       clip = await Store.get('clips', id);
       if(!clip) return;
+      shootTask = clip.shootTaskId ? await Store.get('tasks', clip.shootTaskId).catch(() => null) : null;
+      shootWhen = '';
+      if(shootTask) try { shootWhen = new Date(await Data.dayToDate(shootTask.day)).toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' }); } catch(e){ shootWhen = 'day ' + shootTask.day; }
       clip.plan = clip.plan || {};
       const d = { hook:'', beats:[], cta:'', caption:'', tags:'', length:'short', notes:'',
                   purpose:'', type:'', audience:'', promise:'', payoff:'',
@@ -347,18 +361,12 @@
           </div>
         </details>
 `;
+      /* v4: the shot list — frames, shoot mode, templates (shotlist.js) */
+      const nShots = shotList().length;
       S.shots = `
-        <details class="cp-sec"${(clip.shots || []).length ? '' : ' open'}>
-          <summary>Shot list<span class="n">${(clip.shots || []).length || 'none yet'}</span>${CHEV}</summary>
-          <div class="cp-body">
-            <p class="note" style="text-align:left;margin:0 0 12px">One per line. These ride along
-              as steps when this lands on a shoot day.</p>
-            <textarea class="cp-hook" data-f="shots" placeholder="Wide of the bench&#10;Hands on the drill&#10;Reveal, slow push in"
-              >${(clip.shots || []).join('\n')}</textarea>
-            ${clip.page ? `<div class="tf-strip" data-clipframes style="margin-top:12px"></div>
-              <p class="note" style="text-align:left;margin:8px 0 0">Frames from the “${U.esc((clip.pageFrom || {}).template || 'template')}” template.
-                To shoot them in shoot mode: Add a task → Shots from a template.</p>` : ''}
-          </div>
+        <details class="cp-sec" open>
+          <summary>Shot list<span class="n">${nShots || 'none yet'}</span>${CHEV}</summary>
+          <div class="cp-body"><div id="clipShots"></div></div>
         </details>
 `;
       S.cuts = `
@@ -388,10 +396,11 @@
 `;
       S.versions = versionsHTML();
       S.needs = needsHTML();
+      /* one shoot task, carrying the shot list (it used to send the flow's
+         beats to whichever shoot task it could find) */
       S.toshoot = `
-        <button class="btn-ghost" data-a="toshoot" style="width:100%;margin:4px 0 0">
-          Send the flow to the shoot task</button>
-        <p class="note">Each beat becomes a shot on whichever shoot day this clip belongs to.</p>`;
+        <button class="btn-ghost" data-a="toshoot" style="width:100%;margin:4px 0 14px" ${nShots ? '' : 'disabled'}>
+          ${shootTask ? `📅 Shoot on ${esc(shootWhen)} — move or update it` : '📅 Put the shoot on a day'}</button>`;
 
       el.innerHTML = Screens.bar({ kicker:'Clip', title:TAB_NAME[tab],
         actions:`<button class="btn-sm" data-a="aidraft" aria-label="Draft the empty parts of the plan with AI" title="Draft with AI">✦</button>
@@ -426,8 +435,11 @@
       autoGrow();
       const refsSec = el.querySelector('#sec-refs');
       if(refsSec) refsSec.addEventListener('toggle', () => { refsOpen = refsSec.open; });
-      const cf = el.querySelector('[data-clipframes]');
-      if(cf && window.TaskFrames) TaskFrames.strip(cf, clip.page);
+      const cs = el.querySelector('#clipShots');
+      if(cs) ShotList.mount(cs, { title:clip.title || 'Clip', empty:'No shots yet — add them, or take a template\'s.',
+        get:shotList, save:async list => { clip.shotList = list; clip.shots = ShotList.texts(list); await Data.saveClip(clip);
+          const n = el.querySelector('#clipShots')?.closest('details')?.querySelector('summary .n'); if(n) n.textContent = list.length || 'none yet'; },
+        onShootClose:async () => { await load(); render(); } });
       SwipeRefs.fill(el.querySelector('#swr-slot'), { own: p.swipeIds,
         empty:'Link the videos this clip is borrowing from. Its shoot and edit tasks will show them too.' });
     }
@@ -674,12 +686,6 @@
         return;
       }
       const f = e.target.dataset.f;
-      if(f === 'shots'){
-        /* the shot list belongs to the clip itself — it is what the shoot task
-           carries, not part of the story plan */
-        clip.shots = e.target.value.split('\n').map(x => x.trim()).filter(Boolean);
-        return save(true);
-      }
       if(f){
         clip.plan[f] = e.target.value;
         if(f === 'script'){
@@ -1010,28 +1016,13 @@
         name: clip.title || 'Untitled clip', status: BoardLink.statusFor(clip.stage), kicker:'Clip' });
 
       if(a.dataset.a === 'toshoot'){
-        const beats = clip.plan.beats.filter(b => b.trim());
-        if(!beats.length) return U.toast('Nothing in the flow yet');
-
-        const tasks = await Data.tasks();
-        /* the shoot day this clip belongs to, found through its edit task */
-        const edit = tasks.find(t => t.clipId === clip.id && t.kind === 'edit');
-        let shoot = null;
-        if(edit){
-          const label = clip.title.split(' · ')[0];
-          shoot = tasks.find(t => t.kind === 'shoot' &&
-            (t.subs || []).some(x => x.t.includes(label)));
-        }
-        if(!shoot) shoot = tasks.find(t => t.kind === 'shoot' && t.view === 'todo');
-        if(!shoot) return U.toast('No shoot task to send these to');
-
-        shoot.shots = (shoot.shots || []).concat(beats.map(b => ({
-          name: `${clip.title.split(' · ')[0]}: ${b.slice(0, 40)}`,
-          angles: [{ n:'Wide' }, { n:'Medium' }, { n:'Close' }]
-        })));
-        await Store.put('tasks', shoot);
-        Data.invalidate('tasks');
-        U.toast(`${beats.length} shots added to the shoot day`);
+        const t = await ShotList.daySheet({ taskId:clip.shootTaskId, title:clip.title || 'Clip', shots:shotList(),
+          note:clip.plan.hook || '', extra:{ clipId:clip.id, channel:clip.channel || null } });
+        if(t === undefined) return;
+        clip.shootTaskId = t ? t.id : null;
+        await Data.saveClip(clip);
+        await load(); render();
+        return U.toast(t ? 'On your days — the shots are its steps' : 'Taken off your days');
       }
     });
 

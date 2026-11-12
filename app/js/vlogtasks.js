@@ -42,6 +42,9 @@
             .map(a => ({ type: ShotIds.angleType(a.n), n: a.n, done: false }))
         }))
       };
+      /* v4: the shots go on as a shot page too — frames, shoot mode, the
+         phone — the same as a task made from a template */
+      if(global.ShotList && task.subs.length) ShotList.toTask(task, b.shots, b.title);
       await Store.put('tasks', task);
       b.taskId = task.id;
     }

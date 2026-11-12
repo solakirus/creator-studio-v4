@@ -55,12 +55,9 @@
         placeholder="What makes someone stay past three seconds.">${esc(r.hook)}</textarea>
 
       <h3 class="pgh">Shot list</h3>
-      <textarea id="vd-s" class="pgtext" rows="4"
-        placeholder="Wide of the bench&#10;Hands on the drill&#10;Reveal, slow push in">${esc((r.shots || []).join('\n'))}</textarea>
-      <p class="hintline">One per line. These become the steps on the task when you give it a day.</p>
-      ${r.page && (r.page.slots || []).some(sl => sl.item) ? `<h3 class="pgh">Shot frames</h3>
-      <div class="tf-strip" id="vd-fr"></div>
-      <p class="hintline">From the template's shots. They go onto the task with the shot list.</p>` : ''}
+      <div id="vd-shots"></div>
+      <button type="button" class="btn-ghost" data-shots style="width:100%;margin:8px 0 0">Shots &amp; frames →</button>
+      <p class="hintline">Each shot with its frame. They become the task's steps and shot page when you give it a day.</p>
 
       <h3 class="pgh">Tags</h3>
       <input id="vd-g" class="pgname" type="text" value="${esc((r.tags || []).join(', '))}"
@@ -154,7 +151,14 @@
           </select>`;
       }
       paintChannel();
-      if(window.TaskFrames && r.page) TaskFrames.strip(sheet.querySelector('#vd-fr'), r.page);
+      /* the shot list: a summary here, edited on its own screen (shotlist.js) */
+      const list = () => Array.isArray(r.shotList) ? r.shotList
+        : r.page && (r.page.slots || []).some(x => x.item) ? r.page.slots.map(sl => ({ text:sl.text || '', item:sl.item || '', role:sl.role || '' }))
+        : ShotList.norm(r.shots);
+      (() => { const l = ShotList.norm(list()), f = l.filter(x => x.item).length, h = $('#vd-shots');
+        h.innerHTML = l.length ? `<p style="margin:0;color:var(--muted);font-size:14px">${l.length} shot${l.length === 1 ? '' : 's'}${f ? ` · ${f} with frames` : ''}: ${esc(l.slice(0, 3).map(x => x.text).join(', '))}${l.length > 3 ? '…' : ''}</p>${ShotList.stripHTML(l, 9)}`
+          : '<p style="margin:0;color:var(--muted);font-size:14px">No shots yet.</p>';
+        ShotList.fillPics(h); })();
 
       sheet.addEventListener('change', e => {
         if(e.target.id !== 'vd-sr') return;
@@ -171,7 +175,8 @@
           ? (inherited || '')
           : ($('#vd-c') ? $('#vd-c').value : r.channel);
         r.hook = $('#vd-h').value.trim();
-        r.shots = $('#vd-s').value.split('\n').map(x => x.trim()).filter(Boolean);
+        r.shotList = ShotList.norm(list());
+        r.shots = ShotList.texts(r.shotList);
         r.tags = $('#vd-g').value.split(',').map(x => x.trim()).filter(Boolean);
         r.day = chosen;
       }
@@ -188,6 +193,17 @@
           return;
         }
         if(e.target.closest('[data-cancel]')) return App.closeSheet();
+
+        /* open the shot list on its own screen, then come back to this sheet */
+        if(e.target.closest('[data-shots]')){
+          pull();
+          if(!r.title){ $('#vd-err').hidden = false; return; }
+          let cur = await Videos.save(r);
+          App.closeSheet();
+          return Screens.push('shots-edit', { kicker:'Video', title:cur.title, get:() => cur.shotList || [],
+            save:async l => { cur = await Videos.save({ ...cur, shotList:l, shots:ShotList.texts(l) }); },
+            onClose:() => setTimeout(() => open(cur, o), 50) });
+        }
 
         if(e.target.closest('[data-del]')){
           await Videos.remove(r.id);

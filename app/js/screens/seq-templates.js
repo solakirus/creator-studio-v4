@@ -37,7 +37,8 @@
               <span class="dot" style="background:var(--orange)"></span>
               <span class="t"><b>${esc(t.name)}</b>
                 <small>${(t.shots || []).length} shot${(t.shots || []).length === 1 ? '' : 's'}${
-                  (window.Quarters && Quarters.setupOf) ? ' · ' + Quarters.setupOf(t.setup || 'talking').label : ''}</small></span>
+                  (window.Quarters && Quarters.setupOf) ? ' · ' + Quarters.setupOf(t.setup || 'talking').label : ''}</small>
+                ${window.ShotList ? ShotList.stripHTML(t.shots, 8) : ''}</span>
               ${ICON.chevR}
             </button>`).join('')}
 
@@ -53,6 +54,7 @@
                   <small>${(t.shots || []).length} shots · tap to bring back</small></span>
               </button>`).join('')}` : ''}
         </div>`;
+      if(window.ShotList) ShotList.fillPics(el);
     }
 
     function editor(t){
@@ -79,7 +81,7 @@
         <h3 class="pgh">Shots</h3>
         <textarea id="tp-x" class="pgtext" rows="7"
           placeholder="Walk in, establishing&#10;Working set, side on&#10;Close on the weight"
-          >${esc((r.shots || []).join('\n'))}</textarea>
+          >${esc((r.shots || []).map(x => typeof x === 'string' ? x : x.text || '').join('\n'))}</textarea>
         <p class="hintline">One per line. These arrive ready to tick every time you use it.</p>
 
         <div class="sheetcta">
@@ -108,8 +110,10 @@
             name: sheet.querySelector('#tp-n').value,
             setup: sheet.querySelector('#tp-s').value,
             purpose: sheet.querySelector('#tp-p').value.trim(),
-            shots: sheet.querySelector('#tp-x').value.split('\n')
-              .map(x => x.trim()).filter(Boolean)
+            /* a line that was already there keeps its frame */
+            shots: (() => { const old = (r.shots || []).filter(x => x && typeof x === 'object');
+              return sheet.querySelector('#tp-x').value.split('\n').map(x => x.trim()).filter(Boolean)
+                .map(text => { const k = old.findIndex(o => o.text === text); return k < 0 ? text : { ...old.splice(k, 1)[0], text }; }); })()
           });
           App.closeSheet();
           await load(); render(); changed();

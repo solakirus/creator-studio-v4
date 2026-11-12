@@ -97,7 +97,7 @@ const head = s => console.log(`\n— ${s} —`);
     const nav2 = [...document.querySelectorAll('.ctnav [data-v]')].map(b => b.dataset.v);
     return { uids: [g, s, c, disk.uid], shootId: shoot && shoot.id, t2: t2.id, videoId: video.id,
              slots: shoot ? shoot.page.slots.map(x => x.item) : [], steps: shoot ? shoot.subs.map(x => x.t) : [],
-             videoSlots: (video.page && video.page.slots || []).map(x => x.item), nav: nav.length ? nav : nav2 };
+             videoSlots: (video.shotList || []).map(x => x.item), nav: nav.length ? nav : nav2 };
   }, { gif: FX('opener.gif').toString('base64'), png: FX('still.png').toString('base64'), webm: FX('clip.webm').toString('base64') });
   ok(!!plan.shootId, 'Put on a day made the shoot task');
   ok(JSON.stringify(plan.slots) === JSON.stringify(plan.uids), 'its shot page holds every shot\'s frame, in order', plan.slots.length + ' spots');
@@ -161,12 +161,11 @@ const head = s => console.log(`\n— ${s} —`);
   await phone.evaluate(() => Screens.pop && Screens.pop());
   await phone.evaluate(async id => Screens.push('clip', { id, tab:'shoot' }), plan.videoId);
   await phone.waitForTimeout(1500);
-  await phone.evaluate(() => { const d = document.querySelector('[data-clipframes]'); if(d) d.closest('details').open = true; });
   await phone.waitForTimeout(800);
-  const strip = await phone.evaluate(() => ({ cells: document.querySelectorAll('[data-clipframes] .tf-cell').length,
-    pics: document.querySelectorAll('[data-clipframes] img, [data-clipframes] video').length, missing: document.querySelectorAll('[data-clipframes] .tf-miss').length }));
+  const strip = await phone.evaluate(() => ({ cells: document.querySelectorAll('#clipShots .sl-row').length,
+    pics: document.querySelectorAll('#clipShots .sl-th img, #clipShots .sl-th video').length, missing: [...document.querySelectorAll('#clipShots .sl-th i')].length }));
   ok(strip.cells === 4 && strip.pics === 4 && !strip.missing, 'the clip\'s Shot list shows the four frames', JSON.stringify(strip));
-  const sheet = await phone.$('[data-clipframes]');
+  const sheet = await phone.$('#clipShots');
   if(sheet) await sheet.scrollIntoViewIfNeeded();
   await phone.waitForTimeout(400);
   await phone.screenshot({ path: path.join(out, 'phone-clip.png') });
