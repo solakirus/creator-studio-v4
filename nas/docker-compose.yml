@@ -33,7 +33,7 @@ services:
     container_name: creator-studio-v4-helper
     restart: unless-stopped
     working_dir: /site
-    command: ["node", "/site/helper.js"]
+    entrypoint: ["node", "/site/helper.js"]
     environment:
       SOURCE: https://solakirus.github.io/creator-studio-v4/
       SITE: /site/www
