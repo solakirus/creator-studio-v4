@@ -1,0 +1,31 @@
+# Creator Studio v4 web app on nastime (CasaOS: App Store › Custom Install ›
+# Import, paste this). Files live in /DATA/AppData/Projects/creator-studio-v4:
+#   www/        the web app — publish-nas.bat copies it there
+#   Caddyfile   from this folder (nas/Caddyfile)
+name: creator-studio-v4
+services:
+  creator-studio-v4:
+    image: caddy:2-alpine
+    container_name: creator-studio-v4
+    restart: unless-stopped
+    ports:
+      - "8790:80"
+    environment:
+      # Sync Hub, reached from inside the container (the host's port 8787)
+      SYNC_HUB: host.docker.internal:8787
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /DATA/AppData/Projects/creator-studio-v4/www:/srv:ro
+      - /DATA/AppData/Projects/creator-studio-v4/Caddyfile:/etc/caddy/Caddyfile:ro
+x-casaos:
+  architectures: [amd64, arm64]
+  main: creator-studio-v4
+  title:
+    en_us: Creator Studio v4
+  description:
+    en_us: Creator Studio v4 for the iPad and any browser, with Sync Hub on the same address.
+  category: Productivity
+  port_map: "8790"
+  scheme: http
+  index: /

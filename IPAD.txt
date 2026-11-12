@@ -1,61 +1,59 @@
-Creator Studio v4 on the iPad
-============================
+Creator Studio v4 on the iPad - served from nastime
+===================================================
 
-ONE-TIME SETUP (about 10 minutes)
+The iPad opens the web app from your NAS. Sync Hub is on the same address,
+so the iPad syncs with the phone and the laptop like they do.
 
-1. Push this repo to GitHub.
-      cd C:\Users\Khale\Projects\creator-studio-v4
-      git remote add origin https://github.com/solakirus/creator-studio-v4.git
-      git push -u origin main
+ONE-TIME SETUP ON THE NAS (about 15 minutes)
 
-   (If the remote already exists, just push.)
+1. Make the folder.  In CasaOS Files, under AppData/Projects, make a folder
+   called creator-studio-v4. Turn on sharing for it (the share icon), so
+   Windows can reach it as  \\192.168.4.23\creator-studio-v4
 
-2. Turn Pages on.
-      GitHub > your repo > Settings > Pages
-      Under "Build and deployment", set Source to "GitHub Actions".
-   That is the only setting. The workflow is already in the repo.
+2. Put the app in it.  On the laptop, run  publish-nas.bat  in this folder.
+   The first time it asks for the folder - type the address from step 1.
+   It builds the app and copies www\ and the Caddyfile across.
+   (No share? Upload creator-studio-v4-web.zip with CasaOS Files instead and
+   extract it inside creator-studio-v4 - same result.)
 
-3. Wait for the green tick on the Actions tab. Your address will be:
-      https://solakirus.github.io/creator-studio-v4/
+3. Start the server.  CasaOS > App Store > Custom Install > Import, and paste
+   the contents of  nas\docker-compose.yml . Install.
+   Test it on the laptop:  http://192.168.4.23:8790   - the app opens.
+
+4. HTTPS, so the iPad can install it properly.  Safari only lets a web app
+   work offline and stay installed from an https address. Tailscale gives you
+   one with a real certificate:
+     - Tailscale admin console > DNS: turn on MagicDNS and HTTPS Certificates.
+     - On nastime (CasaOS terminal or SSH):
+         curl -fsSL https://tailscale.com/install.sh | sh      (if not installed)
+         sudo tailscale up
+         sudo tailscale serve --bg 8790
+     - It prints the address, like  https://nastime.tail1234.ts.net
 
 ON THE IPAD
 
-4. Open that address in SAFARI. Not Chrome — only Safari can install.
-5. Share button > Add to Home Screen > Add.
-6. Open it from the home screen icon, not from Safari.
-
-   THIS STEP IS NOT OPTIONAL. Safari wipes an ordinary website's data after
-   7 unused days. A home-screen app is exempt. A bookmark would lose
-   everything in a week.
+5. Install the Tailscale app and sign in (same account).
+6. Open the https address from step 4 in SAFARI.
+7. Share > Add to Home Screen > Add. Always open it from that icon -
+   Safari wipes an ordinary website's data after 7 unused days; a home-screen
+   app is kept.
+8. Settings > Data > Sync with your server. The address is already filled in
+   (the app's own address). Enter your SYNC_TOKEN > Connect. A new iPad
+   takes everything the phone and laptop have; if it asks, pick
+   "Use the server's".
 
 AFTER THAT
 
-   It works with no signal. It updates itself whenever you push and the
-   Actions run goes green — open it with signal once and the new version is
-   there.
+   To update the iPad: run publish-nas.bat on the laptop. The iPad picks it
+   up the next time it opens with the NAS in reach.
+
+   Use ONE address on the iPad. http://192.168.4.23:8790 and the https one are
+   two different apps to Safari, each with its own data. (The http one works
+   at home for a quick look, but can't work offline.)
 
 WHAT IS AND IS NOT THERE
 
-   Everything works except the Android-only pieces: notifications, the home
-   screen widgets, and the share-into-the-app shortcuts. The Apple Pencil
-   works properly in the paper planner — pressure, and your palm is ignored
-   once the Pencil has touched the page.
-
-IMPORTANT: THE IPAD IS A SEPARATE DATABASE
-
-   The iPad, the phone and the laptop each keep their own. Nothing syncs on
-   its own. To move things across: Settings > Export everything on one,
-   Restore from backup on the other.
-
-TWO THINGS THAT WILL BE PUBLIC
-
-   The repo is public, so the code is readable by anyone. Your data never
-   leaves your devices — it is not in the repo and never gets uploaded.
-   But two things in the code name you:
-     - the Settings footer says "Made in Plant City"
-     - the name field placeholder says "Khaleem Catten"
-   Say the word and I will change both.
-
-IF SOMETHING LOOKS STALE
-   Open it with signal and give it a moment — the page is fetched fresh
-   whenever the network answers, and it reloads itself onto the new build.
+   Everything except the Android-only pieces (notifications, home-screen
+   widgets, share-into-the-app) and the laptop-only Library and Templates
+   (the iPad gets Starred, like the phone). The Apple Pencil works in the
+   paper planner.

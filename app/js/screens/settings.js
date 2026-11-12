@@ -425,7 +425,10 @@
       return;
     }
 
-    const saved = s.server || 'http://192.168.4.23:8787';
+    /* v4: opened from the NAS (the iPad), Sync Hub sits on the app's own address
+       (nas/Caddyfile passes /sync, /stats and /health through) */
+    const fromNas = /^https?:$/.test(location.protocol) && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && !/github\.io$/.test(location.hostname);
+    const saved = s.server || (fromNas ? location.origin : 'http://192.168.4.23:8787');
     App.sheet(`
       <h2>Sync with your server</h2>
       <p style="${p}">Keeps this device in step with your other ones through Sync Hub on nastime.
