@@ -1,5 +1,7 @@
 /* One task, opened up: its steps, its timing, and whatever it is attached to. */
 (function(){
+  /* a Library on this device: the laptop's folders, or nastime's on the iPad */
+  const hasLib = () => !!(window.MediaLib && MediaLib.hasLibrary());
   const { ICON } = U;
   const CADENCES = ['Daily','Weekly','Shoot day','One-off'];
   const PRI = [['low','Low'],['med','Medium'],['high','High']];
@@ -248,7 +250,7 @@
     }
 
     function pageSelectHTML(placeholder){
-      if(!pageChoices.length) return `<p class="hintline" style="margin:10px 0 0">No notebook pages yet — make one in Content → Templates${window.CS3Lib ? '' : ' on the laptop'}.</p>`;
+      if(!pageChoices.length) return `<p class="hintline" style="margin:10px 0 0">No notebook pages yet — make one in Content → Templates${hasLib() ? '' : ' on the laptop'}.</p>`;
       const groups = [];
       pageChoices.forEach(c => { let g = groups.find(x => x[0] === c.group); if(!g) groups.push(g = [c.group, []]); g[1].push(c); });
       /* templates with a task sequence first: those are the ones made for steps */
@@ -293,7 +295,7 @@
         </div>
         ${n ? `<div class="track tkp-track"><i class="ok" style="width:${Math.round(doneN / n * 100)}%"></i></div>` : ''}
         <div class="tkp-cwrap"><canvas class="tkp-canvas" width="720" height="900" data-pagecanvas
-          title="${onMain() ? 'Tap a picture to shoot it full screen' + (window.CS3Lib ? ' (right-click to change it)' : '') + ', words to type over them, a shot’s box to tick it' : 'Click words to type over them, a picture spot to pick a shot'}"></canvas>
+          title="${onMain() ? 'Tap a picture to shoot it full screen' + (hasLib() ? ' (right-click to change it)' : '') + ', words to type over them, a shot’s box to tick it' : 'Click words to type over them, a picture spot to pick a shot'}"></canvas>
           <div class="pe-edit" hidden></div></div>
         ${nx !== -1 && n ? `<div class="tkp-next" data-a="shootnext" role="button" tabindex="0" title="Shoot it full screen"><span>Next up</span><b>${esc(shotTitle(P, nx))}</b><i class="tkp-go">▶</i></div>`
           : n && doneN === n ? `<div class="tkp-next all"><span>All shot</span><b>Every shot on this page is done</b></div>` : ''}
@@ -404,8 +406,8 @@
          it is right-click → Pick a shot (laptop). The phone has no Library to
          pick from, so a spot there always opens shoot mode. */
       const sl = (P.slots || [])[i] || {};
-      if(onMain() && (sl.item || !window.CS3Lib)) return openShoot(i);
-      if(!window.CS3Lib){ if(sl.item && window.LibView) LibView.view(sl.item); return; }
+      if(onMain() && (sl.item || !hasLib())) return openShoot(i);
+      if(!hasLib()){ if(sl.item && window.LibView) LibView.view(sl.item); return; }
       return pickInto(i);
     }
     /* each shot step's own frame: a GIF moves, a clip loops (muted) */
@@ -422,7 +424,7 @@
       }
     }
     /* v4, phone: a shot takes one of the starred frames (laptop: the Library picker) */
-    function swapFrame(i){ return window.CS3Lib ? pickInto(i) : starPick(i); }
+    function swapFrame(i){ return hasLib() ? pickInto(i) : starPick(i); }
     function starPick(i){
       if(!window.StarPick) return;
       const P = curPage();
@@ -833,7 +835,7 @@
               <button class="bx" data-tick="${i}" aria-label="Tick shot ${i + 1}" aria-pressed="${dn}">${ICON.check}</button>
               <span class="sn">${i + 1}</span>
               ${sl.item ? `<button class="tk-th" data-shootat="${i}" data-item="${esc(sl.item)}" aria-label="Shoot shot ${i + 1} full screen" title="Tap: shoot it full screen · Hold: swap the frame"></button>`
-                : !window.CS3Lib && isSteps ? `<button class="tk-th tk-thadd" data-starpick="${i}" aria-label="Give shot ${i + 1} a starred frame">＋</button>` : ''}
+                : !hasLib() && isSteps ? `<button class="tk-th tk-thadd" data-starpick="${i}" aria-label="Give shot ${i + 1} a starred frame">＋</button>` : ''}
               <span class="tx">
                 <span class="tk-line">
                   ${isSteps ? `<select class="tk-rolesel${r ? '' : ' none'}" data-pf="role:${i}" aria-label="Shot ${i + 1} type">

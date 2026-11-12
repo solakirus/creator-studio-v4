@@ -102,7 +102,7 @@
           <div class="lv-vacts">
             ${(extra && extra.actions) || ''}
             <button class="lv-btn" data-board>◈ Add to a board</button>
-            ${global.CS3Lib ? `<button class="lv-btn" data-star>★ Star</button>` : ''}
+            ${MediaLib.hasLibrary() ? `<button class="lv-btn" data-star>★ Star</button>` : ''}
             <button class="lv-btn ghost" data-close>Close</button>
           </div>
         </div></div>`;

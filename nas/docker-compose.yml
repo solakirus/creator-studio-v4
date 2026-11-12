@@ -1,12 +1,12 @@
-# Creator Studio v4 web app on nastime (CasaOS: App Store › Custom Install ›
-# Import, paste this). Files live in /DATA/AppData/Projects/creator-studio-v4:
-#   www/        the web app — update.bat / publish-nas copies it there, and the
-#               mirror below keeps it current from GitHub on its own
-#   Caddyfile   from this folder (nas/Caddyfile)
-#   mirror.js   from this folder (nas/mirror.js)
+# Creator Studio v4 on nastime (CasaOS: App Store › Custom Install › Import,
+# paste this — or the app's Settings › Import to replace an older one).
 #
-# Caddy serves www/ as before. The mirror gets the whole folder, so it can
-# gather a new version in www.next/ and copy it into www/ once it's complete.
+# /DATA/AppData/Projects/creator-studio-v4 holds:
+#   www/        the web app (update.bat / publish-nas copy it; the helper keeps
+#               it current from GitHub on its own)
+#   Caddyfile, helper.js, mirror.js, libscan.js — publish-nas copies them
+# /DATA/AppData/Projects/shot-library is the Shot Library the laptop reads too;
+# the iPad's Library reads it through this app (read-only).
 name: creator-studio-v4
 services:
   creator-studio-v4:
@@ -18,33 +18,37 @@ services:
     environment:
       # Sync Hub, reached from inside the container (the host's port 8787)
       SYNC_HUB: host.docker.internal:8787
+      HELPER: creator-studio-v4-helper:8080
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - /DATA/AppData/Projects/creator-studio-v4/www:/srv:ro
       - /DATA/AppData/Projects/creator-studio-v4/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /DATA/AppData/Projects/shot-library:/lib:ro
 
-  # Looks at GitHub every 5 minutes; a newer version there is copied in.
-  # A newer one published from the laptop is never replaced by an older one.
-  creator-studio-v4-mirror:
+  # Keeps www/ current from GitHub (every 5 minutes; never replaces a newer
+  # version the laptop published) and lists the Shot Library for the iPad.
+  creator-studio-v4-helper:
     image: node:20-alpine
-    container_name: creator-studio-v4-mirror
+    container_name: creator-studio-v4-helper
     restart: unless-stopped
     working_dir: /site
-    command: ["node", "/site/mirror.js"]
+    command: ["node", "/site/helper.js"]
     environment:
       SOURCE: https://solakirus.github.io/creator-studio-v4/
       SITE: /site/www
       EVERY: "5"
+      LIB: /lib
     volumes:
       - /DATA/AppData/Projects/creator-studio-v4:/site
+      - /DATA/AppData/Projects/shot-library:/lib:ro
 x-casaos:
   architectures: [amd64, arm64]
   main: creator-studio-v4
   title:
     en_us: Creator Studio v4
   description:
-    en_us: Creator Studio v4 for the iPad and any browser, with Sync Hub on the same address. Keeps itself current from GitHub.
+    en_us: Creator Studio v4 for the iPad and any browser — Sync Hub on the same address, the Shot Library for the iPad's Library, and kept current from GitHub.
   category: Productivity
   port_map: "8795"
   scheme: http

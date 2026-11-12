@@ -19,6 +19,35 @@
   const MAX_GIF_BYTES = 30 * 1024 * 1024;
 
   const disk = () => global.CS3Lib || null;
+
+  /* v4: the iPad (any browser that opened the app from nastime) reads the
+     same Shot Library the laptop does, through nastime: the list from
+     shotlib-index.json (nas/helper.js), the files from shotlib/<path>. Read
+     only — grabbing, folders and copies stay on the laptop. The phone app
+     (Capacitor) and the laptop (its own disk) never use this. */
+  const REMOTE_KEY = 'cs4.remoteLib';
+  const webOnly = () => !disk() && /^https?:$/.test(location.protocol) &&
+    !(global.Capacitor && global.Capacitor.isNativePlatform && global.Capacitor.isNativePlatform());
+  let remoteOn = (() => { try { return webOnly() && localStorage.getItem(REMOTE_KEY) === '1'; } catch(e){ return false; } })();
+  const libListeners = new Set();
+  async function readRemote(){
+    const r = await fetch('shotlib-index.json?t=' + Date.now(), { cache:'no-store' });
+    const j = r.ok ? await r.json() : null;
+    if(!j || j.format !== 'cs4-shotlib' || !Array.isArray(j.items)) throw new Error(r.ok ? 'Not a Shot Library list' : 'nastime answered ' + r.status);
+    const abs = u => new URL(u, location.href).href;
+    j.items.forEach(it => { it.src = 'h'; it.url = abs(it.url); });
+    j.pages.forEach(p => { p.src = 'h'; });
+    return j;
+  }
+  async function probeRemote(){
+    let on = false;
+    if(webOnly()){ try { await readRemote(); on = true; } catch(e){ on = false; } }
+    try { on ? localStorage.setItem(REMOTE_KEY, '1') : localStorage.removeItem(REMOTE_KEY); } catch(e){}
+    if(on !== remoteOn){ remoteOn = on; diskCache = null; cache = null; libListeners.forEach(f => { try { f(on); } catch(e){} }); }
+    return on;
+  }
+  /* is there a Library on this device — the laptop's folders, or nastime's */
+  const hasLibrary = () => !!disk() || remoteOn;
   const uidOf = rec => 'db:' + rec.id;
   const newId = () => 'li_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
@@ -86,6 +115,12 @@
 
   async function diskItems(force){
     const d = disk();
+    if(!d && remoteOn){
+      if(diskCache && !force) return diskCache;
+      try { const j = await readRemote(); diskCache = { items:j.items, pages:j.pages, roots:[], errors:[] }; }
+      catch(e){ diskCache = { items:[], pages:[], roots:[], errors:['nastime’s Shot Library can’t be reached — ' + (e.message || e)] }; }
+      return diskCache;
+    }
     if(!d) return { items:[], pages:[], roots:[], errors:[] };
     if(diskCache && !force) return diskCache;
     const s = await settings();
@@ -593,6 +628,12 @@
     if(others.some(o => o && (o === b || b.startsWith(o + '/') || o.startsWith(b + '/')))) return 'That folder is already in the Library — choose an empty or separate folder';
     return '';
   }
+  /* the iPad: is nastime's Shot Library there? (remembered, so Content shows
+     Library and Templates at once next time; checked again each start) */
+  if(webOnly()){
+    libListeners.add(() => { try { if(global.App && App.refreshTab) App.refreshTab(); } catch(e){} });
+    setTimeout(() => { probeRemote().catch(() => {}); }, 1200);
+  }
   if(disk() && typeof disk().mirror === 'function'){
     setTimeout(() => { copyNow().catch(() => {}); }, 20000);
     if(typeof disk().onGrab === 'function') disk().onGrab('done', () => setTimeout(() => { copyNow().catch(() => {}); }, 3000));
@@ -610,6 +651,8 @@
     allBoards, saveBoard, deleteBoard, addToBoard, importShotline,
     allStars, saveStar, deleteStar, starInto, unstar, starredSet,
     deck, search, target, setTarget, disk, videoPoster,
+    hasLibrary, remote: () => remoteOn && !disk(), probeRemote,
+    onLibraryChange: f => { if(typeof f === 'function') libListeners.add(f); },
     copyNow, setCopy, copyProblem,
     rescan: () => { diskCache = null; cache = null; return load(true); }
   };

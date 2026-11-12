@@ -23,6 +23,17 @@
 		reverse_proxy {$SYNC_HUB:host.docker.internal:8787}
 	}
 
+	# the Shot Library, for the iPad's Library: the list comes from the
+	# helper, the files straight from the folder
+	handle /shotlib-index.json {
+		reverse_proxy {$HELPER:creator-studio-v4-helper:8080}
+	}
+	handle_path /shotlib/* {
+		root * /lib
+		header Cache-Control "public, max-age=86400"
+		file_server
+	}
+
 	handle {
 		root * /srv
 		# the page, the service worker and the build manifest are always asked

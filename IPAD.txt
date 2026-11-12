@@ -56,6 +56,11 @@ AFTER THAT
 WHAT IS AND IS NOT THERE
 
    Everything except the Android-only pieces (notifications, home-screen
-   widgets, share-into-the-app) and the laptop-only Library and Templates
-   (the iPad gets Starred, like the phone). The Apple Pencil works in the
-   paper planner.
+   widgets, share-into-the-app). The Apple Pencil works in the paper planner.
+
+   The Library and Templates are there too: the iPad reads the Shot Library
+   in /DATA/AppData/Projects/shot-library straight from nastime - the same
+   folder the laptop reads (\\192.168.4.23\shot-library). Plan shots, pick
+   frames for templates and tasks, star frames, one video at a time. Grabbing
+   and adding folders stay on the laptop; new grabs show on the iPad after
+   Library > Folders > Refresh (or the next time it opens).

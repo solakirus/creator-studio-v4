@@ -405,6 +405,11 @@
           <div class="lv-row"><button class="lv-btn sm" data-addroot>Choose a folder…</button>
             <button class="lv-btn sm ghost" data-rescan>⟳ Refresh</button></div>
           ${(lib.errors || []).map(e => `<p class="hintline" style="color:var(--red)">${esc(e)}</p>`).join('')}
+        </div>` : MediaLib.remote() ? `<div class="lv-card">
+          <h3>The Shot Library on nastime</h3>
+          <p class="hintline" style="margin:0 0 10px">This iPad reads the same folder as the laptop, straight from nastime. Grabs and new folders are added on the laptop; they show here the next time you refresh.</p>
+          ${(lib.errors || []).map(e => `<p class="hintline" style="color:var(--red)">${esc(e)}</p>`).join('')}
+          <div class="lv-row"><button class="lv-btn sm ghost" data-rescan>⟳ Refresh</button></div>
         </div>` : ''}
         <div class="sec"><h2>Libraries</h2><div class="rule"></div><span class="alt">${lib.collections.length}</span></div>
         <p class="hintline" style="margin:-4px 0 12px">Tick or untick whole libraries or single pages to choose what appears in the Deck.</p>
@@ -526,7 +531,9 @@
       body.innerHTML = `
         <div class="lv-card">
           <h3>Add GIFs, clips and stills</h3>
-          <p class="hintline" style="margin:0 0 10px">From this ${d ? 'computer' : 'phone'}. They’re kept inside the app, so they travel with your backup.</p>
+          <p class="hintline" style="margin:0 0 10px">${d ? 'From this computer. They’re kept inside the app, so they travel with your backup.'
+            : MediaLib.remote() ? 'From this iPad. They’re kept in the app on this iPad only — to add to the Shot Library on nastime, use the laptop.'
+            : 'From this phone. They’re kept inside the app, so they travel with your backup.'}</p>
           <label class="lv-lab">Library name <small>(optional, e.g. “Cut-ins” or “Vlog looks”)</small>
             <input class="lv-in" data-libname value="${esc(s.libName || '')}" placeholder="My library"></label>
           ${names.length ? `<div class="lv-pills">${names.map(n => `<button class="pill" data-ln="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}

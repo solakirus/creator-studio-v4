@@ -58,6 +58,10 @@ copy /y nas\Caddyfile "%DEST%\Caddyfile" >nul
 if errorlevel 1 goto :failed
 copy /y nas\mirror.js "%DEST%\mirror.js" >nul
 if errorlevel 1 goto :failed
+copy /y nas\helper.js "%DEST%\helper.js" >nul
+if errorlevel 1 goto :failed
+copy /y electron\libscan.js "%DEST%\libscan.js" >nul
+if errorlevel 1 goto :failed
 
 echo.
 echo  Done. Open Creator Studio on the iPad - it picks up the new version on

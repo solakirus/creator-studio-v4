@@ -64,15 +64,15 @@ echo
 echo " Copying to $DEST/www ..."
 if [ "$SSH" = 1 ]; then
   command -v rsync >/dev/null || { echo " Needs rsync:  sudo apt install rsync  (and rsync on the NAS)"; exit 1; }
-  rsync -rz --delete --checksum www/ "$DEST/www/" && rsync -z nas/Caddyfile nas/mirror.js "$DEST/" \
+  rsync -rz --delete --checksum www/ "$DEST/www/" && rsync -z nas/Caddyfile nas/mirror.js nas/helper.js electron/libscan.js "$DEST/" \
     || { echo " Copy failed — check the SSH login and the path."; exit 1; }
 elif command -v rsync >/dev/null; then
   # a Samba share can refuse file times, so compare by content, not time
   rsync -r --delete --checksum --no-times --no-perms --no-owner --no-group www/ "$DEST/www/" \
-    && cp -f nas/Caddyfile nas/mirror.js "$DEST/" || { echo " Copy failed — scroll up."; exit 1; }
+    && cp -f nas/Caddyfile nas/mirror.js nas/helper.js electron/libscan.js "$DEST/" || { echo " Copy failed — scroll up."; exit 1; }
 else
   mkdir -p "$DEST/www" && rm -rf "$DEST/www/"* && cp -r www/. "$DEST/www/" \
-    && cp -f nas/Caddyfile nas/mirror.js "$DEST/" || { echo " Copy failed — scroll up."; exit 1; }
+    && cp -f nas/Caddyfile nas/mirror.js nas/helper.js electron/libscan.js "$DEST/" || { echo " Copy failed — scroll up."; exit 1; }
 fi
 
 echo

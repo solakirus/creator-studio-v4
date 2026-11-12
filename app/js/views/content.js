@@ -38,7 +38,8 @@
   /* v4: the Library and Templates are where planning happens, on the laptop.
      The phone gets what they put on tasks and videos (taskframes.js), not the
      Library itself. window.CS3Lib is the laptop's disk bridge (electron/preload.js). */
-  const onLaptop = () => !!global.CS3Lib;
+  /* the laptop, or the iPad reading nastime's Shot Library (medialib.js) */
+  const onLaptop = () => !!global.CS3Lib || !!(global.MediaLib && MediaLib.hasLibrary());
   const shown = () => NAV.filter(n => (!n.laptop || onLaptop()) && (!n.phone || !onLaptop()));
 
   let view = 'clips';
