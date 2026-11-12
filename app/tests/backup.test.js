@@ -81,7 +81,7 @@ const files = () => Object.keys(disk).sort();
   const kept = files().filter(f => /creator-studio-\d{4}-\d\d-\d\d\.json$/.test(f));
   t('seven are left', kept.length === 7, kept.length + ' files');
   t('the oldest went first', !kept.some(f => f.includes('2026-09-01')), kept[0]);
-  t('and today\'s is one of them', kept.some(f => f.includes(new Date().toISOString().slice(0,10))));
+  t('and today\'s is one of them', kept.some(f => f.includes((d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'))(new Date())))   /* local date, as backup.js names it */);
 
   head('a full backup is separate, and keeps fewer');
   reset();
