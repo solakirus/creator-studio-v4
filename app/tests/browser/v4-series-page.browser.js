@@ -4,8 +4,8 @@
    - Content → Series, Clips and Episodes scroll with a finger (raw touch
      events): the Content wrapper used to be a second scroll box that would not
      pass the swipe on.
-   - The series video page: the structure is one bar (no second list of the
-     shots); its beat chips jump to the beat's heading in the Steps; Edit beats
+   - A series video is a clip; on its Shoot tab the structure is one bar (no
+     second list of the shots); its beat chips jump to the beat's heading in the Steps; Edit beats
      renames, moves and removes beats (shots follow, a removed beat's go to the
      one before); a shot moves beat from its Script panel; Paste a script fills
      the shots.
@@ -68,48 +68,49 @@ async function swipe(cdp, x, y0, y1){
   await p.waitForTimeout(800);
   ok(await p.evaluate(() => !document.querySelector('.totop').classList.contains('on')), 'then it goes away');
 
-  head('a series video: one list, the structure as a bar');
-  const vid = await p.evaluate(async () => (await Videos.save({ title: 'Part 1', seriesId: 's0' })).id);
-  await p.evaluate(id => Screens.push('video-page', { id }), vid); await p.waitForTimeout(1600);
-  await p.click(`${top} #vpScript [data-st="pick"]`); await p.waitForTimeout(500);
+  head('a series video (a clip): one list on Shoot, the structure as a bar');
+  const vid = await p.evaluate(async () => (await Data.saveClip({ title: 'Part 1', seriesId: 's0', state: 'raw', stage: 'idea', plan: { tab: 'plan' } })).id);
+  await p.evaluate(id => Screens.push('clip', { id, tab: 'plan' }), vid); await p.waitForTimeout(1600);
+  await p.click(`${top} #clipScript [data-st="pick"]`); await p.waitForTimeout(500);
   await p.click('.sheet [data-use="b-loop"]'); await p.waitForTimeout(1600);
-  let ui = await p.evaluate(t => ({ lists: document.querySelectorAll(t + ' .sx-shot').length, rows: document.querySelectorAll(t + ' #vpSteps .tk-ps').length,
-    chips: [...document.querySelectorAll(t + ' #vpScript [data-stjump]')].map(x => x.textContent), steps: [...document.querySelectorAll(t + ' .block h4')].filter(h => h.offsetParent !== null).length,
+  await p.click(`${top} [data-ctab="shoot"]`); await p.waitForTimeout(1600);
+  let ui = await p.evaluate(t => ({ lists: document.querySelectorAll(t + ' .sx-shot').length, rows: document.querySelectorAll(t + ' #clipShots .tk-ps').length,
+    chips: [...document.querySelectorAll(t + ' #clipStruct [data-stjump]')].map(x => x.textContent), steps: [...document.querySelectorAll(t + ' #clipShots .block h4')].filter(h => h.offsetParent !== null).length,
     bars: document.querySelectorAll(t + ' .tk-rowsbar').length }), top);
   ok(ui.lists === 0 && ui.rows === 6, 'the shots are listed once — in the Steps', `${ui.rows} steps`);
   ok(ui.chips.length === 6 && ui.chips[4] === 'Payoff1', 'the bar has a chip per beat', ui.chips.join(' '));
   ok(ui.steps === 0 && ui.bars === 1, 'one Steps heading, not two');
-  await p.click(`${top} #vpScript [data-stjump="4"]`); await p.waitForTimeout(900);
+  await p.click(`${top} #clipStruct [data-stjump="4"]`); await p.waitForTimeout(900);
   ui = await p.evaluate(t => { const h = document.querySelector(t + ' .tk-beat[data-beatk="4"]').getBoundingClientRect(); return Math.round(h.top); }, top);
   ok(ui > 40 && ui < 200, 'a chip jumps to that beat in the Steps', `heading at ${ui}px`);
   await p.screenshot({ path: path.join(out, 'series-page-bar.png') });
 
   head('Edit beats');
-  await p.click(`${top} #vpScript [data-st="beats"]`); await p.waitForTimeout(500);
+  await p.click(`${top} #clipStruct [data-st="beats"]`); await p.waitForTimeout(500);
   await p.fill('.sheet .sx-ed:nth-of-type(3) .nm', 'Why it matters');
   await p.click('.sheet .sx-ed:nth-of-type(2) [data-rm]'); await p.waitForTimeout(200);
   await p.click('.sheet .sx-ed:nth-of-type(1) [data-mv="1"]'); await p.waitForTimeout(200);
   await p.click('.sheet [data-ok]'); await p.waitForTimeout(1600);
-  let v = await p.evaluate(id => Store.get('videos', id), vid);
+  let v = await p.evaluate(id => Store.get('clips', id), vid);
   const stepBeats = r => (r.subs || []).filter(x => x.shot != null).sort((a, b) => a.shot - b.shot).map(x => x.beat);
-  ok(v.beats.join() === 'Why it matters,Hook,Build,Payoff,Call to action', 'renamed, removed and moved', v.beats.join(' → '));
+  ok(v.plan.beats.join() === 'Why it matters,Hook,Build,Payoff,Call to action', 'renamed, removed and moved', v.plan.beats.join(' → '));
   ok(stepBeats(v).join() === '1,1,0,2,3,4', 'every shot followed its beat; the removed beat\'s shot went to the one before', stepBeats(v).join());
-  ok(await p.evaluate(t => [...document.querySelectorAll(t + ' #vpSteps .tk-beat')].map(x => x.textContent).join(), top) !== '', 'the Steps redraw with the new beats');
+  ok(await p.evaluate(t => [...document.querySelectorAll(t + ' #clipShots .tk-beat')].map(x => x.textContent).join(), top) !== '', 'the Steps redraw with the new beats');
 
   head('a shot moves beat from its Script panel');
-  await p.click(`${top} #vpSteps [data-twirl="5"]`); await p.waitForTimeout(800);
-  await p.selectOption(`${top} #vpSteps [data-tlbeat="5"]`, '3'); await p.waitForTimeout(1500);
-  v = await p.evaluate(id => Store.get('videos', id), vid);
+  await p.click(`${top} #clipShots [data-twirl="5"]`); await p.waitForTimeout(800);
+  await p.selectOption(`${top} #clipShots [data-tlbeat="5"]`, '3'); await p.waitForTimeout(1500);
+  v = await p.evaluate(id => Store.get('clips', id), vid);
   ok(stepBeats(v)[5] === 3, 'shot 6 is in Payoff now', stepBeats(v).join());
 
   head('Paste a script from the bar');
-  await p.click(`${top} #vpScript [data-st="paste"]`); await p.waitForTimeout(500);
+  await p.click(`${top} #clipStruct [data-st="paste"]`); await p.waitForTimeout(500);
   await p.fill('.sheet [data-paste]', 'Why this matters.\n\nThe result first.\n\nTEXT: 5:15 AM');
   await p.click('.sheet [data-ok]'); await p.waitForTimeout(1600);
-  v = await p.evaluate(id => Store.get('videos', id), vid);
+  v = await p.evaluate(id => Store.get('clips', id), vid);
   const lines = (v.subs || []).filter(x => x.lines && x.lines.length).length;
   ok(lines === 3, 'the parts land on the shots in story order', `${lines} shots got lines`);
-  ok(await p.evaluate(t => [...document.querySelectorAll(t + ' #vpSteps .tk-tw')].filter(x => /· 1/.test(x.textContent)).length, top) === 3, 'and the Steps\' Script counts show them');
+  ok(await p.evaluate(t => [...document.querySelectorAll(t + ' #clipShots .tk-tw')].filter(x => /· 1/.test(x.textContent)).length, top) === 3, 'and the Steps\' Script counts show them');
 
   head('a tap on the title goes back up');
   await p.evaluate(t => { const v = document.querySelector(t + ' .view'); v.scrollTop = v.scrollHeight; }, top); await p.waitForTimeout(300);

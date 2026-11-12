@@ -178,24 +178,26 @@ const head = s => console.log(`\n— ${s} —`);
   await lap.screenshot({ path: path.join(out, 'laptop-clip.png'), fullPage: true });
   await lap.evaluate(() => Screens.pop()); await lap.waitForTimeout(400);
 
-  head('a series\' video, as a page');
-  const vids = await lap.evaluate(async () => [(await Videos.save({ title: 'Part 1 — the kitchen', seriesId: 'sr_m', order: 1, shots: ['Alarm off', 'Curtains open'] })).id,
-    (await Videos.save({ title: 'Part 2 — the commute', seriesId: 'sr_m', order: 2 })).id]);
-  await lap.evaluate(id => Screens.push('video-page', { id }), vids[0]); await lap.waitForTimeout(1800);
-  ui = await lap.evaluate(t => ({ parts: document.querySelectorAll(t + ' .vp-part').length, plain: !document.querySelector(t + ' .vp-parts img, ' + t + ' .vp-parts .sl-strip'),
-    rows: document.querySelectorAll(t + ' #vpSteps .tk-ps').length, canvas: !!document.querySelector(t + ' #vpSteps [data-pagecanvas]') }), top);
-  ok(ui.parts === 2 && ui.plain, 'the series\' parts down the left, plain (no shot lists)');
-  ok(ui.rows === 2 && ui.canvas, 'and the video\'s Steps + Shot page', `${ui.rows} rows`);
-  await lap.click(`${top} [data-stage="planned"]`); await lap.waitForTimeout(700);
-  ok((await lap.evaluate(id => Videos.get(id), vids[0])).stage === 'planned', 'the stage is one tap');
-  await lap.click(`${top} [data-a="day"]`); await lap.waitForTimeout(700);
+  head('a series\' video is a clip, opened on the clip page');
+  const vids = await lap.evaluate(async () => { await Store.put('series', { id: 'sr_m', title: 'Morning ritual', state: 'live', createdAt: Date.now() }); Data.invalidate('series');
+    const a = await Videos.save({ title: 'Part 1 — the kitchen', seriesId: 'sr_m', order: 1, shots: ['Alarm off', 'Curtains open'] });
+    const b = await Videos.save({ title: 'Part 2 — the commute', seriesId: 'sr_m', order: 2 });
+    await ClipFlow.migrate(); return [ClipFlow.idFor(a.id), ClipFlow.idFor(b.id)]; });
+  await lap.evaluate(() => Screens.push('series-view', { id: 'sr_m' })); await lap.waitForTimeout(1500);
+  await lap.click(`${top} [data-video="${vids[0]}"]`); await lap.waitForTimeout(1500);
+  await lap.click(`${top} [data-ctab="shoot"]`); await lap.waitForTimeout(1500);
+  ui = await lap.evaluate(t => ({ part: ((document.querySelector(t + ' .cp-series') || {}).textContent || '').replace(/\s+/g, ' ').trim(),
+    rows: document.querySelectorAll(t + ' #clipShots .tk-ps').length, canvas: !!document.querySelector(t + ' #clipShots [data-pagecanvas]') }), top);
+  ok(/Part 1 of 2/.test(ui.part), 'it knows its series and part', ui.part);
+  ok(ui.rows === 2 && ui.canvas, 'and has its Steps + Shot page', `${ui.rows} rows`);
+  await lap.click(`${top} [data-a="toshoot"]`); await lap.waitForTimeout(700);
   await lap.click('#sheet [data-ok]'); await lap.waitForTimeout(1500);
-  const vt = await lap.evaluate(async id => { const v = await Videos.get(id); const t = await Store.get('tasks', v.taskId); return { n: t.page.slots.length, steps: t.subs.map(s => s.t) }; }, vids[0]);
-  ok(vt.n === 2 && vt.steps.length === 2, 'Put on a day carries its page', vt.steps.join(' | '));
+  const vt = await lap.evaluate(async id => { const c = await Store.get('clips', id); const t = await Store.get('tasks', c.shootTaskId); return { n: t.page.slots.length, steps: t.subs.map(s => s.t), stage: c.stage }; }, vids[0]);
+  ok(vt.n === 2 && vt.steps.length === 2 && vt.stage === 'planned', 'Put it on a day carries its page, and it is Planned', vt.steps.join(' | '));
   await lap.screenshot({ path: path.join(out, 'laptop-video.png'), fullPage: true });
-  await lap.click(`${top} [data-part="${vids[1]}"]`); await lap.waitForTimeout(1200);
-  ok((await lap.evaluate(t => (document.querySelector(t + ' .vp-title') || {}).textContent, top)) === 'Part 2 — the commute', 'tapping another part switches to it');
-  await lap.evaluate(() => Screens.pop()); await lap.waitForTimeout(400);
+  await lap.click(`${top} [data-part="1"]`); await lap.waitForTimeout(1500);
+  ok((await lap.evaluate(t => (document.querySelector(t + ' .cp-head .t') || {}).textContent, top)) === 'Part 2 — the commute', '› switches to the next part');
+  await lap.evaluate(() => { Screens.pop(); Screens.pop(); }); await lap.waitForTimeout(600);
 
   head('on the phone');
   await lap.evaluate(async () => { await TaskFrames.run(); });

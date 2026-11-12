@@ -324,13 +324,19 @@
      ideas for that series. Anything further along (planned, shot, editing,
      published) is real work, so it stays, just no longer in a series. */
   async function removeSeries(ids){
-    let vids = [];
+    let vids = [], clips = [];
     try { vids = await Videos.all(); } catch(e){}
+    try { clips = await Data.clips(); } catch(e){}
     const gone = new Set(ids);
     let dropped = 0, kept = 0;
+    /* v4: a series' videos are clips (clipflow.js); the old records go with them */
     for(const v of vids.filter(x => gone.has(x.seriesId))){
-      if((v.stage || 'idea') === 'idea'){ await Videos.remove(v.id); dropped++; }
+      if(v.movedTo || (v.stage || 'idea') === 'idea'){ await Videos.remove(v.id); if(!v.movedTo) dropped++; }
       else { await Videos.save({ ...v, seriesId:null }); kept++; }
+    }
+    for(const c of clips.filter(x => gone.has(x.seriesId))){
+      if((c.stage || 'idea') === 'idea'){ await Data.deleteClip(c.id); dropped++; }
+      else { await Data.saveClip({ ...c, seriesId:null }); kept++; }
     }
     for(const id of ids) await Data.deleteSeries(id);
     return { dropped, kept };
@@ -394,5 +400,5 @@
     return openForm(rec, after);
   }
 
-  global.ViewSeries = { mount, edit };
+  global.ViewSeries = { mount, edit, remove:removeSeries };
 })(window);

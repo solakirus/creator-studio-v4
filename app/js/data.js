@@ -257,10 +257,12 @@
     const [s, c] = await Promise.all([series(), clips()]);
     return s.map(x => {
       const mine = c.filter(cl => cl.seriesId === x.id);
-      const done = mine.filter(cl => cl.state === 'posted').length;
+      /* v4: by stage — an idea is not footage waiting for an edit */
+      const st = cl => cl.stage || (global.Lifecycle && Lifecycle.FROM_CLIP[cl.state]) || 'idea';
+      const done = mine.filter(cl => st(cl) === 'published').length;
       /* where the run actually stands: shot but not cut, cut but not out */
-      const raw = mine.filter(cl => cl.state === 'raw').length;
-      const queued = mine.filter(cl => cl.state === 'queued').length;
+      const raw = mine.filter(cl => st(cl) === 'shot').length;
+      const queued = mine.filter(cl => st(cl) === 'editing').length;
       return { ...x, clips:mine.length, done, raw, queued,
                pct: x.total ? Math.round(done / x.total * 100) : 0 };
     });

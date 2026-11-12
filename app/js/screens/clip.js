@@ -90,6 +90,11 @@
     .cp-chip{height:36px;padding:0 13px;border:1px solid var(--line);border-radius:var(--r);background:transparent;color:var(--cream);font:inherit;font-size:14px;cursor:pointer}
     .cp-chip[aria-pressed="true"]{background:var(--cream);border-color:var(--cream);color:#151515;font-weight:700}
     .cp-chipd{margin:7px 0 0;color:var(--muted);font-size:13px;line-height:1.45}
+    .cp-series{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:13px;color:var(--muted)}
+    .cp-sername{padding:0;border:0;background:none;color:var(--orange);font:inherit;font-weight:700;cursor:pointer;text-align:left}
+    .cp-series span{flex:1}
+    .cp-partnav{width:34px;height:30px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);color:var(--cream);font-size:17px;cursor:pointer;padding:0}
+    .cp-partnav:disabled{opacity:.3;cursor:default}
     .cp-dayrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;margin:0 0 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2)}
     .cp-dayrow span{flex:1;min-width:200px;color:var(--muted);font-size:14px}
     .cp-dayrow b{color:var(--cream)}
@@ -118,6 +123,18 @@
       return ShotList.norm(clip.shots);
     }
 
+    let seriesRec = null, parts = [];
+    el.dataset.clipId = id;
+    /* moves the stage on when the work shows it is further along, never back */
+    async function settleStage(quiet){
+      if(!window.ClipFlow || !clip) return;
+      const to = await ClipFlow.settle(clip);
+      if(!to) return;
+      clip.stage = to;
+      clip = Lifecycle.normalise(await Data.saveClip(clip));
+      if(!quiet) U.toast(`Now ${Lifecycle.stage(to).label.toLowerCase()}`);
+      params && params.onChange && params.onChange();
+    }
     async function load(){
       clip = await Store.get('clips', id);
       if(!clip) return;
@@ -139,6 +156,14 @@
       tpls = await Versions.templates();
       if(!tab) tab = (params && TABS[params.tab] && params.tab) || (TABS[clip.plan.tab] && clip.plan.tab)
         || Versions.stageOf(clip);
+      /* v4: a series' video — its run and its place in it (clipflow.js) */
+      seriesRec = null; parts = [];
+      if(clip.seriesId){
+        try { seriesRec = (await Data.series()).find(x => x.id === clip.seriesId) || null; } catch(e){}
+        try { parts = window.ClipFlow ? await ClipFlow.parts(clip.seriesId) : []; } catch(e){}
+      }
+      /* the stage follows the work: on a day, every shot ticked, a cut done, all posted */
+      await settleStage(true);
       const sw = [...new Set(clip.plan.versions.map(v => v.swipeId).filter(Boolean))];
       swipeTitles = {};
       for(const sid of sw){
@@ -186,6 +211,9 @@
       const fresh = await Store.get('clips', clip.id);
       if(fresh) ['page', 'subs', 'pageFrom', 'morePages', 'hideDone', 'pageOff', 'shotList', 'shots', 'shotsSig'].forEach(k => {
         if(k in fresh) clip[k] = fresh[k]; else delete clip[k]; });
+      const before = clip.stage;
+      await settleStage();
+      if(clip.stage !== before){ const pill = el.querySelector('.cp-pill'); if(pill){ const st = Lifecycle.stage(clip.stage); pill.textContent = st.label; pill.style.background = st.c; } }
     }
     const flushClip = async () => { clearTimeout(timer); await Data.saveClip(clip); };
     /* filmed or not: the shoot task's tick for that shot, when there is one */
@@ -318,8 +346,7 @@
       const nShots = shotList().length;
       /* the task's own Steps + Shot page (shotlist.js host), first on Shoot */
       S.shots = `
-        <div class="cp-steps"><div id="clipShots"></div></div>
-`;
+        <div class="cp-steps">${p.beats.length ? '<div id="clipStruct"></div>' : ''}<div id="clipShots"></div></div>`;
       S.versionsEdit = versionsHTML('edit');
       S.versionsPost = versionsHTML('post');
       S.cutlist = `
@@ -333,12 +360,19 @@
         <div class="cp-dayrow"><span>${shootTask ? `<b>Shoot on ${esc(shootWhen)}</b> · with these shots as its steps` : '<b>Not on your days yet</b> · the shots go with it as steps'}</span>
           <button class="btn-sm${shootTask ? '' : ' accent'}" data-a="toshoot" ${nShots ? '' : 'disabled'}>${shootTask ? 'Move or update' : 'Put it on a day'}</button></div>`;
 
-      el.innerHTML = Screens.bar({ kicker:'Clip', title:TAB_NAME[tab],
+      const pi = parts.findIndex(x => x.id === clip.id);
+      el.innerHTML = Screens.bar({ kicker:seriesRec ? 'Series · ' + esc(seriesRec.title || '') : 'Clip', title:TAB_NAME[tab],
         actions:`<button class="btn-sm" data-a="aidraft" aria-label="Draft the empty parts of the plan with AI" title="Draft with AI">✦</button>
                   <button class="btn-sm" data-a="board">Board</button>
                   <button class="btn-sm" data-a="open">Details</button>` }) + `
       <div class="view">
         <div class="cp-head">
+          ${seriesRec ? `<div class="cp-series">
+            <button class="cp-sername" data-a="series">${esc(seriesRec.title || 'Series')}</button>
+            ${pi >= 0 ? `<span>Part ${pi + 1} of ${parts.length}</span>
+              <button class="cp-partnav" data-part="${pi - 1}" ${pi <= 0 ? 'disabled' : ''} aria-label="Previous part">‹</button>
+              <button class="cp-partnav" data-part="${pi + 1}" ${pi >= parts.length - 1 ? 'disabled' : ''} aria-label="Next part">›</button>` : ''}
+          </div>` : ''}
           <p class="t">${clip.title || 'Untitled clip'}</p>
           <div class="cp-meta">
             ${(() => { const st = Lifecycle.stage(clip.stage || 'idea');
@@ -367,7 +401,14 @@
       const refsSec = el.querySelector('#sec-refs');
       if(refsSec) refsSec.addEventListener('toggle', () => { refsOpen = refsSec.open; });
       const cs = el.querySelector('#clipShots');
-      if(cs) ShotList.embed(cs, ShotList.hostClip(clip.id), pullShots);
+      /* Shoot: the structure as one bar over the Steps (chips jump to a beat);
+         the two redraw each other */
+      const stepsIn = () => cs && ShotList.embed(cs, ShotList.hostClip(clip.id), async () => {
+        await pullShots(); const sb = el.querySelector('#clipStruct'); if(sb && sb._st) sb._st.refresh(); });
+      stepsIn();
+      const sb = el.querySelector('#clipStruct');
+      if(sb) Structures.bar(sb, { host:ShotList.hostClip(clip.id), plan:() => clip.plan, savePlan:flushClip, flush:flushClip,
+        onChange: async () => { await pullShots(); stepsIn(); } });
       el.querySelectorAll('details[data-grp]').forEach(d => d.addEventListener('toggle', () => { grpOpen[d.dataset.grp] = d.open; }));
       const sc = el.querySelector('#clipScript');
       if(sc) Structures.script(sc, { host:ShotList.hostClip(clip.id), plan:() => clip.plan, savePlan:flushClip, flush:flushClip, onChange:pullShots,
@@ -673,6 +714,8 @@
 
     el.addEventListener('click', async e => {
       if(e.target.closest && e.target.closest('.tk-host')) return;   /* the Steps block handles its own */
+      const pn = e.target.closest('[data-part]');
+      if(pn && !pn.disabled){ const other = parts[+pn.dataset.part]; if(other) Screens.replace('clip', { id:other.id, tab, onChange:params && params.onChange }); return; }
       const ct = e.target.closest('[data-ctab]');
       if(ct){
         if(ct.dataset.ctab === tab) return;
@@ -704,14 +747,14 @@
         if(!v) return;
         if(v.state === 'posted') return U.toast('Already posted — untick it on the Post tab');
         v.state = v.state === 'edited' ? 'todo' : 'edited';
-        await Data.saveClip(clip); return render();
+        await Data.saveClip(clip); await settleStage(); return render();
       }
       const vpo = e.target.closest('[data-vpost]');
       if(vpo){
         const v = findVersion(vpo.dataset.vpost);
         if(!v) return;
         v.state = v.state === 'posted' ? 'edited' : 'posted';
-        await Data.saveClip(clip); render();
+        await Data.saveClip(clip); await settleStage(); render();
         const pr = Versions.progress(clip.plan.versions);
         if(v.state === 'posted' && pr.posted === pr.total) U.toast('Every version posted. Concept complete.');
         return;
@@ -940,6 +983,7 @@
         return;
       }
 
+      if(a.dataset.a === 'series' && clip.seriesId) return Screens.push('series-view', { id:clip.seriesId });
       if(a.dataset.a === 'open'){
         params && params.onEdit && params.onEdit(clip);
         return;

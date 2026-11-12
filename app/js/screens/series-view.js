@@ -7,11 +7,6 @@
 
   const esc = s => U.esc(s);   /* shared: util.js */
 
-  const CLIP_STAGE = [
-    { k:'raw',    label:'Shot, needs editing', c:'#E8A33D' },
-    { k:'queued', label:'Edited, needs posting', c:'#FB6900' },
-    { k:'posted', label:'Out', c:'#5BBE6A' }
-  ];
 
   async function mount(el, params){
     let run = null, vids = [], clips = [], chans = [], today = 1;
@@ -22,11 +17,11 @@
     async function load(){
       const list = await Data.seriesWithProgress();
       run = list.find(s => s.id === params.id) || null;
-      try { vids = await Videos.forSeries(params.id); } catch(e){ vids = []; }
-      /* numbered ideas read in their order; anything unnumbered stays newest first after them */
-      vids.sort((a, b) => ((+a.order || 1e9) - (+b.order || 1e9)) || ((b.createdAt || 0) - (a.createdAt || 0)));
-      try { clips = (await Data.clips()).filter(c => c.seriesId === params.id); }
-      catch(e){ clips = []; }
+      /* v4: a series' videos are clips in it (clipflow.js) — the old video
+         records are turned into clips first, once */
+      try { if(window.ClipFlow) await ClipFlow.migrate(); } catch(e){}
+      try { vids = window.ClipFlow ? await ClipFlow.parts(params.id) : []; } catch(e){ vids = []; }
+      clips = vids;
       try { chans = await Channels.all(); } catch(e){ chans = []; }
 
       /* the references marked as this series' bar, and any covers uploaded for
@@ -49,32 +44,34 @@
       return c && c.c ? c.c : 'var(--muted)';
     };
 
+    /* one of the series' videos — a clip, opened on the clip page */
+    const stageK = c => c.stage || Lifecycle.FROM_CLIP[c.state] || 'idea';
     function videoCard(v){
-      const st = Videos.stage(v.stage);
-      const i = Videos.STAGES.findIndex(x => x.k === v.stage);
-      const pct = Math.round(((i + 1) / Videos.STAGES.length) * 100);
-      const when = v.day != null ? (v.day === today ? 'today' : v.day < today
-        ? `day ${v.day} · passed` : `day ${v.day}`) : 'no day yet';
+      const k = stageK(v);
+      const st = Lifecycle.stage(k);
+      const i = Lifecycle.ORDER.indexOf(k);
+      const pct = Math.round(((i + 1) / Lifecycle.ORDER.length) * 100);
+      const n = vids.indexOf(v) + 1;
+      const p = v.plan || {};
       return `
         <article class="mediacard"><div class="card" data-video="${v.id}">
           <div class="art" style="background-image:${U.generatedArt(v.id, v.title)}"></div>
           <span class="state" style="background:${st.c};color:#151515">${st.label}</span>
           <div class="body"><h3>${esc(v.title)}</h3>
-            <div class="meta"><span class="st">${when}</span>
-              ${(v.tags || []).length ? `<span class="sep">|</span>
-                <span class="st">${v.tags.map(t => '#' + esc(t)).join(' ')}</span>` : ''}
-              ${window.ShotList ? `<span class="sep">|</span>${ShotList.dropChip(v, 'video:' + v.id, dropOpen.has('video:' + v.id))}` : ''}
+            <div class="meta"><span class="st">Part ${n}</span>
+              ${p.structure && p.structure.name ? `<span class="sep">|</span><span class="st">${esc(p.structure.name)}</span>` : ''}
+              ${window.ShotList ? `<span class="sep">|</span>${ShotList.dropChip(v, 'clip:' + v.id, dropOpen.has('clip:' + v.id))}` : ''}
             </div>
           </div>
           <div class="progress"><i style="width:${pct}%"></i></div>
-        </div>${dropOpen.has('video:' + v.id) ? `<div class="subs" data-sldrop-body="video:${v.id}"></div>` : ''}</article>`;
+        </div>${dropOpen.has('clip:' + v.id) ? `<div class="subs" data-sldrop-body="clip:${v.id}"></div>` : ''}</article>`;
     }
 
     /* search looks in the title and the notes; the stage narrows it further */
     function shownVids(){
       const t = vq.trim().toLowerCase();
-      return vids.filter(v => (vstage === 'all' || (v.stage || 'idea') === vstage) &&
-        (!t || `${v.title || ''} ${v.notes || ''} ${(v.tags || []).join(' ')}`.toLowerCase().includes(t)));
+      return vids.filter(v => (vstage === 'all' || stageK(v) === vstage) &&
+        (!t || `${v.title || ''} ${(v.plan || {}).notes || ''} ${(v.plan || {}).hook || ''} ${(v.plan || {}).tags || ''}`.toLowerCase().includes(t)));
     }
 
     /* A series can have its own standard, separate from the channel's: the
@@ -106,7 +103,6 @@
         return;
       }
 
-      const byStage = k => clips.filter(c => c.state === k);
       const refs = refsFor();
 
       el.innerHTML = Screens.bar({ kicker:'Series', title:run.title,
@@ -156,7 +152,7 @@
             <input id="sv-q" class="pgbar" type="search" placeholder="Search these videos…" value="${esc(vq)}" autocomplete="off">
             <select id="sv-s" class="pgbar">
               <option value="all" ${vstage === 'all' ? 'selected' : ''}>Every stage</option>
-              ${Videos.STAGES.map(st => { const n = vids.filter(v => (v.stage || 'idea') === st.k).length;
+              ${Lifecycle.STAGES.map(st => { const n = vids.filter(v => stageK(v) === st.k).length;
                 return n ? `<option value="${st.k}" ${vstage === st.k ? 'selected' : ''}>${st.label} · ${n}</option>` : ''; }).join('')}
             </select>
           </div>` : ''}
@@ -164,22 +160,7 @@
             ? (shownVids().length ? `<div class="list" id="sv-list">${shownVids().map(videoCard).join('')}</div>`
                : `<div class="empty" id="sv-list"><b>Nothing matches</b>Try another word or stage.</div>`)
             : `<div class="empty"><b>Nothing planned yet</b>
-                Make a video and set its series to this one, and it shows here.</div>`}
-
-          ${clips.length ? `
-            <div class="sec"><h2>Footage</h2><div class="rule"></div>
-              <span class="alt">${clips.length}</span></div>
-            ${CLIP_STAGE.map(st => {
-              const mine = byStage(st.k);
-              if(!mine.length) return '';
-              return `<p class="hintline" style="margin:12px 0 6px;color:${st.c}">${st.label} · ${mine.length}</p>
-                ${mine.map(c => `<button class="noterow" data-clip="${c.id}">
-                  <span class="dot" style="background:${st.c}"></span>
-                  <span class="t"><b>${esc(c.title)}</b>
-                    <small>${esc(c.plat || '')}${c.dur ? ' · ' + esc(c.dur) : ''}</small></span>
-                  ${U.ICON.chevR}
-                </button>`).join('')}`;
-            }).join('')}` : ''}
+                Add a video below — it opens on its Plan, like a clip.</div>`}
 
           <button class="btn-ghost" data-a="newvideo" style="width:100%;margin:18px 0 0">
             Add a video to this series</button>
@@ -271,8 +252,27 @@
       }
 
       /* a new video opens already belonging to this series */
-      if(e.target.closest('[data-a="newvideo"]'))
-        return VideoSheet.open(Videos.blank(), { seriesId: params.id, onDone: refresh });
+      if(e.target.closest('[data-a="newvideo"]')){
+        App.sheet(`<h2 style="margin:0 0 4px">A video for ${esc(run.title)}</h2>
+          <p class="hintline" style="margin:0 0 12px">It opens on its Plan — purpose, script and shots — and goes Plan → Shoot → Edit → Post like any clip.</p>
+          <input id="sv-nt" class="pgname" type="text" placeholder="What is it called?" autocomplete="off" enterkeyhint="done">
+          <div class="sheetcta"><button class="btn-primary" data-go>Make it</button><button class="btn-ghost" data-cancel>Cancel</button></div>`, sh => {
+          const go = async () => {
+            const title = sh.querySelector('#sv-nt').value.trim();
+            if(!title) return U.toast('Give it a name');
+            const order = Math.max(0, ...vids.map(x => +x.order || 0)) + 1;
+            const c = await Data.saveClip({ title, seriesId:params.id, channel:(run && run.channel) || '', state:'raw', stage:'idea',
+              order, plan:{ tab:'plan' } });
+            App.closeSheet();
+            await refresh();
+            Screens.push('clip', { id:c.id, tab:'plan' });
+          };
+          sh.addEventListener('click', ev => { if(ev.target.closest('[data-cancel]')) return App.closeSheet(); if(ev.target.closest('[data-go]')) go(); });
+          sh.querySelector('#sv-nt').addEventListener('keydown', ev => { if(ev.key === 'Enter'){ ev.preventDefault(); go(); } });
+          setTimeout(() => sh.querySelector('#sv-nt').focus(), 180);
+        });
+        return;
+      }
 
       /* A list pasted in, one video idea per line, each becoming a video at the
          Idea stage in this series. "Title — note" or "Title | note" keeps a note. */
@@ -301,8 +301,8 @@
               const title = (m ? m[1] : line).trim(), note = m ? m[2].trim() : '';
               if(!title || have.has(title.toLowerCase())){ skipped++; continue; }
               have.add(title.toLowerCase()); order++;
-              await Videos.save({ title, notes:note, seriesId:params.id, channel:(run && run.channel) || '',
-                                  stage:'idea', order, createdAt: now - order });
+              await Data.saveClip({ title, seriesId:params.id, channel:(run && run.channel) || '', state:'raw',
+                                  stage:'idea', order, createdAt: now + order, plan:{ notes:note } });
               added++;
             }
             App.closeSheet();
@@ -316,17 +316,9 @@
 
       /* v4: the shots drop-down, as on a task */
       if(window.ShotList && ShotList.toggleDrop(e, dropOpen)) return render();
-      /* and an existing one opens the same sheet, edited in place */
+      /* v4: a series' video is a clip — it opens on the clip page */
       const v = e.target.closest('[data-video]');
-      if(v){
-        const rec = vids.find(x => x.id === v.dataset.video);
-        /* v4: a video opens as its own page, with its Steps + Shot page */
-        if(rec) return Screens.push('video-page', { id:rec.id, onChange: refresh });
-        return;
-      }
-
-      const clip = e.target.closest('[data-clip]');
-      if(clip) return Screens.push('clip', { id:clip.dataset.clip });
+      if(v) return Screens.push('clip', { id:v.dataset.video, onChange: refresh });
     });
 
     await load();

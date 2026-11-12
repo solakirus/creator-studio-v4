@@ -196,18 +196,16 @@ const head = s => console.log(`\n— ${s} —`);
   ok(r.plan.versions[0].state === 'posted' && r.plan.versions[0].link === 'https://youtube.com/shorts/abc', 'ticked as posted, with its link');
   await lap.evaluate(() => Screens.pop()); await lap.waitForTimeout(400);
 
-  head('a series video gets the same');
-  const vid = await lap.evaluate(async () => (await Videos.save({ title: 'Part 2 — the kettle', hook: 'Old hook', hookT: 1 })).id);
-  await lap.evaluate(id => Screens.push('video-page', { id }), vid); await lap.waitForTimeout(1800);
-  ok(await lap.evaluate(t => !!document.querySelector(t + ' #vpScript .sx-barw') && !document.querySelector(t + ' #vpScript .sx-shot'), top), 'the video page has the structure as one bar, not a second list of the shots');
-  await lap.click(`${top} #vpScript [data-st="pick"]`); await lap.waitForTimeout(500);
+  head('a series video is a clip, and gets the same');
+  const vid = await lap.evaluate(async () => { const v = await Videos.save({ title: 'Part 2 — the kettle', hook: 'Old hook', hookT: 1 }); await ClipFlow.migrate(); return ClipFlow.idFor(v.id); });
+  await lap.evaluate(id => Screens.push('clip', { id, tab: 'plan' }), vid); await lap.waitForTimeout(1800);
+  await lap.click(`${top} #clipScript [data-st="pick"]`); await lap.waitForTimeout(500);
   await lap.click('.sheet [data-use="b-tutorial"]'); await lap.waitForTimeout(1500);
-  let v = await lap.evaluate(id => Store.get('videos', id), vid);
-  ok(v.beats.length === 7 && v.page.slots.length === 7 && steps(v)[0].lines[0].t === 'Old hook', 'its beats and a shot for each; the hook sits on shot 1', v.beats.join(' → '));
-  ok(await lap.evaluate(t => document.querySelectorAll(t + ' #vpSteps .tk-beat').length, top) === 7, 'its Steps show the beats too');
+  let v = await lap.evaluate(id => Store.get('clips', id), vid);
+  ok(v.plan.beats.length === 7 && v.page.slots.length === 7 && steps(v)[0].lines[0].t === 'Old hook', 'its beats and a shot for each; its old hook sits on shot 1', v.plan.beats.join(' → '));
 
   head('your own structure');
-  await lap.click(`${top} #vpScript [data-st="pick"]`); await lap.waitForTimeout(500);
+  await lap.click(`${top} #clipScript [data-st="pick"]`); await lap.waitForTimeout(500);
   await lap.click('.sheet [data-new]'); await lap.waitForTimeout(500);
   await lap.fill('.sheet [data-name]', 'Mystery reveal');
   await lap.fill('.sheet .sx-ed .nm', 'The question');
@@ -220,10 +218,10 @@ const head = s => console.log(`\n— ${s} —`);
   ok(mine.length === 1 && mine[0].beats.map(x => x.n).join() === 'The question,Wrong answers,The answer', 'made and saved', mine.map(x => x.n).join());
   ok(await lap.evaluate(() => !!document.querySelector('.sheet [data-use^="u"]')), 'it is in the list straight away');
   await lap.click('.sheet [data-use^="u"]'); await lap.waitForTimeout(1500);
-  v = await lap.evaluate(id => Store.get('videos', id), vid);
-  ok(v.beats.join() === 'The question,Wrong answers,The answer' && v.page.slots.length === 7 && steps(v).map(x => x.beat).join() === '0,0,0,1,1,2,2',
+  v = await lap.evaluate(id => Store.get('clips', id), vid);
+  ok(v.plan.beats.join() === 'The question,Wrong answers,The answer' && v.page.slots.length === 7 && steps(v).map(x => x.beat).join() === '0,0,0,1,1,2,2',
     'used on a video that has shots: they spread across its beats', steps(v).map(x => x.beat).join());
-  await lap.click(`${top} #vpScript [data-st="pick"]`); await lap.waitForTimeout(500);
+  await lap.click(`${top} #clipScript [data-st="pick"]`); await lap.waitForTimeout(500);
   await lap.click('.sheet [data-edit^="u"]'); await lap.waitForTimeout(500);
   await lap.click('.sheet [data-del]'); await lap.waitForTimeout(800);
   ok((await lap.evaluate(() => Structures.custom())).length === 0, 'and deleted');

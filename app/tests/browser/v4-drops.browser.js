@@ -11,7 +11,8 @@ const ids=await p.evaluate(async()=>{
   const c=await Data.saveClip({title:'Morning ritual, part 1',plat:'youtube',stage:'idea',channel:'',seriesId:null,dur:'0:00',shots:['Alarm off','Curtains open','Kettle on']});
   await Store.put('series',{id:'sr_m',title:'Morning ritual',channel:'',createdAt:Date.now()});Data.invalidate&&Data.invalidate('series');
   const v=await Videos.save({title:'Part 2 — the commute',seriesId:'sr_m',shots:['Seatbelt on','Keys off the hook']});
-  return {clip:c.id,video:v.id};});
+  await ClipFlow.migrate();
+  return {clip:c.id,video:ClipFlow.idFor(v.id)};});
 // clips
 await p.evaluate(()=>App.go('series'));await p.waitForTimeout(500);
 await p.click('.ctnav [data-v="clips"]');await p.waitForTimeout(1200);
@@ -33,17 +34,17 @@ ok(rows.n===2&&/1 done/.test(rows.hidden),'the clip\'s Steps agree',JSON.stringi
 await p.evaluate(()=>Screens.pop());await p.waitForTimeout(400);
 // series
 await p.evaluate(()=>Screens.push('series-view',{id:'sr_m'}));await p.waitForTimeout(1500);
-const vchip=`.screen:last-child [data-sldrop="video:${ids.video}"]`;
+const vchip=`.screen:last-child [data-sldrop="clip:${ids.video}"]`;
 const has=await p.$(vchip);
 ok(!!has,'a series video card has the chip');
 if(has){await p.click(vchip);await p.waitForTimeout(1200);
- n=await p.evaluate(id=>document.querySelectorAll(`.screen:last-child [data-sldrop-body="video:${id}"] .sub`).length,ids.video);
- ok(n===2&&!(await p.$('.screen:last-child .vp-title')),'it drops down its shots, without opening the video',n);
- await p.click(`.screen:last-child [data-sldrop-body="video:${ids.video}"] [data-subtick="1"]`);await p.waitForTimeout(800);
- const v=await p.evaluate(async id=>(await Store.get('videos',id)).shotList[1].done,ids.video);
+ n=await p.evaluate(id=>document.querySelectorAll(`.screen:last-child [data-sldrop-body="clip:${id}"] .sub`).length,ids.video);
+ ok(n===2&&(await p.evaluate(()=>document.querySelector('.screen:last-child').dataset.screen))==='series-view','it drops down its shots, without opening the video',n);
+ await p.click(`.screen:last-child [data-sldrop-body="clip:${ids.video}"] [data-subtick="1"]`);await p.waitForTimeout(800);
+ const v=await p.evaluate(async id=>(await Store.get('clips',id)).shotList[1].done,ids.video);
  ok(v,'ticking lands on the video');
  
  await p.click(`.screen:last-child [data-video="${ids.video}"] h3`);await p.waitForTimeout(1200);
- ok(!!(await p.$('.screen:last-child .vp-title')),'the rest of the card still opens the video');}
+ ok((await p.evaluate(()=>document.querySelector('.screen:last-child').dataset.screen))==='clip','the rest of the card still opens the video, on the clip page');}
 await ctx.close();}
 ok(!errs.length,'no errors',errs.join('|'));console.log(`${pass} ok, ${fail} failed`);await b.close();process.exit(fail?1:0);})();
