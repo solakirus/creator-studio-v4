@@ -122,7 +122,9 @@
                 : s.item ? LibView.tile(it, { badge:false }) : ''}
               <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
               ${s.role ? `<span class="tp-role">${esc(s.role.toUpperCase())}</span>` : ''}
-              <span class="tp-hint">${s.sequence ? 'Open the task sequence' : s.item ? 'Click to view · right-click to change' : 'Pick a frame from the Library'}</span>
+              <span class="tp-hint">${s.sequence ? 'Open the task sequence' : s.item ? 'Click to view · ↻ change · ✕ take off' : 'Pick a frame from the Library'}</span>
+              ${s.item && !s.sequence ? `<span class="tp-facts"><button class="tp-fbtn" data-fchange="${i}" title="Pick another frame" aria-label="Pick another frame">↻</button>
+                <button class="tp-fbtn" data-fclear="${i}" title="Take the frame off this shot (it stays in the Library)" aria-label="Take the frame off this shot">✕</button></span>` : ''}
             </div>
             <div class="lv-row"><span class="tp-drag" title="Drag to reorder">⠿</span>
               ${sel('w-role', T().ROLES, s.role).replace('class="lv-sel w-role"', `class="lv-sel w-role" data-s="role" data-i="${i}"`)}
@@ -156,6 +158,19 @@
       let musicFor = -1;
       box.addEventListener('click', async e => {
         const g = e.target;
+        const fch = g.closest('[data-fchange]');
+        if(fch) return pickFor(+fch.dataset.fchange);
+        const fcl = g.closest('[data-fclear]');
+        if(fcl){
+          /* v4: the shot keeps its role, length, words and type — only the picture goes */
+          const s = t.shots[+fcl.dataset.fclear];
+          const was = { item:s.item, kind:s.kind, source:s.source, page:s.page };
+          Object.assign(s, { item:'', kind:'', source:'', page:'' });
+          await save(true); render();
+          if(U.toastUndo) U.toastUndo('Frame taken off shot ' + (+fcl.dataset.fclear + 1), async () => { Object.assign(s, was); await save(true); render(); });
+          else U.toast('Frame taken off shot ' + (+fcl.dataset.fclear + 1));
+          return;
+        }
         const fr = g.closest('[data-frame]');
         if(fr){
           const s = t.shots[+fr.dataset.frame];

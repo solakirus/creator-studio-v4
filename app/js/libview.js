@@ -224,13 +224,38 @@
   /* ------------------------------------------------------------ the picker
      Shotline's picking opens the whole Deck: click picks; with `multi` you tick
      as many as you like and press Add. Returns the chosen uids. */
+  /* v4: the second picker — one grabbed video or page (or batch you added)
+     at a time, scoped to the library picked in the first. Used by the Deck
+     and by the frame picker. */
+  function pagePicker(lib, src, hidden){
+    const hid = hidden instanceof Set ? hidden : new Set(hidden || []);
+    const srcPage = src && src.startsWith('page:') ? lib.pageIdx.get(src.slice(5)) : null;
+    const colNow = srcPage ? srcPage.colKey : src && src.startsWith('col:') ? src.slice(4) : '';
+    const n = p => p.counts.reduce((a, b) => a + b, 0);
+    const opt = uid => { const p = lib.pageIdx.get(uid); if(!p || hid.has(uid) || !n(p)) return '';
+      return `<option value="page:${esc(uid)}" ${src === 'page:' + uid ? 'selected' : ''}>${esc(MediaLib.pageLabel(p))} (${n(p)})</option>`; };
+    const cols = lib.collections.filter(c => !colNow || c.key === colNow);
+    const opts = cols.length === 1 ? cols[0].pages.map(opt).join('')
+      : cols.map(c => { const o = c.pages.map(opt).join(''); return o ? `<optgroup label="${esc(c.name)}">${o}</optgroup>` : ''; }).join('');
+    const show = !!opts && (!src || src === 'all' || !!colNow);
+    return { srcPage, colNow, show,
+      html: show ? `<select class="lv-sel lv-pgsel" data-pgsel aria-label="One video or page">
+        <option value="">${colNow ? 'All its videos & pages' : 'All videos & pages'}</option>${opts}</select>` : '',
+      back: () => colNow ? 'col:' + colNow : 'all' };
+  }
+
+  let pickSrc = 'all';   /* the picker opens where you last picked from */
   function pick(opts){
     const o = opts || {};
     return new Promise(async resolve => {
       const s = await MediaLib.settings();
-      let kind = 'all', q = '', src = 'all', chosen = [];
+      let kind = 'all', q = '', chosen = [];
       const boards = await MediaLib.allBoards();
       const lib0 = await MediaLib.load();
+      let src = pickSrc;
+      if(src.startsWith('page:') && !lib0.pageIdx.has(src.slice(5))) src = 'all';
+      if(src.startsWith('col:') && !lib0.collections.some(c => c.key === src.slice(4))) src = 'all';
+      if(src.startsWith('board:') && !boards.some(b => 'board:' + b.id === src)) src = 'all';
       const box = document.createElement('div');
       box.className = 'lv-viewer lv-picker';
       box.innerHTML = `<div class="lv-pbox">
@@ -241,14 +266,10 @@
         <div class="lv-pbar">
           ${['all','gif','video','image'].map(k => `<button class="pill" data-k="${k}" aria-pressed="${k === kind}">${
             k === 'all' ? 'All' : k === 'gif' ? 'GIFs' : k === 'video' ? 'Clips' : 'Stills'}</button>`).join('')}
-          <select class="lv-sel" data-src>
-            <option value="all">Everything</option>
-            ${boards.map(b => `<option value="board:${b.id}">◈ ${esc(b.name)}</option>`).join('')}
-            ${lib0.collections.map(c => `<option value="col:${esc(c.key)}">${esc(c.name)}</option>`).join('')}
-          </select>
+          <span class="lv-psrc"></span>
           <input class="lv-in" data-q placeholder="Search…" type="search">
         </div>
-        <div class="lv-grid lv-pgrid"></div>
+        <div class="lv-pscroll"><div class="lv-grid lv-pgrid"></div></div>
         ${o.multi ? `<div class="lv-pfoot"><span data-n>Nothing ticked</span>
           <button class="lv-btn" data-add disabled>Add</button></div>` : ''}
       </div>`;
@@ -258,8 +279,28 @@
       const key = e => { if(e.key === 'Escape'){ e.stopPropagation(); done(o.multi ? [] : null); } };
       document.addEventListener('keydown', key, true);
 
+      /* where to look: Everything / a board / a library, then one video or page */
+      const srcBox = box.querySelector('.lv-psrc');
+      function drawSrc(){
+        const pp = pagePicker(lib0, src, s.hidden);
+        const colSel = k => src === 'col:' + k || (pp.srcPage && pp.show && pp.colNow === k);
+        srcBox.innerHTML = `<select class="lv-sel" data-src>
+            <option value="all">Everything</option>
+            ${boards.length ? `<optgroup label="Boards">${boards.map(b => `<option value="board:${b.id}" ${src === 'board:' + b.id ? 'selected' : ''}>◈ ${esc(b.name)}</option>`).join('')}</optgroup>` : ''}
+            ${lib0.collections.length ? `<optgroup label="Libraries">${lib0.collections.map(c => `<option value="col:${esc(c.key)}" ${colSel(c.key) ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</optgroup>` : ''}
+          </select>${pp.html}`;
+        srcBox._back = pp.back;
+      }
+      const setSrc = v => { src = pickSrc = v; drawSrc(); draw(); };
+      srcBox.addEventListener('change', e => {
+        if(e.target.matches('[data-src]')) return setSrc(e.target.value);
+        if(e.target.matches('[data-pgsel]')) return setSrc(e.target.value || srcBox._back());
+      });
+      drawSrc();
+
       async function draw(){
         const { lib, list } = await MediaLib.deck({ kind, q, src });
+        grid.parentNode.scrollTop = 0;
         grid.innerHTML = list.length ? list.slice(0, 600).map(it => tile(it, { check:o.multi, sel:chosen.includes(it.uid) })).join('')
           : `<div class="empty" style="grid-column:1/-1"><b>Nothing here</b>${lib.items.length
               ? 'Try another filter.' : 'Your Library is empty. Add GIFs, clips and stills in Content → Library.'}</div>`;
@@ -283,12 +324,11 @@
         const t = e.target.closest('.lv-tile[data-uid]');
         if(t){ e.preventDefault(); view(t.dataset.uid); }
       });
-      box.querySelector('[data-src]').addEventListener('change', e => { src = e.target.value; draw(); });
       let timer;
       box.querySelector('[data-q]').addEventListener('input', e => { clearTimeout(timer); timer = setTimeout(() => { q = e.target.value; draw(); }, 180); });
       draw();
     });
   }
 
-  global.LibView = { tile, hydrate, view, pick, boardMenu, boardDialog, starMenu, esc, plural };
+  global.LibView = { tile, hydrate, view, pick, pagePicker, boardMenu, boardDialog, starMenu, esc, plural };
 })(window);

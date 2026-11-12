@@ -38,7 +38,9 @@
         ${t ? `<div class="lv-target"><span>＋ adds to <b>${esc(t.label || 'a template')}</b></span>
           <button class="lv-btn ghost sm" data-untarget>Stop</button></div>` : ''}
         ${tab !== 'folders' && (lib.fallback || []).length ? `<p class="lv-warn" data-fallbackline>⚠ ${lib.fallback.length === 1 ? 'A folder' : lib.fallback.length + ' folders'} can’t be reached — showing the copy on this computer. <button class="lv-btn sm ghost" data-tab="folders">Folders</button></p>` : ''}
+        <div data-grabstrip></div>
         <div id="libBody"></div>`;
+      grabStrip();
       const body = host.querySelector('#libBody');
       if(tab === 'boards') return boardsPage(body, lib);
       if(tab === 'starred') return starredPage(body, lib);
@@ -54,6 +56,9 @@
       const inStar = src.startsWith('star:') ? stars.find(g => g.id === src.slice(5)) : null;
       const count = k => lib.items.filter(it => k === 'all' || it.kind === k).length;
       const srcPage = src.startsWith('page:') ? lib.pageIdx.get(src.slice(5)) : null;
+      /* v4: the second picker — one grabbed video or page at a time (LibView.pagePicker) */
+      const pp = LibView.pagePicker(lib, src, s.hidden);
+      const colNow = pp.colNow, usePgSel = pp.show;
       body.innerHTML = `
         <div class="lv-bar">
           ${['all','gif','video','image'].map(k => `<button class="pill" data-k="${k}" aria-pressed="${kind === k}">${
@@ -63,14 +68,15 @@
           <select class="lv-sel" data-src>
             <option value="all">Everything</option>
             <option value="unused" ${src === 'unused' ? 'selected' : ''}>Unused — on no board, group, template or task</option>
-            ${srcPage ? `<option value="${esc(src)}" selected>${esc(MediaLib.pageLabel(srcPage))}</option>` : ''}
+            ${srcPage && !usePgSel ? `<option value="${esc(src)}" selected>${esc(MediaLib.pageLabel(srcPage))}</option>` : ''}
             ${stars.length ? `<optgroup label="Starred — on the phone too">${stars.map(g =>
               `<option value="star:${g.id}" ${src === 'star:' + g.id ? 'selected' : ''}>★ ${esc(g.name)} (${g.items.length})</option>`).join('')}</optgroup>` : ''}
             ${boards.length ? `<optgroup label="Boards">${boards.map(b =>
               `<option value="board:${b.id}" ${src === 'board:' + b.id ? 'selected' : ''}>◈ ${esc(b.name)} (${b.items.length})</option>`).join('')}</optgroup>` : ''}
             ${lib.collections.length ? `<optgroup label="Libraries">${lib.collections.map(c =>
-              `<option value="col:${esc(c.key)}" ${src === 'col:' + c.key ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</optgroup>` : ''}
+              `<option value="col:${esc(c.key)}" ${src === 'col:' + c.key || (srcPage && usePgSel && colNow === c.key) ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</optgroup>` : ''}
           </select>
+          ${pp.html}
           <input class="lv-in" type="search" data-q placeholder="Search names, labels, pages…" value="${esc(q)}">
           <button class="pill" data-play aria-pressed="${s.play !== false}">▶ Play GIFs</button>
           <select class="lv-sel" data-sort aria-label="Sort">
@@ -174,6 +180,8 @@
       });
       /* a new source redraws the page: its selection bar changes with it (a starred group's "Take out of") */
       body.querySelector('[data-src]').addEventListener('change', e => { src = e.target.value; limit = 1500; sel.clear(); render(); });
+      const pgSel = body.querySelector('[data-pgsel]');
+      if(pgSel) pgSel.addEventListener('change', e => { src = e.target.value || pp.back(); limit = 1500; sel.clear(); render(); });
       body.querySelector('[data-sort]').addEventListener('change', e => { sort = e.target.value; draw(); });
       let timer;
       body.querySelector('[data-q]').addEventListener('input', e => { clearTimeout(timer); timer = setTimeout(() => { q = e.target.value; draw(); }, 200); });
@@ -559,6 +567,99 @@
         }
         await grabClick(e, body, s);
       });
+      if(d) await restoreGrab(body);
+    }
+
+    /* v4: a grab keeps running when you leave the Library. The desktop shell
+       remembers it (cs3:grab-status), so coming back shows its log, the links
+       a scan found, and Stop — on Add & grab in full, on the other tabs as a
+       strip at the top. */
+    const stripOff = [];
+    let stripTurn = 0;
+    const lastLine = st => { for(let i = st.lines.length - 1; i >= 0; i--){ const l = String(st.lines[i]).trim(); if(l) return l; } return ''; };
+    const grabWhat = st => st.mode === 'scan' ? 'Finding links' : st.mode === 'setup' ? 'Setting up the grabber' : 'Grabbing ' + (st.what || '');
+    async function grabStrip(){
+      stripOff.forEach(f => f()); stripOff.length = 0;
+      const mine = ++stripTurn;
+      const d = MediaLib.disk();
+      const slot = host.querySelector('[data-grabstrip]');
+      if(!slot || !d || !d.grabStatus || tab === 'add') return;
+      const st = await d.grabStatus().catch(() => null);
+      if(!st || !st.running || !slot.isConnected || mine !== stripTurn) return;
+      slot.innerHTML = `<div class="lv-target lv-grabbing"><span class="lv-live" aria-hidden="true"></span>
+        <span class="lv-gtext"><b>${esc(grabWhat(st))}</b> <small data-gline>${esc(lastLine(st))}</small></span>
+        <button class="lv-btn sm" data-gshow>Show</button><button class="lv-btn ghost sm" data-gstop>Stop</button></div>`;
+      const line = slot.querySelector('[data-gline]');
+      stripOff.push(d.onGrab('line', l => { if(String(l).trim()) line.textContent = String(l).trim(); }));
+      stripOff.push(d.onGrab('done', r => {
+        stripOff.forEach(f => f()); stripOff.length = 0;
+        slot.innerHTML = `<div class="lv-target"><span>${r.code === 0 ? '✓ Grab finished' : '■ Grab stopped'}</span>
+          <button class="lv-btn ghost sm" data-gshow>Show</button></div>`;
+      }));
+    }
+    function setBusy(body, on){
+      const st = body.querySelector('[data-stop]'); if(st) st.hidden = !on;
+      body.querySelectorAll('[data-grab],[data-scan],[data-setup]').forEach(b => {
+        if(on){ if(!('was' in b.dataset)) b.dataset.was = b.disabled ? '1' : ''; b.disabled = true; }
+        else if('was' in b.dataset){ b.disabled = !!b.dataset.was; delete b.dataset.was; }
+      });
+    }
+    /* one set of listeners at a time, tied to this page's log */
+    function wireGrab(body, o){
+      const d = MediaLib.disk();
+      const log = body.querySelector('[data-log]');
+      const say = l => { if(!log.isConnected) return; log.hidden = false; log.textContent += l + '\n'; log.scrollTop = log.scrollHeight; };
+      grabOff.forEach(f => f()); grabOff.length = 0;
+      grabOff.push(d.onGrab('line', say));
+      if(o.scan){
+        const found = o.found || [];
+        const box = body.querySelector('[data-found]');
+        const draw = () => {
+          if(!box.isConnected) return;
+          box.innerHTML = `<p class="hintline">${plural(found.length, 'link')} found — tick the ones to grab</p>` +
+            found.map((x, i) => `<label class="lv-row lv-found"><input type="checkbox" data-fl="${i}"> <span class="pill sm">${esc(x.kind || '')}</span>
+              <span class="lv-pt">${esc(x.title || x.url)}</span></label>`).join('') +
+            `<button class="lv-btn sm" data-addfound>Add ticked to the links list</button>`;
+          box._found = found;
+        };
+        if(found.length) draw();
+        grabOff.push(d.onGrab('link', l => { found.push(l); draw(); }));
+      }
+      grabOff.push(d.onGrab('done', async r => {
+        say(r.code === 0 ? '— finished —' : `— stopped${r.code == null ? '' : ` (code ${r.code})`} —`);
+        if(log.isConnected) setBusy(body, false);
+        await MediaLib.rescan();
+        if(o.setup && log.isConnected) setTimeout(render, 400);
+      }));
+      return say;
+    }
+    async function restoreGrab(body){
+      const d = MediaLib.disk();
+      if(!d.grabStatus) return;
+      const st = await d.grabStatus().catch(() => null);
+      if(!st || !body.isConnected || (!st.running && !st.lines.length && !st.links.length)) return;
+      /* a grab that ended a while ago isn't worth bringing back */
+      if(!st.running && Date.now() - (st.endedAt || 0) > 30 * 60 * 1000) return;
+      const log = body.querySelector('[data-log]');
+      if(log){
+        log.hidden = false;
+        log.textContent = (st.running ? '' : '(last grab) ') + grabWhat(st) + '…\n' + st.lines.map(l => l + '\n').join('') +
+          (st.running ? '' : (st.code === 0 ? '— finished —\n' : '— stopped —\n'));
+        log.scrollTop = log.scrollHeight;
+      }
+      const found = st.mode === 'scan' ? st.links.slice() : null;
+      if(st.running){
+        setBusy(body, true);
+        wireGrab(body, { scan:st.mode === 'scan', found:found || [], setup:st.mode === 'setup' });
+      } else if(found && found.length){
+        const box = body.querySelector('[data-found]');
+        box.innerHTML = `<p class="hintline">${plural(found.length, 'link')} found — tick the ones to grab</p>` +
+          found.map((x, i) => `<label class="lv-row lv-found"><input type="checkbox" data-fl="${i}"> <span class="pill sm">${esc(x.kind || '')}</span>
+            <span class="lv-pt">${esc(x.title || x.url)}</span></label>`).join('') +
+          `<button class="lv-btn sm" data-addfound>Add ticked to the links list</button>`;
+        box._found = found;
+      }
+      if(st.running) body.querySelector('[data-log]').closest('.lv-card').scrollIntoView({ block:'nearest' });
     }
 
     /* v4: no "Phone ⇄ laptop" file any more — the phone gets the frames its
@@ -621,43 +722,28 @@
       const d = MediaLib.disk();
       if(!d) return;
       const log = body.querySelector('[data-log]');
-      const say = l => { log.hidden = false; log.textContent += l + '\n'; log.scrollTop = log.scrollHeight; };
-      const listen = () => {
-        grabOff.forEach(f => f()); grabOff.length = 0;
-        grabOff.push(d.onGrab('line', say));
-        grabOff.push(d.onGrab('done', async r => {
-          say(r.code === 0 ? '— finished —' : `— stopped (code ${r.code}) —`);
-          const st = body.querySelector('[data-stop]'); if(st) st.hidden = true;
-          await MediaLib.rescan();
-        }));
-      };
+      const fresh = () => { log.textContent = ''; body.querySelector('[data-found]').innerHTML = ''; };
       if(e.target.closest('[data-usegrab]')){ await MediaLib.setSettings({ grabber:body.querySelector('[data-grabdir]').value.trim() }); return render(); }
       if(e.target.closest('[data-recheck]')) return render();
       if(e.target.closest('[data-setup]')){
-        listen();
-        grabOff.push(d.onGrab('done', () => setTimeout(render, 400)));
-        say('Setting up the grabber…');
-        return d.grabRun({ mode:'setup', setting:s.grabber });
+        fresh();
+        const say = wireGrab(body, { setup:true });
+        const r = await d.grabRun({ mode:'setup', setting:s.grabber });
+        if(r && r.ok === false) return U.toast(r.why);
+        setBusy(body, true);
+        return say('Setting up the grabber…');
       }
       if(e.target.closest('[data-stop]')) return d.grabStop();
       if(e.target.closest('[data-scan]')){
         const url = body.querySelector('[data-scanurl]').value.trim();
         if(!/^https?:/i.test(url)) return U.toast('Paste a link that starts with http');
         await MediaLib.setSettings({ scanUrl:url });
-        const found = [];
-        const box = body.querySelector('[data-found]');
-        listen();
-        grabOff.push(d.onGrab('link', l => {
-          found.push(l);
-          box.innerHTML = `<p class="hintline">${plural(found.length, 'link')} found — tick the ones to grab</p>` +
-            found.map((x, i) => `<label class="lv-row lv-found"><input type="checkbox" data-fl="${i}"> <span class="pill sm">${esc(x.kind || '')}</span>
-              <span class="lv-pt">${esc(x.title || x.url)}</span></label>`).join('') +
-            `<button class="lv-btn sm" data-addfound>Add ticked to the links list</button>`;
-          box._found = found;
-        }));
+        fresh();
+        const say = wireGrab(body, { scan:true, found:[] });
         const r = await d.grabRun({ mode:'scan', url, max:s.scanMax, setting:s.grabber });
-        if(!r.ok) U.toast(r.why);
-        return;
+        if(!r.ok) return U.toast(r.why);
+        setBusy(body, true);
+        return say('Finding links on ' + url + '…');
       }
       if(e.target.closest('[data-addfound]')){
         const box = body.querySelector('[data-found]');
@@ -676,10 +762,11 @@
         opts.ytEvery = +opts.ytEvery;
         opts.out = body.querySelector('[data-grablib]').value.trim();
         await MediaLib.setSettings({ ...opts, links:body.querySelector('[data-links]').value, libName:opts.out });
-        listen();
+        fresh();
+        const say = wireGrab(body, {});
         const r = await d.grabRun({ mode:'grab', links, opts, setting:s.grabber });
         if(!r.ok) return U.toast(r.why);
-        body.querySelector('[data-stop]').hidden = false;
+        setBusy(body, true);
         say(`Grabbing ${plural(links.length, 'link')}…${r.builtin ? '' : ' a Chrome window works through them'}`);
       }
     }
@@ -689,10 +776,28 @@
       if(tb && host.contains(tb)){ tab = tb.dataset.tab; selecting = false; sel.clear(); return render(); }
       if(e.target.closest('[data-go="add"]')){ tab = 'add'; return render(); }
       if(e.target.closest('[data-untarget]')){ await MediaLib.setTarget(null); return render(); }
+      if(e.target.closest('[data-gshow]')){ tab = 'add'; return render(); }
+      if(e.target.closest('[data-gstop]')){
+        const d = MediaLib.disk(); if(d) await d.grabStop();
+        const b = e.target.closest('[data-gstop]'); b.disabled = true; b.textContent = 'Stopping…';
+      }
     });
+    /* leaving the Library drops this page's listeners (the grab carries on) */
+    const gone = new MutationObserver(() => {
+      if(host.isConnected) return;
+      grabOff.forEach(f => f()); grabOff.length = 0;
+      stripOff.forEach(f => f()); stripOff.length = 0;
+      gone.disconnect();
+    });
+    gone.observe(document.body, { childList:true, subtree:true });
 
     await render();
   }
 
   Screens.register('library', mount);
+  if(window.CS3Lib && CS3Lib.onGrab) CS3Lib.onGrab('done', r => {
+    if(document.querySelector('.lv-root')) return;
+    MediaLib.rescan().catch(() => {});
+    U.toast(r && r.code === 0 ? 'Grab finished — it’s in the Library' : 'The grab stopped');
+  });
 })();

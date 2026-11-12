@@ -85,6 +85,7 @@ contextBridge.exposeInMainWorld('CS3Lib', {
   grabFind: setting => ipcRenderer.invoke('cs3:grab-find', setting || ''),
   grabRun: o => ipcRenderer.invoke('cs3:grab-run', o),
   grabStop: () => ipcRenderer.invoke('cs3:grab-stop'),
+  grabStatus: () => ipcRenderer.invoke('cs3:grab-status'),
   onGrab: (kind, cb) => { const s = grabListeners[kind]; if (s && typeof cb === 'function') { s.add(cb); return () => s.delete(cb); } return () => {}; }
 });
 

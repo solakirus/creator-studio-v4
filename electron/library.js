@@ -353,6 +353,18 @@ function wire({ ipcMain, dialog, shell, net, getWin }) {
   /* An outside grabber kit (grab.mjs) is used only when one is set up; otherwise
      the grabber built into the app (grab-builtin.js: yt-dlp + ffmpeg). */
   const kitReady = setting => { const root = findGrabber(setting); return root && isSetUp(root) && findNode() ? root : null; };
+  /* v4: what the grab is doing, kept here (not in the page), so leaving the
+     Library and coming back still shows it — its log, its links, and Stop. */
+  const gstate = { running:false, mode:'', what:'', startedAt:0, endedAt:0, code:null, stopped:false, lines:[], links:[] };
+  const gsend = (ch, v) => {
+    if(ch === 'cs3:grab-line'){ gstate.lines.push(String(v)); if(gstate.lines.length > 500) gstate.lines.splice(0, gstate.lines.length - 500); }
+    else if(ch === 'cs3:grab-link' && gstate.links.length < 3000) gstate.links.push(v);
+    send(ch, v);
+  };
+  const gstart = o => Object.assign(gstate, { running:true, mode:o.mode || 'grab', startedAt:Date.now(), endedAt:0, code:null, stopped:false, lines:[], links:[],
+    what: o.mode === 'scan' ? String(o.url || '') : o.mode === 'setup' ? 'setting up the grabber' : `${(o.links || []).length} link${(o.links || []).length === 1 ? '' : 's'}` });
+  const gdone = code => { Object.assign(gstate, { running:false, endedAt:Date.now(), code }); send('cs3:grab-done', { code }); };
+  ipcMain.handle('cs3:grab-status', () => JSON.parse(JSON.stringify(gstate)));
   ipcMain.handle('cs3:grab-find', (e, setting) => {
     const kit = kitReady(setting);
     const t = Builtin.tools();
@@ -367,11 +379,12 @@ function wire({ ipcMain, dialog, shell, net, getWin }) {
       const wantsVideo = o.mode === 'grab' ? (o.links || []).some(Builtin.isVideoLink) : o.mode === 'scan' && Builtin.isVideoLink(o.url || '');
       if (wantsVideo && !(t.ytdlp && t.ffmpeg))
         return { ok: false, why: 'yt-dlp isn’t installed yet — press “Install yt-dlp and ffmpeg”' };
-      const b = Builtin.makeJob(l => send('cs3:grab-line', l));
-      job = { kill: () => b.stop() };
+      gstart(o);
+      const b = Builtin.makeJob(l => gsend('cs3:grab-line', l));
+      job = { kill: () => { gstate.stopped = true; b.stop(); } };
       let work;
       if (o.mode === 'setup') work = Builtin.setup(b, t);
-      else if (o.mode === 'scan') work = Builtin.scan(b, t, o.url, Math.max(1, Math.min(2000, o.max | 0 || 200)), l => send('cs3:grab-link', l));
+      else if (o.mode === 'scan') work = Builtin.scan(b, t, o.url, Math.max(1, Math.min(2000, o.max | 0 || 200)), l => gsend('cs3:grab-link', l));
       else {
         const s = o.opts || {};
         const out = s.out ? (path.isAbsolute(s.out) ? s.out : path.join(defaultRoot(), safeName(s.out))) : defaultRoot();
@@ -379,8 +392,8 @@ function wire({ ipcMain, dialog, shell, net, getWin }) {
         roots.add(out);
         work = Builtin.grab(b, t, (o.links || []).filter(l => /^https?:\/\//i.test(l)), out, s);
       }
-      Promise.resolve(work).catch(err => { send('cs3:grab-line', '✗ ' + err.message); return 1; })
-        .then(code => { job = null; send('cs3:grab-done', { code: b.stopped ? 1 : (code | 0) }); });
+      Promise.resolve(work).catch(err => { gsend('cs3:grab-line', '✗ ' + err.message); return 1; })
+        .then(code => { job = null; gdone(b.stopped ? 1 : (code | 0)); });
       return { ok: true, builtin: true };
     }
     const root = findGrabber(o.setting);
@@ -410,6 +423,7 @@ function wire({ ipcMain, dialog, shell, net, getWin }) {
     const env = Object.assign({}, process.env, { PATH: path.dirname(node) + path.delimiter + (process.env.PATH || '') });
     try {
       job = spawn(program, args, { cwd: root, env, shell: o.mode === 'setup' && process.platform === 'win32' });
+      gstart(o);
     } catch (err) {
       job = null;
       return { ok: false, why: err.message };
@@ -423,18 +437,18 @@ function wire({ ipcMain, dialog, shell, net, getWin }) {
         for (const l of parts) {
           if (!l.trim()) continue;
           if (l.startsWith('@@LINK ')) {
-            try { send('cs3:grab-link', JSON.parse(l.slice(7))); } catch (err) { /* not a link */ }
-          } else send('cs3:grab-line', l);
+            try { gsend('cs3:grab-link', JSON.parse(l.slice(7))); } catch (err) { /* not a link */ }
+          } else gsend('cs3:grab-line', l);
         }
       });
     };
     lines(job.stdout); lines(job.stderr);
-    job.on('close', code => { job = null; send('cs3:grab-done', { code }); });
-    job.on('error', err => { send('cs3:grab-line', '✗ Could not start: ' + err.message); });
+    job.on('close', code => { job = null; gdone(code); });
+    job.on('error', err => { gsend('cs3:grab-line', '✗ Could not start: ' + err.message); });
     return { ok: true };
   });
 
-  ipcMain.handle('cs3:grab-stop', () => { if (job) { try { job.kill(); } catch (e) {} } return true; });
+  ipcMain.handle('cs3:grab-stop', () => { if (job) { gstate.stopped = true; gsend('cs3:grab-line', '… stopping'); try { job.kill(); } catch (e) {} } return true; });
 }
 
 module.exports = { wire, serve: () => new Response('Not ready', { status: 503 }), scanRoot, scanAll, mirrorCopy, allowed, kindOf };
