@@ -68,6 +68,30 @@
       @keyframes tkpSlideL{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:none}}
       @keyframes tkpSlideR{from{opacity:0;transform:translateX(-40px)}to{opacity:1;transform:none}}
       .tkp-cwrap{position:relative}
+      /* v4: each shot's script lines, folded under it; the steps fold to a line */
+      .tk-tw{display:inline-flex;align-items:center;gap:5px;margin:3px 0 0 -2px;padding:3px 8px;border:1px solid var(--line);border-radius:var(--r);background:transparent;color:var(--muted);font:inherit;font-size:12px;cursor:pointer}
+      .tk-tw svg{width:11px;height:11px;transition:transform .15s}
+      .tk-tw.on{border-color:var(--orange);color:var(--orange)}
+      .tk-tw.on svg{transform:rotate(90deg)}
+      .tk-lines{display:flex;flex-direction:column;gap:5px;margin:6px 0 2px -2px;padding:8px 9px;border-left:2px solid var(--orange);border-radius:0 var(--r) var(--r) 0;background:rgba(251,105,0,.06)}
+      .tk-ln{display:flex;align-items:flex-start;gap:6px}
+      .tk-lk{height:24px;flex:0 0 auto;padding:0 3px;border:0;border-radius:3px;font-family:var(--display),sans-serif;font-weight:900;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;margin-top:2px}
+      .tk-lk.vo{background:#3A2A14;color:#F2C27A}.tk-lk.cam{background:#1E3324;color:#7FD08C}.tk-lk.txt{background:#22283A;color:#9DB5E8}
+      .tk-lk option{background:var(--surface-2);color:var(--cream)}
+      .tk-lhook{font-family:var(--display),sans-serif;font-weight:900;font-size:9px;letter-spacing:.08em;background:var(--orange);color:#151515;padding:3px 5px;border-radius:3px;margin-top:4px}
+      .tk-lt{flex:1;min-width:0;min-height:28px;resize:none;overflow:hidden;padding:3px 6px;border:1px solid transparent;border-radius:var(--r);background:transparent;color:var(--cream);font:inherit;font-size:14px;line-height:1.45;outline:none}
+      .tk-lt:hover{border-color:var(--line)}.tk-lt:focus{border-color:var(--orange);background:var(--bg)}
+      .tk-lrm{width:24px;height:24px;flex:0 0 24px;padding:0;border:0;background:none;color:var(--dim);font-size:16px;cursor:pointer;margin-top:2px}
+      .tk-ladd{align-self:flex-start;height:26px;padding:0 9px;border:1px solid var(--line);border-radius:var(--r);background:transparent;color:var(--muted);font:inherit;font-size:12px;cursor:pointer}
+      .tk-beat{margin:12px 0 4px;font-family:var(--display),sans-serif;font-weight:900;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--orange)}
+      .tk-beat:first-child{margin-top:0}
+      .tk-rowsbar{display:flex;align-items:center;gap:9px;margin:0 0 8px;padding:7px 8px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);cursor:pointer}
+      .tk-rowsbar .fcv{width:16px;height:16px;flex:0 0 16px;color:var(--cream);transition:transform .15s}
+      .tk-rowsbar.shut .fcv{transform:rotate(-90deg)}
+      .tk-rowsbar b{font-family:var(--display),sans-serif;font-weight:900;font-size:11px;letter-spacing:.13em;text-transform:uppercase}
+      .tk-rowsbar span{flex:1;min-width:0;color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .block.fold.tk-keep > .fbody{display:block!important}
+      .block.fold.tk-keep.shut > h4 .fcv{transform:rotate(-90deg)}
       .tkp-cwrap .tkp-canvas{cursor:pointer}`;
     document.head.appendChild(st);
   }
@@ -92,6 +116,11 @@
       }
     }
   }
+
+  /* which step lists are folded to a line, kept between visits */
+  const ROWS_KEY = 'cs4.stepsFolded';
+  const rowsFolded = () => { try { return JSON.parse(localStorage.getItem(ROWS_KEY) || '{}') || {}; } catch(e){ return {}; } };
+  function setRowsFolded(k, v){ try { const m = rowsFolded(); if(v) m[k] = 1; else delete m[k]; localStorage.setItem(ROWS_KEY, JSON.stringify(m)); } catch(e){} }
 
   async function mount(el, params){
     let t, startDate = null, kit = [], lib = [];
@@ -150,7 +179,7 @@
        one shot (picture spot) on the page: step.shot is that spot's index. */
     /* v4: on a phone the shot page's drawing starts folded — the steps show the
        shots with their frames, so it would be the same list twice */
-    let showPage = false;
+    const linesOpen = new Set();     /* shots whose script lines are open, by page:index */
     let pageChoices = [];   /* [{ key:'tid|sid', label, group, n }] */
     let pageMedia = null, pageMediaKey = '';
     async function loadPageChoices(){
@@ -260,8 +289,7 @@
           ${n ? `<span class="tkp-count">${doneN}/${n}</span>` : ''}
         </div>
         ${n ? `<div class="track tkp-track"><i class="ok" style="width:${Math.round(doneN / n * 100)}%"></i></div>` : ''}
-        ${onMain() && innerWidth < 900 && !showPage ? `<button class="btn-sm tkp-showpage" data-a="showpage">Show the page</button>` : ''}
-        <div class="tkp-cwrap"${onMain() && innerWidth < 900 && !showPage ? ' hidden' : ''}><canvas class="tkp-canvas" width="720" height="900" data-pagecanvas
+        <div class="tkp-cwrap"><canvas class="tkp-canvas" width="720" height="900" data-pagecanvas
           title="${onMain() ? 'Tap a picture to shoot it full screen' + (window.CS3Lib ? ' (right-click to change it)' : '') + ', words to type over them, a shot’s box to tick it' : 'Click words to type over them, a picture spot to pick a shot'}"></canvas>
           <div class="pe-edit" hidden></div></div>
         ${nx !== -1 && n ? `<div class="tkp-next"${onMain() ? ` data-a="shootnext" role="button" tabindex="0" title="Shoot it full screen"` : ''}><span>Next up</span><b>${esc(shotTitle(P, nx))}</b>${onMain() ? '<i class="tkp-go">▶</i>' : ''}</div>`
@@ -689,7 +717,7 @@
       const steps = t.subs || [];
       const done = steps.filter(s2 => s2.done).length;
       return `
-      <div class="block fold${fold.steps ? ' open' : ''}" data-fold="steps">
+      <div class="block fold${t.page ? ' open tk-keep' + (rowsShut() ? ' shut' : '') : fold.steps ? ' open' : ''}" data-fold="steps">
         <h4><svg class="fcv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
           Steps<span class="cnt">${steps.length ? `${done} of ${steps.length}` : 'none yet'}</span></h4>
         <div class="fbody">
@@ -737,6 +765,37 @@
               <button class="mini" data-edit="${i}" aria-label="Edit">${PEN}</button>
             </div>`;
 
+    /* v4: the step list folds to one line; the page arrows and the shot page stay */
+    const rowsKey = () => String(t && t.id);
+    const rowsShut = () => !!rowsFolded()[rowsKey()];
+    /* the script lines said over a shot: on its step (the main page), or on the spot */
+    function linesOf(i){
+      if(onMain()){ const s2 = stepOf(i); return (s2 && s2.lines) || []; }
+      return ((curPage().slots || [])[i] || {}).lines || [];
+    }
+    function linesHolder(i){
+      if(onMain()){ TaskPages.match(t); return stepOf(i); }
+      return (curPage().slots || [])[i] || null;
+    }
+    const LKINDS = [['vo', 'VO'], ['cam', 'On cam'], ['txt', 'Text']];
+    const TWIRL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+    function linesHTML(i){
+      const ls = linesOf(i);
+      return `<div class="tk-lines">${ls.map((l, j) => `<div class="tk-ln">
+          <select class="tk-lk ${l.k || 'vo'}" data-tlk="${i}:${j}" aria-label="What kind of line">${LKINDS.map(([v, n]) => `<option value="${v}" ${(l.k || 'vo') === v ? 'selected' : ''}>${n}</option>`).join('')}</select>
+          ${l.hook ? '<span class="tk-lhook" title="The hook">HOOK</span>' : ''}
+          <textarea class="tk-lt" rows="1" data-tlt="${i}:${j}" placeholder="${l.k === 'txt' ? 'Words on screen' : 'What is said over this shot'}" aria-label="Script line">${esc(l.t || '')}</textarea>
+          <button class="tk-lrm" data-tlrm="${i}:${j}" aria-label="Remove this line">×</button></div>`).join('')}
+        <button class="tk-ladd" data-tladd="${i}">+ Add a line</button></div>`;
+    }
+    /* the beat each shot starts, when the record has a structure (structures.js) */
+    function beatAt(){
+      const names = t.beatNames || [];
+      if(!onMain() || !names.length) return [];
+      let cur = 0;
+      return (curPage().slots || []).map((_, i) => { const s2 = stepOf(i); if(s2 && s2.beat != null && s2.beat >= 0 && s2.beat < names.length) cur = s2.beat; return cur; });
+    }
+
     /* a task with a shot page: the arrows between its pages, then the page on
        show beside its shots. Every shot is a step: its box ticks it, its name
        and its type are changed right there (and on the page with them). */
@@ -752,11 +811,18 @@
       const canShrink = isSteps && slots.length > 1;
       const note = i => onMain() ? ((stepOf(i) || {}).note || '') : ((slots[i] || {}).note || '');
       let hidden = 0;
+      const bAt = beatAt();
+      let lastBeat = -1;
       const rows = slots.map((sl, i) => {
         const dn = shotDone(P, i);
         if(hide && dn){ hidden++; return ''; }
         const r = sl.role || '';
-        return `
+        const bk = bAt.length ? bAt[i] : -1;
+        const div = bk >= 0 && bk !== lastBeat ? `<p class="tk-beat">${esc(t.beatNames[bk] || 'Beat ' + (bk + 1))}</p>` : '';
+        lastBeat = bk;
+        const nl = linesOf(i).filter(l => String(l.t || '').trim()).length;
+        const lk = pgIdx + ':' + i, lo = linesOpen.has(lk);
+        return `${div}
             <div class="shotline tk-ps${dn ? ' done' : ''}${i === nx ? ' tk-next' : ''}" data-ps="${i}">
               <button class="bx" data-tick="${i}" aria-label="Tick shot ${i + 1}" aria-pressed="${dn}">${ICON.check}</button>
               <span class="sn">${i + 1}</span>
@@ -771,6 +837,8 @@
                   ${i === nx ? `<span class="tk-nexttag">Next</span>` : ''}
                   <input type="text" class="tk-name" data-pf="text:${i}" value="${esc(sl.text || '')}" placeholder="${isSteps ? 'Shot' : 'Frame'} ${i + 1} — click to name it" aria-label="Shot ${i + 1} name">
                 </span>
+                <button class="tk-tw${lo ? ' on' : ''}" data-twirl="${i}" aria-expanded="${lo}">${TWIRL} Script${nl ? ' · ' + nl : ''}</button>
+                ${lo ? linesHTML(i) : ''}
                 <input type="text" class="tk-notein${note(i) ? ' has' : ''}" data-pf="note:${i}" value="${esc(note(i))}" placeholder="Add a note" aria-label="Shot ${i + 1} note">
               </span>
               <button class="mini" data-psmv="up:${i}" ${i === 0 ? 'disabled' : ''} aria-label="Move up">${UP}</button>
@@ -791,8 +859,15 @@
             <button class="tkp-arrow" data-pg="${pgIdx + 1}" ${pgIdx === pages.length - 1 ? 'disabled' : ''} aria-label="Next page">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
           </div>` : '';
+      const shut = rowsShut();
+      const doneN = slots.filter((_, i) => shotDone(P, i)).length;
+      const bar = params.embedded || shut ? `<div class="tk-rowsbar${shut ? ' shut' : ''}" data-a="rowsfold" role="button" tabindex="0" aria-expanded="${!shut}">
+            <svg class="fcv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            <b>${isSteps ? 'Steps' : 'Frames'}</b><span>${slots.length} shot${slots.length === 1 ? '' : 's'} · ${doneN} taken${shut && nx !== -1 ? ' · next: ' + esc(shotName(nx)) : ''}</span></div>` : '';
+      if(shut) return `${nav}
+          <div class="tkp-split${slideDir ? ' ' + slideDir : ''}"><div class="tkp-left">${bar}</div><div class="tkp-right">${pageCardHTML()}</div></div>`;
       return `${nav}
-          <div class="tkp-split${slideDir ? ' ' + slideDir : ''}"><div class="tkp-left">
+          <div class="tkp-split${slideDir ? ' ' + slideDir : ''}"><div class="tkp-left">${bar}
           ${slots.length ? rows : `<p style="margin:0;color:var(--muted);font-size:14.5px;line-height:1.55">This page has no shots to tick — type on it and add pictures on the right.</p>`}
           ${hidden ? `<button class="tk-hidden" data-a="hidedone">${hidden} done shot${hidden === 1 ? '' : 's'} hidden · Show</button>` : ''}
           ${canGrow ? `<button class="btn-sm tks-add" data-a="psadd">＋ Add a shot</button>` : ''}
@@ -991,6 +1066,27 @@
           if(f.classList.contains('tk-notein')) f.addEventListener('input', () => f.classList.toggle('has', !!f.value.trim()));
         }
       });
+      /* a script line: saved when left; its kind the moment it changes */
+      el.querySelectorAll('.tk-lt').forEach(ta => {
+        const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
+        grow();
+        ta.addEventListener('input', grow);
+        ta.addEventListener('change', async () => {
+          const [i, j] = ta.dataset.tlt.split(':').map(Number), h = linesHolder(i);
+          if(!h || !h.lines || !h.lines[j]) return;
+          h.lines[j].t = ta.value.trim();
+          if(h.lines[j].hook) h.lines[j].at = Date.now();
+          await save();
+          const tw = el.querySelector(`[data-twirl="${i}"]`);
+          if(tw){ const nl = h.lines.filter(l => String(l.t || '').trim()).length; tw.lastChild.textContent = ' Script' + (nl ? ' · ' + nl : ''); }
+        });
+      });
+      el.querySelectorAll('.tk-lk').forEach(sel => sel.addEventListener('change', async () => {
+        const [i, j] = sel.dataset.tlk.split(':').map(Number), h = linesHolder(i);
+        if(!h || !h.lines || !h.lines[j]) return;
+        h.lines[j].k = sel.value; sel.className = 'tk-lk ' + sel.value;
+        await save();
+      }));
       if(focusKey){
         const f = el.querySelector(`[data-pf="${focusKey}"]`);
         if(f){ f.focus({ preventScroll:true }); if(f.setSelectionRange && f.type === 'text'){ const n = f.value.length; f.setSelectionRange(n, n); } }
@@ -1423,6 +1519,27 @@
       const pdel = e.target.closest('[data-psdel]');
       if(pdel) return shotRemove(+pdel.dataset.psdel);
       const fd = e.target.closest('[data-fold] > h4');
+      if(fd && fd.parentElement.dataset.fold === 'steps' && t.page){ setRowsFolded(rowsKey(), !rowsShut()); return render(); }
+      const tw = e.target.closest('[data-twirl]');
+      if(tw){ const k = pgIdx + ':' + tw.dataset.twirl; linesOpen.has(k) ? linesOpen.delete(k) : linesOpen.add(k); return render(); }
+      const tla = e.target.closest('[data-tladd]');
+      if(tla){
+        const i = +tla.dataset.tladd, h = linesHolder(i);
+        if(!h) return;
+        h.lines = (h.lines || []).concat({ k:'vo', t:'' });
+        linesOpen.add(pgIdx + ':' + i);
+        await save(); render();
+        const f = el.querySelector(`[data-tlt="${i}:${h.lines.length - 1}"]`); if(f) f.focus();
+        return;
+      }
+      const tlr = e.target.closest('[data-tlrm]');
+      if(tlr){
+        const [i, j] = tlr.dataset.tlrm.split(':').map(Number), h = linesHolder(i);
+        if(!h || !h.lines) return;
+        h.lines.splice(j, 1);
+        if(!h.lines.length) delete h.lines;
+        await save(); return render();
+      }
       if(fd){
         const k = fd.parentElement.dataset.fold;
         fold[k] = !fold[k];
@@ -1553,12 +1670,12 @@
       if(!a) return;
 
       if(a.dataset.a === 'editkit') return editKit();
-      if(a.dataset.a === 'showpage'){ showPage = true; pageMediaKey = ''; return render(); }
       if(a.dataset.a === 'shootmode') return openShoot(null);
       if(a.dataset.a === 'shootnext') return openShoot(nextOn(curPage()));
       if(a.dataset.a === 'openpage') return Screens.push('task-page', { id:t.id, host:H, onChange: async () => { await load(); render(); } });
       if(a.dataset.a === 'addpage') return Screens.push('task-page', { id:t.id, host:H, addPage:true, onChange: async () => { await load(); render(); } });
       if(a.dataset.a === 'psadd') return shotAdd();
+      if(a.dataset.a === 'rowsfold'){ setRowsFolded(rowsKey(), !rowsShut()); return render(); }
       if(a.dataset.a === 'unmore'){
         const P = curPage();
         if(onMain() || !P) return;

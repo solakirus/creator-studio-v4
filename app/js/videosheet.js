@@ -174,7 +174,7 @@
         r.channel = r.seriesId
           ? (inherited || '')
           : ($('#vd-c') ? $('#vd-c').value : r.channel);
-        r.hook = $('#vd-h').value.trim();
+        { const nh = $('#vd-h').value.trim(); if(nh !== (r.hook || '')){ r.hook = nh; r.hookT = Date.now(); } }
         r.shotList = ShotList.norm(list());
         r.shots = ShotList.texts(r.shotList);
         r.tags = $('#vd-g').value.split(',').map(x => x.trim()).filter(Boolean);

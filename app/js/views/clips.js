@@ -80,6 +80,7 @@
             <span class="st platdot"><span class="dot" style="background:${p.dot}"></span>${p.name}</span>
             <span class="sep">|</span>
             <span class="st">${c.seriesName}</span>
+            ${c.plan && c.plan.structure && c.plan.structure.name ? `<span class="sep">|</span><span class="st">${U.esc(c.plan.structure.name)}</span>` : ''}
             <span class="sep">|</span><span class="st" style="color:${isDone(c) ? 'var(--green)' : 'var(--orange)'}">
               ${stageLine(c, stageOf(c))}</span>
             ${global.ShotList ? `<span class="sep">|</span>${ShotList.dropChip(c, 'clip:' + c.id, dropOpen.has('clip:' + c.id))}` : ''}

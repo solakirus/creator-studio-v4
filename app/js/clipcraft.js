@@ -66,7 +66,6 @@
     if(!p.audience || !p.audience.trim()) out.push({ k:'audience', t:'No one specific in mind', w:2 });
     if(!(p.beats || []).filter(b => b.trim()).length) out.push({ k:'beats', t:'No flow yet', w:2 });
     if(!p.hookStyle)                   out.push({ k:'hookStyle', t:'Hook style not chosen', w:1 });
-    if(!p.retain)                      out.push({ k:'retain', t:'Nothing holding the middle', w:2 });
     if(!p.ctaType)                     out.push({ k:'ctaType', t:'No call to action decided', w:1 });
     if(!(p.titles || []).filter(t => t.trim()).length) out.push({ k:'titles', t:'No title options', w:1 });
     if(!p.thumb || !p.thumb.trim())    out.push({ k:'thumb', t:'No thumbnail idea', w:1 });
@@ -76,7 +75,7 @@
 
   /* A readiness read, weighted so the hook counts for more than hashtags. */
   function readiness(plan){
-    const total = 20;
+    const total = 18;
     const lost = gaps(plan).reduce((a, g) => a + g.w, 0);
     return Math.max(0, Math.round(((total - lost) / total) * 100));
   }

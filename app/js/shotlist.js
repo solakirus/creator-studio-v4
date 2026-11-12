@@ -30,10 +30,21 @@
     return (Array.isArray(list) ? list : []).map(x => {
       if(x == null) return null;
       if(typeof x === 'string') return x.trim() ? { id:uid(), text:x.trim(), note:'', framing:'', movement:'', role:'', item:'', done:false } : null;
-      return { id:x.id || uid(), text:String(x.text || x.label || x.name || x.t || '').trim(), note:x.note || x.notes || '',
+      const o = { id:x.id || uid(), text:String(x.text || x.label || x.name || x.t || '').trim(), note:x.note || x.notes || '',
         framing:x.framing || '', movement:x.movement || '', role:x.role || '', item:x.item || x.frame || '', done:!!x.done };
+      return extras(o, x);
     }).filter(s => s && (s.text || s.item));
   }
+  /* what a shot carries besides its name and frame: the script lines said over
+     it ([{ k:'vo'|'cam'|'txt', t, hook? }]), the note for the edit, and which
+     beat of the structure it belongs to (structures.js) */
+  function extras(o, x){
+    if(Array.isArray(x.lines) && x.lines.length) o.lines = x.lines.map(l => ({ k:LINE_KINDS[l.k] ? l.k : 'vo', t:String(l.t || ''), ...(l.hook ? { hook:true } : {}) }));
+    if(x.editNote) o.editNote = String(x.editNote);
+    if(x.beat != null && x.beat !== '' && !isNaN(+x.beat)) o.beat = +x.beat;
+    return o;
+  }
+  const LINE_KINDS = { vo:'VO', cam:'On cam', txt:'Text' };
   const texts = shots => norm(shots).map(s => s.text || 'Shot');
   const frames = shots => norm(shots).filter(s => s.item).length;
   const lineOf = s => [s.text || 'Shot', s.framing, s.movement].filter(Boolean).join(' — ');
@@ -55,8 +66,8 @@
     t.page = P;
     delete t.pageOff;
     const keep = (t.subs || []).filter(s2 => s2 && s2.shot == null && !list.some(s => lineOf(s) === s2.t || s.text === s2.t));
-    t.subs = list.slice(0, max).map((s, i) => ({ t:lineOf(s), done:!!s.done, shot:i, pg:1, ...(s.note ? { note:s.note } : {}) }))
-      .concat(list.slice(max).map(s => ({ t:lineOf(s), done:!!s.done })), keep);
+    t.subs = list.slice(0, max).map((s, i) => extras({ t:lineOf(s), done:!!s.done, shot:i, pg:1, ...(s.note ? { note:s.note } : {}) }, s))
+      .concat(list.slice(max).map(s => extras({ t:lineOf(s), done:!!s.done }, s)), keep);
     if(global.TaskPages) TaskPages.match(t);
     return t;
   }
@@ -84,6 +95,7 @@
     t.title = 'Shoot — ' + (o.title || 'Untitled');
     if(o.page){ t.subs = []; copyPage(t, o); }
     else toTask(t, o.shots, o.title);
+    if(Array.isArray(o.beatNames) && o.beatNames.length) t.beatNames = o.beatNames.slice(); else delete t.beatNames;
     await Store.put('tasks', t);
     if(global.Data && Data.invalidate) Data.invalidate('tasks');
     return t;
@@ -174,10 +186,10 @@
     const n = P && Array.isArray(P.slots) ? P.slots.length : 0;
     for(let i = 0; i < n; i++){
       const sl = P.slots[i] || {}, mine = subs.filter(x => x.shot === i);
-      out.push({ text:sl.text || '', role:sl.role || '', item:sl.item || '', note:(mine[0] || {}).note || sl.note || '',
-        done:mine.length ? mine.every(x => x.done) : !!sl.done });
+      out.push(extras({ text:sl.text || '', role:sl.role || '', item:sl.item || '', note:(mine[0] || {}).note || sl.note || '',
+        done:mine.length ? mine.every(x => x.done) : !!sl.done }, mine[0] || sl));
     }
-    subs.filter(x => !(x.shot != null && x.shot >= 0 && x.shot < n)).forEach(x => out.push({ text:x.t || '', note:x.note || '', role:'', item:'', done:!!x.done }));
+    subs.filter(x => !(x.shot != null && x.shot >= 0 && x.shot < n)).forEach(x => out.push(extras({ text:x.t || '', note:x.note || '', role:'', item:'', done:!!x.done }, x)));
     return out;
   }
   /* what a shot list looks like, so a change made elsewhere is noticed */
@@ -193,6 +205,9 @@
         const title = o.title(rec);
         const t = { id:o.key, title, kind:'shoot', page:rec.page || null, subs:(rec.subs || []).map(x => ({ ...x })),
           pageFrom:rec.pageFrom || null, morePages:rec.morePages, hideDone:rec.hideDone, pageOff:rec.pageOff, swipeIds:[] };
+        /* the structure's beats, so the steps can show where each one starts (shown, never saved back) */
+        const bn = o.beats ? o.beats(rec) : null;
+        if(bn && bn.length) t.beatNames = bn.slice();
         const shots = o.shots(rec);
         /* no page yet, or its shot list was changed somewhere else: build it from the list */
         if(!t.page || (rec.shotsSig != null && rec.shotsSig !== sigOf(shots))){
@@ -235,18 +250,20 @@
       shots: b => b.shots || [],
       /* the beat's shots keep their ids, so a task or a board pointing at one still does */
       mirror: (b, list) => { const old = b.shots || [];
-        b.shots = list.map((s, i) => ({ id:(old[i] && old[i].id) || uid(), text:s.text, note:s.note, role:s.role, item:s.item, done:s.done })); }
+        b.shots = list.map((s, i) => extras({ id:(old[i] && old[i].id) || uid(), text:s.text, note:s.note, role:s.role, item:s.item, done:s.done }, s)); }
     });
   }
-  const listHost = (key, kicker, get, put) => host({ key, kicker, get, put,
+  const listHost = (key, kicker, get, put, beats) => host({ key, kicker, get, put, beats,
     title: r => r.title || 'Untitled',
     shots: r => Array.isArray(r.shotList) ? r.shotList : (r.shots || []),
     mirror: (r, list) => { r.shotList = list; r.shots = list.map(s => s.text || 'Shot'); }
   });
   /* a clip */
-  const hostClip = id => listHost('clip:' + id, 'Clip', () => Store.get('clips', id).catch(() => null), r => Data.saveClip(r));
+  const hostClip = id => listHost('clip:' + id, 'Clip', () => Store.get('clips', id).catch(() => null), r => Data.saveClip(r),
+    r => (r.plan && r.plan.beats) || []);
   /* a series' video */
-  const hostVideo = id => listHost('video:' + id, 'Video', () => Store.get('videos', id).catch(() => null), r => Videos.save(r));
+  const hostVideo = id => listHost('video:' + id, 'Video', () => Store.get('videos', id).catch(() => null), r => Videos.save(r),
+    r => r.beats || []);
 
   /* ------------------------------------------------------------ the drop-down
      The steps under a card, like a task's on Today: "1 / 6 shots ⌄" opens
@@ -341,6 +358,6 @@
     return Screens.mountInto('task', container, { host:h, embedded:true, onChange });
   }
 
-  global.ShotList = { hostBeat, hostClip, hostVideo, embed, counts, dropChip, fillDrop, wireDrops, toggleDrop, fromTask, toTask, copyPage, putOnDay, daySheet, norm, texts, frames, lineOf,
+  global.ShotList = { LINE_KINDS, extras, hostBeat, hostClip, hostVideo, embed, counts, dropChip, fillDrop, wireDrops, toggleDrop, fromTask, toTask, copyPage, putOnDay, daySheet, norm, texts, frames, lineOf,
     fromTplShot, stripHTML, thumbHTML, fillPics, css };
 })(window);

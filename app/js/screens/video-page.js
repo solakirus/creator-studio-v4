@@ -34,11 +34,15 @@
   .vp-fold{display:flex;gap:12px;align-items:center;padding:13px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);margin:8px 0 0}
   .vp-fold b{flex:0 0 120px}
   .vp-fold span{flex:1;color:var(--muted);font-size:14px}
+  .vp-part em{font-style:normal;display:block;margin-top:4px;color:var(--orange);font-size:11.5px}
+  .vp-script{margin:0 0 14px}
   @media (max-width:899px){ .vp-parts{display:none} }`;
 
   async function mount(el, params){
     if(!document.getElementById('vp-css')){ const st = document.createElement('style'); st.id = 'vp-css'; st.textContent = CSS; document.head.appendChild(st); }
     let id = params.id, v = null, parts = [], series = null, when = '';
+    let scriptOpen = true;
+    const CHEV = '<svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
 
     async function load(){
       v = await Videos.get(id);
@@ -64,7 +68,8 @@
         ${parts.length > 1 ? `<nav class="vp-parts" aria-label="Parts in this series"><p class="k">Parts · ${parts.length}</p>
           ${parts.map(x => { const st = Videos.stage(x.stage); const c = (x.shotList || x.shots || []).length;
             return `<button class="vp-part${x.id === v.id ? ' on' : ''}" data-part="${esc(x.id)}"><b>${esc(x.title)}</b>
-              <small>${c ? c + ' shot' + (c === 1 ? '' : 's') : 'no shots yet'}<i style="background:${st.c}">${st.label}</i></small></button>`; }).join('')}
+              <small>${c ? c + ' shot' + (c === 1 ? '' : 's') : 'no shots yet'}<i style="background:${st.c}">${st.label}</i></small>
+              ${x.structure && x.structure.name ? `<em>${esc(x.structure.name)}</em>` : ''}</button>`; }).join('')}
         </nav>` : ''}
         <div class="vp-main">
           ${at >= 0 && parts.length > 1 ? `<p class="k">Part ${at + 1} of ${parts.length}</p>` : ''}
@@ -75,23 +80,41 @@
           </div>
           <div class="vp-cards">
             <div class="vp-card"><p class="k" style="margin:0">The hook</p>
-              <p>${v.hook ? '“' + esc(v.hook) + '”' : '<span style="color:var(--muted)">No hook yet — add it in Details.</span>'}</p></div>
+              <p data-vphook>${v.hook ? '“' + esc(v.hook) + '”' : '<span style="color:var(--muted)">No hook yet — add it in Details, or as the first line on a shot.</span>'}</p></div>
             <div class="vp-card day"><p class="k" style="margin:0">Shoot day</p>
               <div class="row"><b>${v.day ? esc(when) : 'Not on your days'}</b>
                 <button class="btn-sm${v.day ? '' : ' accent'}" data-a="day">${v.day ? 'Move' : 'Put on a day'}</button>
                 ${v.day ? '<button class="btn-sm" data-a="unday">Take it off</button>' : ''}</div></div>
           </div>
+          <details class="cp-sec vp-script"${scriptOpen ? ' open' : ''} data-vpscript>
+            <summary>Structure and script<span class="n" data-vpsn>${v.structure && v.structure.name ? esc(v.structure.name) : (v.beats || []).length ? (v.beats.length + ' beats') : 'pick a structure'}</span>${CHEV}</summary>
+            <div class="cp-body"><div id="vpScript"></div></div>
+          </details>
           <div class="block" style="margin:0"><h4>Steps${n ? ` <span class="cnt">${n} shots</span>` : ''}</h4><div id="vpSteps"></div></div>
           ${v.notes ? `<div class="vp-fold"><b>Notes</b><span>${esc(v.notes)}</span></div>` : ''}
           ${(v.tags || []).length ? `<div class="vp-fold"><b>Tags</b><span>${v.tags.map(t => '#' + esc(t)).join(' ')}</span></div>` : ''}
         </div>
       </div></div>`;
-      ShotList.embed(el.querySelector('#vpSteps'), ShotList.hostVideo(v.id), async () => { v = await Videos.get(id) || v; changed(); });
+      /* the Steps and the script are two views of the same shots: a change in one redraws the other */
+      const steps = () => ShotList.embed(el.querySelector('#vpSteps'), ShotList.hostVideo(v.id), async () => {
+        v = await Videos.get(id) || v; changed();
+        const sc = el.querySelector('#vpScript'); if(sc && sc._st) sc._st.refresh();
+      });
+      steps();
+      const ds = el.querySelector('[data-vpscript]');
+      if(ds) ds.addEventListener('toggle', () => { scriptOpen = ds.open; });
+      /* the beats and the lines said over each shot (structures.js); the plan is the video itself */
+      const savePlan = async () => { v = await Videos.save(v); changed(); };
+      Structures.script(el.querySelector('#vpScript'), { host:ShotList.hostVideo(v.id), plan:() => v, savePlan, flush:savePlan,
+        onChange: async () => { v = await Videos.get(id) || v; changed(); steps(); },
+        onHook: h => { const p = el.querySelector('[data-vphook]'); if(p) p.textContent = h ? '“' + h + '”' : ''; },
+        onStats: st => { const n = el.querySelector('[data-vpsn]'); if(n) n.textContent = [v.structure && v.structure.name, (v.beats || []).length ? v.beats.length + ' beats' : '',
+          st.shots ? `${st.withLines} of ${st.shots} shots have lines` : '', st.words ? 'about ' + Structures.secsLabel(st.secs) : ''].filter(Boolean).join(' · ') || 'pick a structure'; } });
     }
 
     el.addEventListener('click', async e => {
       /* the Steps + Shot page block handles its own taps (screens/task.js) */
-      if(e.target.closest && e.target.closest('.tk-host')) return;
+      if(e.target.closest && (e.target.closest('.tk-host') || e.target.closest('#vpScript'))) return;
       const pt = e.target.closest('[data-part]');
       if(pt){ id = pt.dataset.part; await load(); return render(); }
       const st = e.target.closest('[data-stage]');

@@ -206,8 +206,8 @@ const head = s => console.log(`\n— ${s} —`);
   await ph.waitForTimeout(1500);
   await ph.evaluate(() => Screens.push('vlog-beat', { vlogId: 'vl_test', beatId: 'b_routine' })); await ph.waitForTimeout(2000);
   ui = await ph.evaluate(t => ({ rows: document.querySelectorAll(t + ' #beatShots .tk-ps').length, imgs: document.querySelectorAll(t + ' #beatShots .tk-th img, ' + t + ' #beatShots .tk-th video').length,
-    folded: !!document.querySelector(t + ' #beatShots [data-a="showpage"]') }), top);
-  ok(ui.imgs === 2 && ui.folded, 'the sequence\'s frames show on its steps; the page folds behind “Show the page”', JSON.stringify(ui));
+    page: !!document.querySelector(t + ' #beatShots .tkp-cwrap:not([hidden]) [data-pagecanvas]') }), top);
+  ok(ui.imgs === 2 && ui.page, 'the sequence\'s frames show on its steps; the shot page shows too, on a phone as well', JSON.stringify(ui));
   const th = ph.locator(`${top} #beatShots .tk-th[data-shootat="1"]`);
   await th.scrollIntoViewIfNeeded(); await ph.waitForTimeout(300);
   const bx = await th.boundingBox();

@@ -76,12 +76,10 @@ const head = s => console.log(`\n— ${s} —`);
   await p.evaluate(id => Screens.push('task', { id }), id);
   await p.waitForTimeout(1800);
   const st = await p.evaluate(() => ({ th: document.querySelectorAll('.tk-th[data-shootat]').length, add: document.querySelectorAll('.tk-th[data-starpick]').length, img: document.querySelectorAll('.tk-th img').length,
-    folded: !!document.querySelector('[data-a="showpage"]') && document.querySelector('.tkp-cwrap').hidden }));
+    page: !document.querySelector('[data-a="showpage"]') && !document.querySelector('.tkp-cwrap').hidden }));
   ok(st.th === 2 && st.img === 2, 'each shot step with a frame shows it', `${st.img} of 2`);
-  ok(st.folded, 'the page drawing is folded on a phone — the steps already list the shots');
+  ok(st.page, 'the shot page always shows, on a phone too');
   await p.screenshot({ path: path.join(out, 'steps-frames.png') });
-  await p.click('[data-a="showpage"]'); await p.waitForTimeout(800);
-  ok(await p.evaluate(() => !document.querySelector('.tkp-cwrap').hidden), '“Show the page” opens it');
   await p.click('.tk-th[data-shootat="1"]'); await p.waitForTimeout(900);
   ok((await p.textContent('.sr-n').catch(() => '')) === '2 / 3', 'tapping a step\'s frame opens shoot mode on that shot');
   await p.evaluate(() => Screens.pop()); await p.waitForTimeout(400);

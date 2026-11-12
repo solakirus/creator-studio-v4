@@ -8,7 +8,9 @@
                  the next one not taken yet
      ‹  ›        back and on without ticking anything; swipe does the same
      tap picture hides everything but the picture, to frame against it
-     keys        ← → move, Space or Enter is Got it, Esc closes (laptop)
+     keys        ← → move, Space or Enter is Got it, S shows the script, Esc closes
+     Script      the shot's script lines, behind a reveal — frame the shot
+                 first, then read what is said over it
 
    When every shot is in, it says so and offers to mark the task done.
    The screen stays awake while it is open (where the device allows).
@@ -21,12 +23,17 @@
   function shotsOf(t){
     if(t.page && Array.isArray(t.page.slots) && t.page.slots.length){
       if(global.TaskPages) TaskPages.match(t);
+      const names = t.beatNames || [];
+      let cur = 0;
       return t.page.slots.map((sl, i) => {
         const step = (t.subs || []).find(s2 => s2.shot === i) || {};
+        if(step.beat != null && step.beat >= 0 && step.beat < names.length) cur = step.beat;
+        const beat = names.length ? names[cur] || '' : '';
+        const lines = (step.lines || sl.lines || []).filter(l => String(l.t || '').trim());
         /* a spot with no frame: an episode shot's Reference Library still, if it has one */
         const sh = !sl.item && (t.shots || [])[i];
         const ref = sh ? (sh.angles || []).flatMap(a => a.refIds || [])[0] : null;
-        return { i, item:sl.item || '', ref:ref || null, role:sl.role || '', text:sl.text || `Shot ${i + 1}`, note:step.note || sl.note || '', done:!!step.done };
+        return { i, item:sl.item || '', ref:ref || null, role:sl.role || '', text:sl.text || `Shot ${i + 1}`, note:step.note || sl.note || '', done:!!step.done, lines, beat };
       });
     }
     /* steps: an episode sequence's shots keep their Reference Library stills on
@@ -34,7 +41,8 @@
     return (t.subs || []).map((s2, i) => {
       const sh = (t.shots || [])[i];
       const ref = sh && (sh.angles || []).flatMap(a => a.refIds || [])[0];
-      return { i, item:s2.frame || '', ref:ref || null, role:'', text:s2.t || `Step ${i + 1}`, note:s2.note || '', done:!!s2.done };
+      return { i, item:s2.frame || '', ref:ref || null, role:'', text:s2.t || `Step ${i + 1}`, note:s2.note || '', done:!!s2.done,
+        lines:(s2.lines || []).filter(l => String(l.t || '').trim()), beat:'' };
     });
   }
 
@@ -96,6 +104,16 @@
   .sr-all p{color:#969185;margin:0 0 10px}
   .sr-all button{min-width:240px;height:52px;border-radius:var(--r,4px);border:1px solid #2F2C26;background:#1F1C17;color:#EDE5D2;font-size:16px}
   .sr-all .sr-go{background:#FB6900;border-color:#FB6900;color:#151515;font-family:var(--display),sans-serif;font-weight:900}
+  .sr-tw{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:46px;margin:10px 0 0;border:1px solid #4A453C;border-radius:var(--r,4px);background:transparent;color:#EDE5D2;font-size:15px}
+  .sr-tw svg{width:14px;height:14px;transition:transform .15s}
+  .sr-tw.on{border-color:#FB6900;color:#FB6900}
+  .sr-tw.on svg{transform:rotate(90deg)}
+  .sr-lines{display:flex;flex-direction:column;gap:12px;margin:10px -16px 0;padding:14px 18px;background:#211B13;border-top:2px solid #FB6900;max-height:42vh;overflow-y:auto}
+  .sr-line{display:flex;flex-direction:column;gap:4px}
+  .sr-line i{align-self:flex-start;font-style:normal;font-family:var(--display),sans-serif;font-weight:900;font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;border-radius:3px}
+  .sr-line i.vo{background:#3A2A14;color:#F2C27A}.sr-line i.cam{background:#1E3324;color:#7FD08C}.sr-line i.txt{background:#22283A;color:#9DB5E8}
+  .sr-line span{font-size:clamp(19px,3.4vw,30px);line-height:1.35;font-weight:500}
+  @media (min-width:900px){ .sr-lines{margin:10px -28px 0;padding:16px 28px} }
   @media (min-width:900px){ .sr-cap{padding:14px 28px 6px} .sr-bar{grid-template-columns:90px minmax(240px,420px) 90px;justify-content:center} }`;
 
   /* swap one shot's frame on this task (the template it came from stays) */
@@ -128,6 +146,12 @@
     const firstOpen = () => { const k = shots.findIndex(s => !s.done); return k < 0 ? 0 : k; };
     let at = params.at != null && shots[params.at] ? params.at : firstOpen();
     let clean = false, allShown = false;
+    /* the script: see the shot first, then reveal its lines. Stays open or shut
+       as you move between shots, and between visits. */
+    let scriptOpen = false;
+    try { scriptOpen = localStorage.getItem('cs4.sr.script') === '1'; } catch(e){}
+    const KIND = { vo:'VO', cam:'On cam', txt:'Text' };
+    const TW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
 
     let lib = null;
     try { lib = global.MediaLib ? await MediaLib.load() : null; } catch(e){ lib = null; }
@@ -169,9 +193,11 @@
           ${s.done ? '<span class="sr-taken">✓ Taken</span>' : ''}
           ${at === 0 && global.StarPick ? '<span class="sr-holdtip">Tap: clean view · Hold: swap the frame</span>' : ''}</div>
         <div class="sr-cap">
-          <p class="sr-k">Shot ${at + 1}${s.role ? ' · ' + esc(s.role) : ''}</p>
+          <p class="sr-k">Shot ${at + 1}${s.role ? ' · ' + esc(s.role) : ''}${s.beat ? ' · ' + esc(s.beat) : ''}</p>
           <p class="sr-t">${esc(s.text)}</p>
           ${s.note ? `<p class="sr-note">${esc(s.note)}</p>` : ''}
+          ${s.lines.length ? `<button class="sr-tw${scriptOpen ? ' on' : ''}" data-script aria-expanded="${scriptOpen}">${TW} ${scriptOpen ? 'Hide the script' : `Script for this shot · ${s.lines.length} line${s.lines.length === 1 ? '' : 's'}`}</button>
+            ${scriptOpen ? `<div class="sr-lines">${s.lines.map(l => `<div class="sr-line"><i class="${l.k || 'vo'}">${KIND[l.k] || 'VO'}</i><span>${esc(l.t)}</span></div>`).join('')}</div>` : ''}` : ''}
           <div class="sr-next">${nx >= 0 && nx !== at ? `${mn ? `<span class="th">${picHTML(mn, true)}</span>` : ''}<span>Up next · <b>${nx + 1}. ${esc(shots[nx].text)}</b></span>`
             : doneN === shots.length ? '<span>Every shot is taken</span>' : '<span>This is the last one left</span>'}</div>
         </div>
@@ -218,6 +244,7 @@
       if(e.target.closest('[data-x]')) return Screens.pop();
       if(e.target.closest('[data-review]')){ allShown = false; at = 0; return render(); }
       if(e.target.closest('[data-got]')) return got();
+      if(e.target.closest('[data-script]')){ scriptOpen = !scriptOpen; try { localStorage.setItem('cs4.sr.script', scriptOpen ? '1' : '0'); } catch(err){} return render(); }
       if(e.target.closest('[data-prev]')) return go(at - 1);
       if(e.target.closest('[data-next]')) return go(at + 1);
       const d = e.target.closest('[data-go]'); if(d) return go(+d.dataset.go);
@@ -238,6 +265,7 @@
       if(e.key === 'ArrowRight') go(at + 1);
       else if(e.key === 'ArrowLeft') go(at - 1);
       else if(e.key === ' ' || e.key === 'Enter'){ e.preventDefault(); got(); }
+      else if(e.key === 's' || e.key === 'S'){ scriptOpen = !scriptOpen; try { localStorage.setItem('cs4.sr.script', scriptOpen ? '1' : '0'); } catch(err){} render(); }
       /* Esc: screens.js already closes the top screen — popping here too closed two */
     };
     document.addEventListener('keydown', onKey);

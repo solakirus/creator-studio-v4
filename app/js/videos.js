@@ -71,6 +71,7 @@
           else if((v.shotList || v.shots || []).length && global.ShotList){ t.subs = []; ShotList.toTask(t, v.shotList || v.shots, v.title); }
           else if(v.page && global.Notebook){ t.page = Notebook.copyNew(v.page); t.page.slots.forEach(sl => { sl.done = false; });
                       t.pageFrom = v.pageFrom || null; delete t.pageOff; if(global.TaskPages) TaskPages.match(t); }
+          if((v.beats || []).length) t.beatNames = v.beats.slice(); else delete t.beatNames;
           await Store.put('tasks', t);
           if(global.Data && Data.invalidate) Data.invalidate('tasks');
           return save({ ...v, stage: v.stage === 'idea' ? 'planned' : v.stage });
@@ -90,6 +91,7 @@
     if(global.ShotList && (v.page || (v.shotList || v.shots || []).length)){
       task.subs = [];
       if(v.page) ShotList.copyPage(task, v); else ShotList.toTask(task, v.shotList || v.shots, v.title);
+      if((v.beats || []).length) task.beatNames = v.beats.slice();
       await Store.put('tasks', task);
     }
     return save({ ...v, taskId: task.id, stage: v.stage === 'idea' ? 'planned' : v.stage });
