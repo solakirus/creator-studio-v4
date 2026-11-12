@@ -25,6 +25,10 @@
   const KEY = 'structures';
   const KINDS = [['vo', 'VO'], ['cam', 'On cam'], ['txt', 'Text']];
   const KIND_NAME = { vo:'VO', cam:'On cam', txt:'Text' };
+  /* in the editors the kind is a small chip: tap to go VO → CAM → TXT */
+  const KIND_SHORT = { vo:'VO', cam:'CAM', txt:'TXT' };
+  const KIND_NEXT = { vo:'cam', cam:'txt', txt:'vo' };
+  const KIND_TIP = 'Tap to change: VO voiceover → CAM said to camera → TXT words on screen';
 
   const B = (n, g, role, shot) => ({ n, g, role, shot });
   const BUILTIN = [
@@ -164,80 +168,99 @@
 
   /* ------------------------------------------------------------ the look */
   const CSS = `
-  .st-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px}
-  .st-head .k,.st .k{font-family:var(--display),sans-serif;font-weight:900;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
-  .st-head b{font-size:15px;flex:1;min-width:120px}
-  .st-jump{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
-  .st-jump button{height:32px;padding:0 11px;border:1px solid var(--line);border-radius:16px;background:transparent;color:var(--cream);font:inherit;font-size:13px;cursor:pointer}
-  .st-jump button i{font-style:normal;color:var(--muted);margin-left:5px}
-  .st-jump button:hover{border-color:var(--orange)}
-  .st-beat{border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);margin:0 0 10px;scroll-margin-top:60px}
-  .st-bh{display:flex;align-items:center;gap:8px;padding:9px 10px 6px}
-  .st-bh .n{width:24px;height:24px;flex:0 0 24px;border-radius:50%;background:var(--orange);color:#151515;font-family:var(--display),sans-serif;font-weight:900;font-size:12px;display:flex;align-items:center;justify-content:center}
-  .st-bn{flex:1;min-width:0;padding:3px 6px;border:1px solid transparent;border-radius:var(--r);background:transparent;color:var(--cream);font-family:var(--display),sans-serif;font-weight:900;font-size:16px;outline:none}
-  .st-bn:hover{border-color:var(--line)}.st-bn:focus{border-color:var(--orange);background:var(--bg)}
-  .st-bh .cnt{color:var(--muted);font-size:12.5px;white-space:nowrap}
-  .st-bh .mini{width:30px;height:30px;flex:0 0 30px;padding:0;border:1px solid var(--line);border-radius:var(--r);background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center}
-  .st-bh .mini svg{width:14px;height:14px}
-  .st-bh .mini:disabled{opacity:.3;cursor:default}
-  .st-guide{margin:0 12px 8px 42px;color:var(--muted);font-size:13px;line-height:1.45}
-  .st-shots{display:flex;flex-direction:column;gap:6px;padding:0 10px 10px}
-  .st-shot{display:flex;gap:10px;padding:10px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg)}
-  .st-shot .side{display:flex;flex-direction:column;align-items:center;gap:5px;flex:0 0 44px}
-  .st-shot .no{color:var(--dim);font-size:12px}
-  .st-pic{width:44px;height:54px;border-radius:3px;overflow:hidden;border:1px solid var(--line);background:var(--surface-2);display:block}
-  .st-pic img,.st-pic video{width:100%;height:100%;object-fit:cover;display:block}
-  .st-pic.none{border-style:dashed}
-  .st-pic i{display:none}
-  .st-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
-  .st-sh{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-  .st-role{font-family:var(--display),sans-serif;font-weight:900;font-size:10px;letter-spacing:.09em;text-transform:uppercase;padding:3px 7px;border-radius:3px;background:rgba(237,229,210,.1);color:var(--cream)}
-  .st-sn{flex:1;min-width:140px;padding:3px 6px;border:1px solid transparent;border-radius:var(--r);background:transparent;color:var(--cream);font:inherit;font-size:14.5px;font-weight:700;outline:none}
-  .st-sn:hover{border-color:var(--line)}.st-sn:focus{border-color:var(--orange);background:var(--surface-2)}
-  .st-mv{height:28px;max-width:150px;padding:0 6px;border:1px solid var(--line);border-radius:var(--r);background:transparent;color:var(--muted);font:inherit;font-size:12px}
-  .st-ln{display:flex;align-items:flex-start;gap:6px}
-  .st-lk{height:26px;flex:0 0 auto;padding:0 4px;border:0;border-radius:3px;font-family:var(--display),sans-serif;font-weight:900;font-size:10px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;margin-top:2px}
-  .st-lk.vo,.tk-lk.vo{background:#3A2A14;color:#F2C27A}.st-lk.cam,.tk-lk.cam{background:#1E3324;color:#7FD08C}.st-lk.txt,.tk-lk.txt{background:#22283A;color:#9DB5E8}
-  .st-lk option{background:var(--surface-2);color:var(--cream)}
-  .st-hook{font-family:var(--display),sans-serif;font-weight:900;font-size:9.5px;letter-spacing:.08em;background:var(--orange);color:#151515;padding:3px 5px;border-radius:3px;margin-top:4px;flex:0 0 auto}
-  .st-lt{flex:1;min-width:0;min-height:30px;resize:none;overflow:hidden;padding:4px 7px;border:1px solid transparent;border-radius:var(--r);background:transparent;color:var(--cream);font:inherit;font-size:14.5px;line-height:1.45;outline:none}
-  .st-lt:hover{border-color:var(--line)}.st-lt:focus{border-color:var(--orange);background:var(--surface-2)}
-  .st-lrm{width:26px;height:26px;flex:0 0 26px;padding:0;border:0;background:none;color:var(--dim);font-size:17px;cursor:pointer;margin-top:2px}
-  .st-lrm:hover{color:var(--red)}
-  .st-add{align-self:flex-start;height:28px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r);background:transparent;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer}
-  .st-add:hover{border-color:var(--orange);color:var(--cream)}
-  .st-none{margin:0;color:var(--dim);font-size:13px}
-  .st-foot{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
-  .st-foot .btn-ghost{flex:1 1 220px;margin:0}
-  .st-cut{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr) minmax(0,1fr);gap:12px;padding:10px;border-top:1px solid var(--line);align-items:start}
-  .st-cut:first-child{border-top:0}
-  .st-cut .who{display:flex;gap:9px;align-items:flex-start;min-width:0}
-  .st-cut .who b{display:block;font-size:14px;font-weight:600;line-height:1.3}
-  .st-cut .taken{font-size:12px;color:var(--green)}.st-cut .taken.no{color:var(--dim)}
-  .st-cut .said{display:flex;flex-direction:column;gap:5px;font-size:14px;line-height:1.45}
-  .st-cut .said .l{display:flex;gap:7px;align-items:baseline}
-  .st-tag{font-family:var(--display),sans-serif;font-weight:900;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;padding:2px 5px;border-radius:3px;flex:0 0 auto}
-  .st-tag.vo{background:#3A2A14;color:#F2C27A}.st-tag.cam{background:#1E3324;color:#7FD08C}.st-tag.txt{background:#22283A;color:#9DB5E8}
-  .st-en{width:100%;min-height:36px;resize:none;overflow:hidden;padding:7px 9px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--cream);font:inherit;font-size:13.5px;line-height:1.4;outline:none;box-sizing:border-box}
-  .st-en:focus{border-color:var(--orange)}
-  .st-cuthead{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr) minmax(0,1fr);gap:12px;padding:0 10px 6px}
-  @media (max-width:700px){ .st-cut,.st-cuthead{grid-template-columns:1fr} .st-cuthead span:not(:first-child){display:none} }
-  .st-pick{display:flex;gap:8px;align-items:stretch;margin:0 0 7px}
-  .st-pick .vt-pick{flex:1;margin:0}
-  .st-pick .vt-pick em{display:block;font-style:normal;margin-top:5px;font-size:12px;color:var(--orange);line-height:1.4}
-  .st-ed{display:flex;flex-direction:column;gap:6px;padding:9px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);margin:0 0 7px}
-  .st-ed .r{display:flex;gap:6px;align-items:center}
-  .st-ed input,.st-ed select{height:36px;min-width:0;padding:0 8px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--cream);font:inherit;font-size:14px}
-  .st-ed input.nm{flex:1;font-weight:700}
-  .st-ed button{width:34px;height:34px;flex:0 0 34px;padding:0;border:1px solid var(--line);border-radius:var(--r);background:transparent;color:var(--muted);cursor:pointer}`;
+  .sx-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px}
+  .sx-head .k,.sx .k{font-family:var(--display),sans-serif;font-weight:900;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .sx-head b{font-size:15px;flex:1;min-width:120px}
+  .sx-jump{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+  .sx-jump button{height:32px;padding:0 11px;border:1px solid var(--line);border-radius:16px;background:transparent;color:var(--cream);font:inherit;font-size:13px;cursor:pointer}
+  .sx-jump button i{font-style:normal;color:var(--muted);margin-left:5px}
+  .sx-jump button:hover{border-color:var(--orange)}
+  .sx-beat{border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);margin:0 0 10px;scroll-margin-top:60px}
+  .sx-bh{display:flex;align-items:center;gap:8px;padding:9px 10px 6px}
+  .sx-bh .n{width:24px;height:24px;flex:0 0 24px;border-radius:50%;background:var(--orange);color:#151515;font-family:var(--display),sans-serif;font-weight:900;font-size:12px;display:flex;align-items:center;justify-content:center}
+  .sx-bn{flex:1;min-width:0;padding:3px 6px;border:1px solid transparent;border-radius:var(--r);background:transparent;color:var(--cream);font-family:var(--display),sans-serif;font-weight:900;font-size:16px;outline:none}
+  .sx-bn:hover{border-color:var(--line)}.sx-bn:focus{border-color:var(--orange);background:var(--bg)}
+  .sx-bh .cnt{color:var(--muted);font-size:12.5px;white-space:nowrap}
+  .sx-bh .mini{width:30px;height:30px;flex:0 0 30px;padding:0;border:1px solid var(--line);border-radius:var(--r);background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .sx-bh .mini svg{width:14px;height:14px}
+  .sx-bh .mini:disabled{opacity:.3;cursor:default}
+  .sx-guide{margin:0 12px 8px 42px;color:var(--muted);font-size:13px;line-height:1.45}
+  .sx-shots{display:flex;flex-direction:column;gap:6px;padding:0 10px 10px}
+  .sx-shot{display:flex;gap:10px;padding:10px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg)}
+  .sx-shot .side{display:flex;flex-direction:column;align-items:center;gap:5px;flex:0 0 44px}
+  .sx-shot .no{color:var(--dim);font-size:12px}
+  .sx-pic{width:44px;height:54px;border-radius:3px;overflow:hidden;border:1px solid var(--line);background:var(--surface-2);display:block}
+  .sx-pic img,.sx-pic video{width:100%;height:100%;object-fit:cover;display:block}
+  .sx-pic.none{border-style:dashed}
+  .sx-pic i{display:none}
+  .sx-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+  .sx-sh{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .sx-role{font-family:var(--display),sans-serif;font-weight:900;font-size:10px;letter-spacing:.09em;text-transform:uppercase;padding:3px 7px;border-radius:3px;background:rgba(237,229,210,.1);color:var(--cream)}
+  .sx-sn{flex:1;min-width:140px;padding:3px 6px;border:1px solid transparent;border-radius:var(--r);background:transparent;color:var(--cream);font:inherit;font-size:14.5px;font-weight:700;outline:none}
+  .sx-sn:hover{border-color:var(--line)}.sx-sn:focus{border-color:var(--orange);background:var(--surface-2)}
+  .sx-mv{height:28px;max-width:150px;padding:0 6px;border:1px solid var(--line);border-radius:var(--r);background:transparent;color:var(--muted);font:inherit;font-size:12px}
+  .sx-ln{display:flex;align-items:flex-start;gap:6px}
+  .sx-lk{height:24px;min-width:36px;flex:0 0 auto;padding:0 5px;border:0;border-radius:3px;font-family:var(--display),sans-serif;font-weight:900;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;margin-top:3px}
+  .sx-no{display:none;color:var(--dim);font-size:12px}
+  .sx-sfoot{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+  .sx-sfoot .sx-mv{margin-left:auto}
+  .sx-lk.vo,.tk-lk.vo{background:#3A2A14;color:#F2C27A}.sx-lk.cam,.tk-lk.cam{background:#1E3324;color:#7FD08C}.sx-lk.txt,.tk-lk.txt{background:#22283A;color:#9DB5E8}
+  .sx-lk option{background:var(--surface-2);color:var(--cream)}
+  .sx-hook{font-family:var(--display),sans-serif;font-weight:900;font-size:9.5px;letter-spacing:.08em;background:var(--orange);color:#151515;padding:3px 5px;border-radius:3px;margin-top:4px;flex:0 0 auto}
+  .sx-lt{flex:1;min-width:0;min-height:30px;resize:none;overflow:hidden;padding:4px 7px;border:1px solid transparent;border-radius:var(--r);background:transparent;color:var(--cream);font:inherit;font-size:14.5px;line-height:1.45;outline:none}
+  .sx-lt:hover{border-color:var(--line)}.sx-lt:focus{border-color:var(--orange);background:var(--surface-2)}
+  .sx-lrm{width:26px;height:26px;flex:0 0 26px;padding:0;border:0;background:none;color:var(--dim);font-size:17px;cursor:pointer;margin-top:2px}
+  .sx-lrm:hover{color:var(--red)}
+  .sx-add{align-self:flex-start;height:28px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r);background:transparent;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer}
+  .sx-add:hover{border-color:var(--orange);color:var(--cream)}
+  .sx-none{margin:0;color:var(--dim);font-size:13px}
+  .sx-foot{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .sx-foot .btn-ghost{flex:1 1 220px;margin:0}
+  .sx-cut{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr) minmax(0,1fr);gap:12px;padding:10px;border-top:1px solid var(--line);align-items:start}
+  .sx-cut:first-child{border-top:0}
+  .sx-cut .who{display:flex;gap:9px;align-items:flex-start;min-width:0}
+  .sx-cut .who b{display:block;font-size:14px;font-weight:600;line-height:1.3}
+  .sx-cut .taken{font-size:12px;color:var(--green)}.sx-cut .taken.no{color:var(--dim)}
+  .sx-cut .said{display:flex;flex-direction:column;gap:5px;font-size:14px;line-height:1.45}
+  .sx-cut .said .l{display:flex;gap:7px;align-items:baseline}
+  .sx-tag{font-family:var(--display),sans-serif;font-weight:900;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;padding:2px 5px;border-radius:3px;flex:0 0 auto}
+  .sx-tag.vo{background:#3A2A14;color:#F2C27A}.sx-tag.cam{background:#1E3324;color:#7FD08C}.sx-tag.txt{background:#22283A;color:#9DB5E8}
+  .sx-en{width:100%;min-height:36px;resize:none;overflow:hidden;padding:7px 9px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--cream);font:inherit;font-size:13.5px;line-height:1.4;outline:none;box-sizing:border-box}
+  .sx-en:focus{border-color:var(--orange)}
+  .sx-cuthead{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr) minmax(0,1fr);gap:12px;padding:0 10px 6px}
+  @media (max-width:700px){ .sx-cut,.sx-cuthead{grid-template-columns:1fr} .sx-cuthead span:not(:first-child){display:none} }
+  .sx-pick{display:flex;gap:8px;align-items:stretch;margin:0 0 7px}
+  .sx-pick .vt-pick{flex:1;margin:0}
+  .sx-pick .vt-pick em{display:block;font-style:normal;margin-top:5px;font-size:12px;color:var(--orange);line-height:1.4}
+  .sx-ed{display:flex;flex-direction:column;gap:6px;padding:9px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);margin:0 0 7px}
+  .sx-ed .r{display:flex;gap:6px;align-items:center}
+  .sx-ed input,.sx-ed select{height:36px;min-width:0;padding:0 8px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--cream);font:inherit;font-size:14px}
+  .sx-ed input.nm{flex:1;font-weight:700}
+  .sx-ed button{width:34px;height:34px;flex:0 0 34px;padding:0;border:1px solid var(--line);border-radius:var(--r);background:transparent;color:var(--muted);cursor:pointer}
+  /* a phone: no frame column, tighter boxes, so the lines get the width */
+  @media (max-width:600px){
+    .sx-beat{margin:0 0 8px}
+    .sx-bh{padding:8px 8px 4px;gap:6px}
+    .sx-bh .mini{width:28px;height:28px;flex-basis:28px}
+    .sx-guide{margin:0 10px 6px;font-size:12.5px}
+    .sx-shots{padding:0 6px 8px;gap:5px}
+    .sx-shot{padding:8px;gap:0}
+    .sx-shot .side{display:none}
+    .sx-no{display:inline}
+    .sx-sh{gap:5px}
+    .sx-sn{min-width:0;flex:1 1 150px;font-size:14px}
+    .sx-mv{max-width:120px;height:26px;font-size:11.5px}
+    .sx-ln{gap:5px}
+    .sx-lt{font-size:14px;padding:3px 5px}
+    .sx-lrm{width:22px;flex-basis:22px}
+  }`;
   function css(){
-    if(document.getElementById('st-css')) return;
-    const st = document.createElement('style'); st.id = 'st-css'; st.textContent = CSS; document.head.appendChild(st);
+    if(document.getElementById('sx-css')) return;
+    const st = document.createElement('style'); st.id = 'sx-css'; st.textContent = CSS; document.head.appendChild(st);
   }
   const UP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>';
   const DOWN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
-  const kindSel = (cls, attr, k) => `<select class="${cls} ${k}" ${attr} aria-label="What kind of line">${KINDS.map(([v, n]) => `<option value="${v}" ${k === v ? 'selected' : ''}>${n}</option>`).join('')}</select>`;
-  const pic = sl => sl.item ? `<span class="st-pic" data-slpic="${esc(sl.item)}"></span>` : '<span class="st-pic none"></span>';
+  const pic = sl => sl.item ? `<span class="sx-pic" data-slpic="${esc(sl.item)}"></span>` : '<span class="sx-pic none"></span>';
   const grow = ta => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
 
   /* ------------------------------------------------------------ the views */
@@ -275,80 +298,81 @@
     function stat(){ if(opts.onStats && t) opts.onStats(stats(t)); }
 
     function lineRow(i, j, l){
-      return `<div class="st-ln">${kindSel('st-lk', `data-lk="${i}:${j}"`, l.k || 'vo')}${l.hook ? '<span class="st-hook" title="The hook — the same words as the Hook box">HOOK</span>' : ''}
-        <textarea class="st-lt" rows="1" data-lt="${i}:${j}" placeholder="${l.k === 'txt' ? 'Words on screen' : 'What is said over this shot'}">${esc(l.t || '')}</textarea>
-        <button class="st-lrm" data-lrm="${i}:${j}" aria-label="Remove this line">×</button></div>`;
+      const k = KIND_SHORT[l.k] ? l.k : 'vo';
+      return `<div class="sx-ln"><button class="sx-lk ${k}" data-lk="${i}:${j}" title="${KIND_TIP}" aria-label="${KIND_NAME[k]} — tap to change">${KIND_SHORT[k]}</button>${l.hook ? '<span class="sx-hook" title="The hook — the same words as the Hook box">HOOK</span>' : ''}
+        <textarea class="sx-lt" rows="1" data-lt="${i}:${j}" placeholder="${l.k === 'txt' ? 'Words on screen' : 'What is said over this shot'}">${esc(l.t || '')}</textarea>
+        <button class="sx-lrm" data-lrm="${i}:${j}" aria-label="Remove this line">×</button></div>`;
     }
     function shotCard(i, n){
       const sl = slots(t)[i] || {}, s2 = stepOf(t, i) || {};
       const ls = s2.lines || [];
       const bn = beats();
-      return `<div class="st-shot" data-shot="${i}">
+      return `<div class="sx-shot" data-shot="${i}">
         <span class="side"><span class="no">${String(i + 1).padStart(2, '0')}</span>${pic(sl)}</span>
-        <div class="st-body">
-          <div class="st-sh">${sl.role ? `<span class="st-role">${esc(sl.role)}</span>` : ''}
-            <input class="st-sn" data-sn="${i}" value="${esc(sl.text || '')}" placeholder="Shot ${i + 1} — name it" aria-label="Shot ${i + 1} name">
-            ${bn.length > 1 ? `<select class="st-mv" data-sbeat="${i}" aria-label="Which beat this shot is in">${bn.map((b, k) =>
-              `<option value="${k}" ${n === k ? 'selected' : ''}>${esc(b || 'Beat ' + (k + 1))}</option>`).join('')}</select>` : ''}
+        <div class="sx-body">
+          <div class="sx-sh"><span class="sx-no">${String(i + 1).padStart(2, '0')}</span>${sl.role ? `<span class="sx-role">${esc(sl.role)}</span>` : ''}
+            <input class="sx-sn" data-sn="${i}" value="${esc(sl.text || '')}" placeholder="Shot ${i + 1} — name it" aria-label="Shot ${i + 1} name">
           </div>
-          ${ls.length ? ls.map((l, j) => lineRow(i, j, l)).join('') : '<p class="st-none">No lines yet — fine if this shot is sound or picture only.</p>'}
-          <button class="st-add" data-ladd="${i}">+ Add a line</button>
+          ${ls.map((l, j) => lineRow(i, j, l)).join('')}
+          <div class="sx-sfoot"><button class="sx-add" data-ladd="${i}">+ Add a line</button>
+            ${bn.length > 1 ? `<select class="sx-mv" data-sbeat="${i}" aria-label="Which beat this shot is in" title="Move this shot to another beat">${bn.map((b, k) =>
+              `<option value="${k}" ${n === k ? 'selected' : ''}>${esc(b || 'Beat ' + (k + 1))}</option>`).join('')}</select>` : ''}</div>
         </div></div>`;
     }
     function cutRow(i){
       const sl = slots(t)[i] || {}, s2 = stepOf(t, i) || {};
       const ls = (s2.lines || []).filter(l => String(l.t || '').trim());
       const tk = opts.taken ? opts.taken(i) : !!s2.done;
-      return `<div class="st-cut" data-shot="${i}">
+      return `<div class="sx-cut" data-shot="${i}">
         <div class="who"><span class="side" style="display:flex;flex-direction:column;align-items:center;gap:4px"><span class="no" style="color:var(--dim);font-size:12px">${String(i + 1).padStart(2, '0')}</span>${pic(sl)}</span>
-          <span style="min-width:0">${sl.role ? `<span class="st-role">${esc(sl.role)}</span>` : ''}<b>${esc(sl.text || 'Shot ' + (i + 1))}</b>
+          <span style="min-width:0">${sl.role ? `<span class="sx-role">${esc(sl.role)}</span>` : ''}<b>${esc(sl.text || 'Shot ' + (i + 1))}</b>
           <span class="taken${tk ? '' : ' no'}">${tk ? '✓ Taken' : 'Not taken yet'}</span></span></div>
-        <div class="said">${ls.length ? ls.map(l => `<span class="l"><span class="st-tag ${l.k || 'vo'}">${KIND_NAME[l.k] || 'VO'}</span><span>${esc(l.t)}</span></span>`).join('')
+        <div class="said">${ls.length ? ls.map(l => `<span class="l"><span class="sx-tag ${l.k || 'vo'}">${KIND_NAME[l.k] || 'VO'}</span><span>${esc(l.t)}</span></span>`).join('')
           : '<span style="color:var(--dim);font-size:13px">No words — let it breathe</span>'}</div>
-        <textarea class="st-en" rows="1" data-en="${i}" placeholder="Note for the edit — take, trim, effect…" aria-label="Edit note for shot ${i + 1}">${esc(s2.editNote || '')}</textarea>
+        <textarea class="sx-en" rows="1" data-en="${i}" placeholder="Note for the edit — take, trim, effect…" aria-label="Edit note for shot ${i + 1}">${esc(s2.editNote || '')}</textarea>
       </div>`;
     }
 
     function draw(){
       if(!container.isConnected) return;
-      if(!t){ container.innerHTML = '<p class="st-none">This one is gone.</p>'; return; }
+      if(!t){ container.innerHTML = '<p class="sx-none">This one is gone.</p>'; return; }
       const bn = beats(), gd = guides(), n = slots(t).length;
       const bo = beatsOf(t, bn.length);
       const groups = bn.map((_, k) => bo.map((b, i) => b === k ? i : -1).filter(i => i >= 0));
       const p = P();
       if(mode === 'cuts'){
-        container.innerHTML = !n ? '<p class="st-none">No shots yet — add them on the Plan or Shoot tab.</p>' : `
-          <div class="st-cuthead"><span class="k">The shot</span><span class="k">Over this cut</span><span class="k">Edit note</span></div>
+        container.innerHTML = !n ? '<p class="sx-none">No shots yet — add them on the Plan or Shoot tab.</p>' : `
+          <div class="sx-cuthead"><span class="k">The shot</span><span class="k">Over this cut</span><span class="k">Edit note</span></div>
           ${bn.length ? bn.map((b, k) => groups[k].length ? `<p class="k" style="margin:12px 10px 4px;color:var(--orange)">${k + 1} · ${esc(b || 'Beat ' + (k + 1))}</p>
             <div>${groups[k].map(i => cutRow(i)).join('')}</div>` : '').join('') : `<div>${slots(t).map((_, i) => cutRow(i)).join('')}</div>`}`;
-        container.querySelectorAll('.st-en').forEach(grow);
+        container.querySelectorAll('.sx-en').forEach(grow);
         if(global.ShotList) ShotList.fillPics(container);
         return stat();
       }
-      container.innerHTML = `<div class="st">
-        <div class="st-head"><span class="k">Structure</span>
+      container.innerHTML = `<div class="sx">
+        <div class="sx-head"><span class="k">Structure</span>
           <b>${p.structure && p.structure.name ? esc(p.structure.name) : bn.length ? 'Your own beats' : 'None yet'}</b>
           <button class="btn-sm" data-st="pick">${bn.length ? 'Change' : 'Pick a structure'}</button></div>
-        ${bn.length ? `<div class="st-jump">${bn.map((b, k) => `<button data-stjump="${k}">${esc(b || 'Beat ' + (k + 1))}<i>${groups[k].length}</i></button>`).join('')}</div>` : ''}
+        ${bn.length ? `<div class="sx-jump">${bn.map((b, k) => `<button data-stjump="${k}">${esc(b || 'Beat ' + (k + 1))}<i>${groups[k].length}</i></button>`).join('')}</div>` : ''}
         ${bn.length ? bn.map((b, k) => `
-          <section class="st-beat" id="${uidp}-${k}">
-            <div class="st-bh"><span class="n">${k + 1}</span>
-              <input class="st-bn" data-bn="${k}" value="${esc(b)}" placeholder="Beat ${k + 1}" aria-label="Beat ${k + 1} name">
+          <section class="sx-beat" id="${uidp}-${k}">
+            <div class="sx-bh"><span class="n">${k + 1}</span>
+              <input class="sx-bn" data-bn="${k}" value="${esc(b)}" placeholder="Beat ${k + 1}" aria-label="Beat ${k + 1} name">
               <span class="cnt">${groups[k].length} shot${groups[k].length === 1 ? '' : 's'}</span>
               <button class="mini" data-bmv="${k}:-1" ${k === 0 ? 'disabled' : ''} aria-label="Move this beat up">${UP}</button>
               <button class="mini" data-bmv="${k}:1" ${k === bn.length - 1 ? 'disabled' : ''} aria-label="Move this beat down">${DOWN}</button>
               <button class="mini" data-brm="${k}" aria-label="Remove this beat">×</button></div>
-            ${gd[k] ? `<p class="st-guide">${esc(gd[k])}</p>` : ''}
-            <div class="st-shots">${groups[k].map(i => shotCard(i, k)).join('')}
-              <button class="st-add" data-sadd="${k}">+ Add a shot to ${esc(b || 'this beat')}</button></div>
+            ${gd[k] ? `<p class="sx-guide">${esc(gd[k])}</p>` : ''}
+            <div class="sx-shots">${groups[k].map(i => shotCard(i, k)).join('')}
+              <button class="sx-add" data-sadd="${k}">+ Add a shot to ${esc(b || 'this beat')}</button></div>
           </section>`).join('')
-        : `<div class="st-shots" style="padding:0">${slots(t).map((_, i) => shotCard(i, -1)).join('') || '<p class="st-none">No shots yet.</p>'}
-            <button class="st-add" data-sadd="-1">+ Add a shot</button></div>`}
-        <div class="st-foot">
+        : `<div class="sx-shots" style="padding:0">${slots(t).map((_, i) => shotCard(i, -1)).join('') || '<p class="sx-none">No shots yet.</p>'}
+            <button class="sx-add" data-sadd="-1">+ Add a shot</button></div>`}
+        <div class="sx-foot">
           <button class="btn-ghost" data-st="addbeat">+ Add a beat</button>
           <button class="btn-ghost" data-st="paste">Paste a whole script — split it across the shots</button>
         </div></div>`;
-      container.querySelectorAll('.st-lt').forEach(grow);
+      container.querySelectorAll('.sx-lt').forEach(grow);
       if(global.ShotList) ShotList.fillPics(container);
       stat();
     }
@@ -368,7 +392,7 @@
         if(a.dataset.st === 'addbeat'){
           beats().push(''); guides().length = Math.min(guides().length, beats().length);
           await opts.savePlan(); draw();
-          const ins = container.querySelectorAll('.st-bn'); if(ins.length) ins[ins.length - 1].focus();
+          const ins = container.querySelectorAll('.sx-bn'); if(ins.length) ins[ins.length - 1].focus();
           return;
         }
         if(a.dataset.st === 'paste') return pasteSheet();
@@ -391,6 +415,16 @@
         await persist();
         const f = container.querySelector(`[data-lt="${i}:${s2.lines.length - 1}"]`); if(f) f.focus();
         return;
+      }
+      const lk = e.target.closest('[data-lk]');
+      if(lk){
+        const [i, j] = lk.dataset.lk.split(':').map(Number), s2 = stepOf(t, i);
+        if(!s2 || !s2.lines || !s2.lines[j]) return;
+        const k = KIND_NEXT[s2.lines[j].k] || 'cam';
+        s2.lines[j].k = k;
+        lk.className = 'sx-lk ' + k; lk.textContent = KIND_SHORT[k]; lk.setAttribute('aria-label', KIND_NAME[k] + ' — tap to change');
+        const ta = lk.parentElement.querySelector('.sx-lt'); if(ta) ta.placeholder = k === 'txt' ? 'Words on screen' : 'What is said over this shot';
+        return persist(false);
       }
       const lr = e.target.closest('[data-lrm]');
       if(lr){
@@ -424,10 +458,10 @@
       }
     });
     container.addEventListener('input', e => {
-      if(e.target.matches('.st-lt,.st-en')) grow(e.target);
+      if(e.target.matches('.sx-lt,.sx-en')) grow(e.target);
     });
     container.addEventListener('keydown', e => {
-      if(e.target.matches('.st-sn,.st-bn') && e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
+      if(e.target.matches('.sx-sn,.sx-bn') && e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
     });
     container.addEventListener('change', async e => {
       e.stopPropagation();
@@ -441,12 +475,6 @@
         return persist(false);
       }
       if(f.dataset.sbeat != null){ ensureStep(t, +f.dataset.sbeat).beat = +f.value; return persist(); }
-      if(f.dataset.lk != null){
-        const [i, j] = f.dataset.lk.split(':').map(Number), s2 = stepOf(t, i);
-        if(!s2 || !s2.lines || !s2.lines[j]) return;
-        s2.lines[j].k = f.value; f.className = 'st-lk ' + f.value;
-        return persist(false);
-      }
       if(f.dataset.lt != null){
         const [i, j] = f.dataset.lt.split(':').map(Number), s2 = stepOf(t, i);
         if(!s2 || !s2.lines || !s2.lines[j]) return;
@@ -538,7 +566,7 @@
     css();
     let list = await all();
     const draw = sh => {
-      sh.querySelector('[data-list]').innerHTML = list.map(s => `<div class="st-pick">
+      sh.querySelector('[data-list]').innerHTML = list.map(s => `<div class="sx-pick">
         <button class="vt-pick" data-use="${esc(s.id)}"><b>${esc(s.n)}</b><small>${esc(s.d || '')}</small>
           <em>${s.beats.map(b => esc(b.n)).join(' → ')}</em></button>
         ${s.id.startsWith('u') ? `<button class="btn-sm" data-edit="${esc(s.id)}" aria-label="Edit">Edit</button>` : ''}
@@ -578,7 +606,7 @@
   function editor(s, opts){
     const roles = (global.Notebook && Notebook.ROLES) || [];
     const d = s ? JSON.parse(JSON.stringify(s)) : { id:null, n:'', d:'', beats:[{ n:'Hook', g:'', role:'', shot:'' }] };
-    const rows = () => d.beats.map((b, k) => `<div class="st-ed" data-k="${k}">
+    const rows = () => d.beats.map((b, k) => `<div class="sx-ed" data-k="${k}">
         <div class="r"><input class="nm" data-f="n" value="${esc(b.n)}" placeholder="Beat ${k + 1} — e.g. Open loop">
           <button data-mv="-1" aria-label="Move up" ${k === 0 ? 'disabled' : ''}>↑</button><button data-mv="1" aria-label="Move down" ${k === d.beats.length - 1 ? 'disabled' : ''}>↓</button>
           <button data-rm aria-label="Remove">×</button></div>
@@ -597,14 +625,14 @@
       const read = () => {
         d.n = sh.querySelector('[data-name]').value.trim();
         d.d = sh.querySelector('[data-desc]').value.trim();
-        sh.querySelectorAll('.st-ed').forEach(r => { const b = d.beats[+r.dataset.k]; if(!b) return;
+        sh.querySelectorAll('.sx-ed').forEach(r => { const b = d.beats[+r.dataset.k]; if(!b) return;
           r.querySelectorAll('[data-f]').forEach(f => { b[f.dataset.f] = f.value.trim(); }); });
       };
       const redraw = () => { sh.querySelector('[data-rows]').innerHTML = rows(); };
       sh.addEventListener('click', async e => {
         if(e.target.closest('[data-no]')) return App.closeSheet();
-        const r = e.target.closest('.st-ed');
-        if(e.target.closest('[data-addb]')){ read(); d.beats.push({ n:'', g:'', role:'', shot:'' }); redraw(); const ins = sh.querySelectorAll('.st-ed .nm'); ins[ins.length - 1].focus(); return; }
+        const r = e.target.closest('.sx-ed');
+        if(e.target.closest('[data-addb]')){ read(); d.beats.push({ n:'', g:'', role:'', shot:'' }); redraw(); const ins = sh.querySelectorAll('.sx-ed .nm'); ins[ins.length - 1].focus(); return; }
         if(r && e.target.closest('[data-rm]')){ read(); if(d.beats.length > 1) d.beats.splice(+r.dataset.k, 1); return redraw(); }
         const mv = e.target.closest('[data-mv]');
         if(r && mv){ read(); const k = +r.dataset.k, j = k + +mv.dataset.mv; if(j < 0 || j >= d.beats.length) return; [d.beats[k], d.beats[j]] = [d.beats[j], d.beats[k]]; return redraw(); }
@@ -634,5 +662,5 @@
   /* the hook box changed: its words go on shot 1 (one view on screen is enough) */
   async function setHook(container, text){ if(container && container._st) await container._st.setHook(text); }
 
-  global.Structures = { BUILTIN, KINDS, KIND_NAME, all, custom, saveCustom, get, script, cuts, pick, editor, setHook, stats, beatsOf, placeHook, hookLine, secsLabel };
+  global.Structures = { BUILTIN, KINDS, KIND_NAME, KIND_SHORT, KIND_NEXT, KIND_TIP, all, custom, saveCustom, get, script, cuts, pick, editor, setHook, stats, beatsOf, placeHook, hookLine, secsLabel };
 })(window);

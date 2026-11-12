@@ -49,7 +49,7 @@ const head = s => console.log(`\n— ${s} —`);
   let ui = await lap.evaluate(t => { const s = document.querySelector(t);
     const sums = [...s.querySelectorAll('.view > details > summary')].map(x => x.firstChild.textContent.trim());
     return { sums, subs: [...s.querySelectorAll('#sec-purpose .cp-subk')].map(x => x.textContent.trim()),
-      script: [...s.querySelectorAll('#sec-script .cp-subk')].map(x => x.textContent.trim()), mount: !!s.querySelector('#clipScript .st'),
+      script: [...s.querySelectorAll('#sec-script .cp-subk')].map(x => x.textContent.trim()), mount: !!s.querySelector('#clipScript .sx'),
       retain: /Holding the middle/.test(s.textContent) }; }, top);
   ok(ui.sums[0] === 'References' && ui.sums[1] === 'Purpose' && ui.sums[2] === 'Script', 'References first, then Purpose and Script', ui.sums.join(' · '));
   ok(['What it’s for', 'Type', 'Who it’s for', 'The promise', 'Length'].every(x => ui.subs.includes(x)), 'Purpose holds what it’s for, type, who, promise and length', ui.subs.join(', '));
@@ -65,7 +65,7 @@ const head = s => console.log(`\n— ${s} —`);
   let r = await clipRec(cid);
   ok(r.plan.beats.length === 6 && r.plan.structure.id === 'b-loop' && r.plan.beatGuide[0].includes('three seconds'), 'its beats are the flow, with what each is for', r.plan.beats.join(' → '));
   ok((r.page.slots || []).length === 6 && steps(r).map(x => x.beat).join() === '0,1,2,3,4,5' && r.page.slots[0].role === 'Action', 'a shot for each beat, from the structure', r.page.slots.map(x => x.text).join(' | '));
-  ui = await lap.evaluate(t => ({ secs: document.querySelectorAll(t + ' #clipScript .st-beat').length, jump: document.querySelectorAll(t + ' #clipScript [data-stjump]').length }), top);
+  ui = await lap.evaluate(t => ({ secs: document.querySelectorAll(t + ' #clipScript .sx-beat').length, jump: document.querySelectorAll(t + ' #clipScript [data-stjump]').length }), top);
   ok(ui.secs === 6 && ui.jump === 6, 'each beat is a section, with chips to jump between them');
 
   head('lines on the shots, the hook on shot 1');
@@ -76,7 +76,10 @@ const head = s => console.log(`\n— ${s} —`);
   await lap.fill(`${top} #clipScript [data-lt="3:0"]`, 'When I started, I gave my mornings to my phone.');
   await lap.dispatchEvent(`${top} #clipScript [data-lt="3:0"]`, 'change'); await lap.waitForTimeout(1200);
   await lap.click(`${top} #clipScript [data-ladd="3"]`); await lap.waitForTimeout(1200);
-  await lap.selectOption(`${top} #clipScript [data-lk="3:1"]`, 'txt'); await lap.waitForTimeout(800);
+  /* the kind is a chip: VO → CAM → TXT, a tap each */
+  await lap.click(`${top} #clipScript [data-lk="3:1"]`); await lap.waitForTimeout(700);
+  await lap.click(`${top} #clipScript [data-lk="3:1"]`); await lap.waitForTimeout(700);
+  ok(await lap.textContent(`${top} #clipScript [data-lk="3:1"]`) === 'TXT', 'tapping the kind chip goes VO → CAM → TXT');
   await lap.fill(`${top} #clipScript [data-lt="3:1"]`, 'WATER · LIGHT · ONE PAGE');
   await lap.dispatchEvent(`${top} #clipScript [data-lt="3:1"]`, 'change'); await lap.waitForTimeout(1200);
   r = await clipRec(cid);
@@ -89,7 +92,7 @@ const head = s => console.log(`\n— ${s} —`);
   ok(r.plan.hook === 'Five-fifteen. Every single day.' && await lap.inputValue(`${top} [data-f="hook"]`) === 'Five-fifteen. Every single day.', 'changing the hook line on the shot changes the hook box');
   await lap.selectOption(`${top} #clipScript [data-sbeat="5"]`, '4'); await lap.waitForTimeout(1200);
   r = await clipRec(cid);
-  ok(steps(r)[5].beat === 4 && await lap.evaluate(t => document.querySelectorAll(t + ' #clipScript .st-beat')[4].querySelectorAll('.st-shot').length, top) === 2, 'a shot moves to another beat');
+  ok(steps(r)[5].beat === 4 && await lap.evaluate(t => document.querySelectorAll(t + ' #clipScript .sx-beat')[4].querySelectorAll('.sx-shot').length, top) === 2, 'a shot moves to another beat');
   await lap.selectOption(`${top} #clipScript [data-sbeat="5"]`, '5'); await lap.waitForTimeout(1200);
   ui = await lap.evaluate(t => document.querySelector(t + ' [data-scriptn]').textContent, top);
   ok(/6 beats/.test(ui) && /2 of 6 shots have lines/.test(ui), 'the Script summary counts beats and lines', ui);
@@ -166,8 +169,8 @@ const head = s => console.log(`\n— ${s} —`);
 
   head('Edit: the cut list');
   await lap.evaluate(id => { Screens.pop(); Screens.push('clip', { id, tab: 'edit' }); }, cid); await lap.waitForTimeout(2000);
-  ui = await lap.evaluate(t => { const s = document.querySelector(t); return { cuts: s.querySelectorAll('#clipCuts .st-cut').length,
-    beats: [...s.querySelectorAll('#clipCuts p.k')].map(x => x.textContent), said: [...s.querySelectorAll('#clipCuts .st-cut')][3].querySelectorAll('.said .l').length,
+  ui = await lap.evaluate(t => { const s = document.querySelector(t); return { cuts: s.querySelectorAll('#clipCuts .sx-cut').length,
+    beats: [...s.querySelectorAll('#clipCuts p.k')].map(x => x.textContent), said: [...s.querySelectorAll('#clipCuts .sx-cut')][3].querySelectorAll('.said .l').length,
     taken: [...s.querySelectorAll('#clipCuts .taken')].map(x => x.textContent.trim()), whole: !!s.querySelector('.view [data-f="script"]'),
     secs: [...s.querySelectorAll('.view > details > summary')].map(x => x.firstChild.textContent.trim()) }; }, top);
   ok(ui.cuts === 6 && ui.beats.length === 6 && ui.said === 3, 'every shot in story order under its beat, with the words over it');
@@ -196,7 +199,7 @@ const head = s => console.log(`\n— ${s} —`);
   head('a series video gets the same');
   const vid = await lap.evaluate(async () => (await Videos.save({ title: 'Part 2 — the kettle', hook: 'Old hook', hookT: 1 })).id);
   await lap.evaluate(id => Screens.push('video-page', { id }), vid); await lap.waitForTimeout(1800);
-  ok(await lap.evaluate(t => !!document.querySelector(t + ' #vpScript .st'), top), 'Structure and script on the video page');
+  ok(await lap.evaluate(t => !!document.querySelector(t + ' #vpScript .sx'), top), 'Structure and script on the video page');
   await lap.click(`${top} #vpScript [data-st="pick"]`); await lap.waitForTimeout(500);
   await lap.click('.sheet [data-use="b-tutorial"]'); await lap.waitForTimeout(1500);
   let v = await lap.evaluate(id => Store.get('videos', id), vid);
@@ -207,11 +210,11 @@ const head = s => console.log(`\n— ${s} —`);
   await lap.click(`${top} #vpScript [data-st="pick"]`); await lap.waitForTimeout(500);
   await lap.click('.sheet [data-new]'); await lap.waitForTimeout(500);
   await lap.fill('.sheet [data-name]', 'Mystery reveal');
-  await lap.fill('.sheet .st-ed .nm', 'The question');
+  await lap.fill('.sheet .sx-ed .nm', 'The question');
   await lap.click('.sheet [data-addb]'); await lap.waitForTimeout(300);
-  await lap.fill('.sheet .st-ed:nth-of-type(2) .nm', 'Wrong answers');
+  await lap.fill('.sheet .sx-ed:nth-of-type(2) .nm', 'Wrong answers');
   await lap.click('.sheet [data-addb]'); await lap.waitForTimeout(300);
-  await lap.fill('.sheet .st-ed:nth-of-type(3) .nm', 'The answer');
+  await lap.fill('.sheet .sx-ed:nth-of-type(3) .nm', 'The answer');
   await lap.click('.sheet [data-ok]'); await lap.waitForTimeout(800);
   const mine = await lap.evaluate(() => Structures.custom());
   ok(mine.length === 1 && mine[0].beats.map(x => x.n).join() === 'The question,Wrong answers,The answer', 'made and saved', mine.map(x => x.n).join());
@@ -236,12 +239,22 @@ const head = s => console.log(`\n— ${s} —`);
   await ph.evaluate(id => Screens.push('clip', { id, tab: 'plan' }), pid); await ph.waitForTimeout(1500);
   await ph.click(`${top} #clipScript [data-st="pick"]`); await ph.waitForTimeout(500);
   await ph.click('.sheet [data-use="b-transform"]'); await ph.waitForTimeout(1500);
+  await ph.click(`${top} #clipScript [data-ladd="1"]`); await ph.waitForTimeout(1200);
+  await ph.fill(`${top} #clipScript [data-lt="1:0"]`, 'Because the first hour is the only one nobody else gets.');
+  await ph.dispatchEvent(`${top} #clipScript [data-lt="1:0"]`, 'change'); await ph.waitForTimeout(1200);
+  ui = await ph.evaluate(t => { const ta = document.querySelector(t + ' #clipScript [data-lt="1:0"]'); return { w: ta.getBoundingClientRect().width, h: ta.getBoundingClientRect().height,
+    side: getComputedStyle(document.querySelector(t + ' #clipScript .sx-shot .side')).display }; }, top);
+  ok(ui.w >= 250 && ui.h <= 60 && ui.side === 'none', 'on a phone a line gets the width (no frame column) and wraps to two lines at most', `${Math.round(ui.w)} × ${Math.round(ui.h)} px`);
   await ph.screenshot({ path: path.join(out, 'script-phone-plan.png'), fullPage: false });
   await ph.click(`${top} [data-ctab="shoot"]`); await ph.waitForTimeout(1800);
   ui = await ph.evaluate(t => ({ page: !!document.querySelector(t + ' #clipShots .tkp-cwrap:not([hidden]) canvas'), show: !!document.querySelector(t + ' [data-a="showpage"]'),
     bar: !!document.querySelector(t + ' #clipShots .tk-rowsbar'), w: document.documentElement.scrollWidth }), top);
   ok(ui.page && !ui.show && ui.bar, 'the shot page shows on a phone, with the fold bar over the steps');
   ok(ui.w <= 412, 'nothing runs off the side', ui.w);
+  await ph.click(`${top} #clipShots [data-twirl="1"]`); await ph.waitForTimeout(900);
+  ui = await ph.evaluate(t => { const box = document.querySelector(t + ' #clipShots .tk-lines'), ta = box && box.querySelector('.tk-lt');
+    return { box: box ? box.getBoundingClientRect().width : 0, list: document.querySelector(t + ' #clipShots .tkp-left').getBoundingClientRect().width, ta: ta ? ta.getBoundingClientRect().width : 0 }; }, top);
+  ok(ui.box >= ui.list - 2 && ui.ta >= 250, 'a step\'s script opens the full width of the list, under the row', `${Math.round(ui.ta)} px for the words`);
   await ph.screenshot({ path: path.join(out, 'script-phone-shoot.png'), fullPage: false });
 
   head('errors');

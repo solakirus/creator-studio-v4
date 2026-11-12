@@ -73,9 +73,10 @@
       .tk-tw svg{width:11px;height:11px;transition:transform .15s}
       .tk-tw.on{border-color:var(--orange);color:var(--orange)}
       .tk-tw.on svg{transform:rotate(90deg)}
-      .tk-lines{display:flex;flex-direction:column;gap:5px;margin:6px 0 2px -2px;padding:8px 9px;border-left:2px solid var(--orange);border-radius:0 var(--r) var(--r) 0;background:rgba(251,105,0,.06)}
+      .tk-lines{display:flex;flex-direction:column;gap:5px;margin:0 0 10px 40px;padding:8px 9px;border-left:2px solid var(--orange);border-radius:0 var(--r) var(--r) 0;background:rgba(251,105,0,.06)}
+      @media (max-width:600px){ .tk-lines{margin-left:0;padding:7px 6px 7px 8px} .tk-lt{font-size:14px;padding:3px 4px} .tk-ln{gap:4px} .tk-lrm{width:22px;flex-basis:22px} }
       .tk-ln{display:flex;align-items:flex-start;gap:6px}
-      .tk-lk{height:24px;flex:0 0 auto;padding:0 3px;border:0;border-radius:3px;font-family:var(--display),sans-serif;font-weight:900;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;margin-top:2px}
+      .tk-lk{height:24px;min-width:36px;flex:0 0 auto;padding:0 5px;border:0;border-radius:3px;font-family:var(--display),sans-serif;font-weight:900;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;margin-top:2px}
       .tk-lk.vo{background:#3A2A14;color:#F2C27A}.tk-lk.cam{background:#1E3324;color:#7FD08C}.tk-lk.txt{background:#22283A;color:#9DB5E8}
       .tk-lk option{background:var(--surface-2);color:var(--cream)}
       .tk-lhook{font-family:var(--display),sans-serif;font-weight:900;font-size:9px;letter-spacing:.08em;background:var(--orange);color:#151515;padding:3px 5px;border-radius:3px;margin-top:4px}
@@ -777,12 +778,12 @@
       if(onMain()){ TaskPages.match(t); return stepOf(i); }
       return (curPage().slots || [])[i] || null;
     }
-    const LKINDS = [['vo', 'VO'], ['cam', 'On cam'], ['txt', 'Text']];
+    const LSHORT = { vo:'VO', cam:'CAM', txt:'TXT' }, LNEXT = { vo:'cam', cam:'txt', txt:'vo' };
     const TWIRL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
     function linesHTML(i){
       const ls = linesOf(i);
       return `<div class="tk-lines">${ls.map((l, j) => `<div class="tk-ln">
-          <select class="tk-lk ${l.k || 'vo'}" data-tlk="${i}:${j}" aria-label="What kind of line">${LKINDS.map(([v, n]) => `<option value="${v}" ${(l.k || 'vo') === v ? 'selected' : ''}>${n}</option>`).join('')}</select>
+          <button class="tk-lk ${LSHORT[l.k] ? l.k : 'vo'}" data-tlk="${i}:${j}" title="Tap to change: VO voiceover → CAM said to camera → TXT words on screen">${LSHORT[l.k] || 'VO'}</button>
           ${l.hook ? '<span class="tk-lhook" title="The hook">HOOK</span>' : ''}
           <textarea class="tk-lt" rows="1" data-tlt="${i}:${j}" placeholder="${l.k === 'txt' ? 'Words on screen' : 'What is said over this shot'}" aria-label="Script line">${esc(l.t || '')}</textarea>
           <button class="tk-lrm" data-tlrm="${i}:${j}" aria-label="Remove this line">×</button></div>`).join('')}
@@ -838,13 +839,12 @@
                   <input type="text" class="tk-name" data-pf="text:${i}" value="${esc(sl.text || '')}" placeholder="${isSteps ? 'Shot' : 'Frame'} ${i + 1} — click to name it" aria-label="Shot ${i + 1} name">
                 </span>
                 <button class="tk-tw${lo ? ' on' : ''}" data-twirl="${i}" aria-expanded="${lo}">${TWIRL} Script${nl ? ' · ' + nl : ''}</button>
-                ${lo ? linesHTML(i) : ''}
                 <input type="text" class="tk-notein${note(i) ? ' has' : ''}" data-pf="note:${i}" value="${esc(note(i))}" placeholder="Add a note" aria-label="Shot ${i + 1} note">
               </span>
               <button class="mini" data-psmv="up:${i}" ${i === 0 ? 'disabled' : ''} aria-label="Move up">${UP}</button>
               <button class="mini" data-psmv="down:${i}" ${i === slots.length - 1 ? 'disabled' : ''} aria-label="Move down">${DOWN}</button>
               ${canShrink ? `<button class="mini rm" data-psdel="${i}" aria-label="Remove this shot">${CROSS}</button>` : ''}
-            </div>`;
+            </div>${lo ? linesHTML(i) : ''}`;
       }).join('');
       const others = onMain() ? (t.subs || []).map((s2, i) => [s2, i]).filter(([s2]) => !hasShotNo(s2)) : [];
       const nav = pages.length > 1 ? `
@@ -1081,12 +1081,6 @@
           if(tw){ const nl = h.lines.filter(l => String(l.t || '').trim()).length; tw.lastChild.textContent = ' Script' + (nl ? ' · ' + nl : ''); }
         });
       });
-      el.querySelectorAll('.tk-lk').forEach(sel => sel.addEventListener('change', async () => {
-        const [i, j] = sel.dataset.tlk.split(':').map(Number), h = linesHolder(i);
-        if(!h || !h.lines || !h.lines[j]) return;
-        h.lines[j].k = sel.value; sel.className = 'tk-lk ' + sel.value;
-        await save();
-      }));
       if(focusKey){
         const f = el.querySelector(`[data-pf="${focusKey}"]`);
         if(f){ f.focus({ preventScroll:true }); if(f.setSelectionRange && f.type === 'text'){ const n = f.value.length; f.setSelectionRange(n, n); } }
@@ -1531,6 +1525,14 @@
         await save(); render();
         const f = el.querySelector(`[data-tlt="${i}:${h.lines.length - 1}"]`); if(f) f.focus();
         return;
+      }
+      const tlk = e.target.closest('[data-tlk]');
+      if(tlk){
+        const [i, j] = tlk.dataset.tlk.split(':').map(Number), h = linesHolder(i);
+        if(!h || !h.lines || !h.lines[j]) return;
+        const k = LNEXT[h.lines[j].k] || 'cam';
+        h.lines[j].k = k; tlk.className = 'tk-lk ' + k; tlk.textContent = LSHORT[k];
+        return save();
       }
       const tlr = e.target.closest('[data-tlrm]');
       if(tlr){
