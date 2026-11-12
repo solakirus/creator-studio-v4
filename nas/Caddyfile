@@ -36,10 +36,10 @@
 
 	handle {
 		root * /srv
-		# the page, the service worker and the build manifest are always asked
-		# for fresh, so a new publish reaches the iPad the next time it opens
-		@fresh path / /index.html /sw.js /update.json /manifest.webmanifest
-		header @fresh Cache-Control "no-cache"
+		# every file is checked with nastime before it's used (a quick "not
+		# changed" on the home network), so after an update Safari never mixes
+		# old cached scripts with new ones
+		header Cache-Control "no-cache"
 		# the phone app downloads updates from here too (from its own
 		# https://localhost page), so every file may be read across origins
 		header Access-Control-Allow-Origin "*"
