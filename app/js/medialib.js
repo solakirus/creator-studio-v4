@@ -41,7 +41,8 @@
   const DEFAULTS = { roots:[], hidden:[], play:true, deckKind:'all', deckSrc:'all', target:null,
                      grabber:'', links:'', libName:'', follow:false, maxPages:20, ytEvery:0, ytMax:200,
                      ytSens:'normal', ytWhat:'both', ytMode:'download', gifSecs:3, gifMode:'shot',
-                     gifMax:200, keepVideo:false, scanUrl:'', scanMax:200, bigGifs:'link', cookies:'none' };
+                     gifMax:200, keepVideo:false, scanUrl:'', scanMax:200, bigGifs:'link', cookies:'none',
+                     mirrors:{}, copied:{} };
   let settingsCache = null;
   async function settings(){
     if(!settingsCache){
@@ -89,7 +90,7 @@
     if(diskCache && !force) return diskCache;
     const s = await settings();
     try {
-      const r = await d.scan(s.roots || []);
+      const r = await d.scan(s.roots || [], s.mirrors || {});
       r.items.forEach(it => { it.src = 'h'; });
       r.pages.forEach(p => { p.src = 'h'; });
       diskCache = r;
@@ -160,6 +161,7 @@
       }
       cache.roots = h.roots || [];
       cache.errors = h.errors || [];
+      cache.fallback = h.fallback || [];
       loading = null;
       return cache;
     })();
@@ -502,7 +504,17 @@
       star = (await allStars()).find(g => g.id === src.slice(5));
     }
     let list;
-    if(star){
+    if(src === 'unused'){
+      /* on no board, in no starred group, and in no template, task or video */
+      const used = new Set();
+      (await allBoards()).forEach(b => b.items.forEach(u => used.add(u)));
+      (await allStars()).forEach(g => g.items.forEach(u => used.add(u)));
+      if(global.TaskFrames) for(const st of ['tasks', 'videos', 'shot-templates']){
+        try { (await Store.all(st)).values.forEach(v => TaskFrames.collect(v, used)); } catch(e){}
+      }
+      const isUsed = it => used.has(it.uid) || (it.from && used.has(it.from));
+      list = lib.items.filter(it => !hidden.has(it.page) && !isUsed(it));
+    } else if(star){
       list = star.items.map(u => find(lib, u)).filter(Boolean);
     } else if(board){
       list = board.items.map(u => find(lib, u)).filter(Boolean);
@@ -513,7 +525,73 @@
     }
     if(o.kind && o.kind !== 'all') list = list.filter(it => it.kind === o.kind);
     if(o.q) list = list.filter(it => search(lib, it, o.q));
+    /* v4: sorting a big library */
+    const by = {
+      oldest: (a, b) => (a.createdAt || 0) - (b.createdAt || 0) || String(a.name).localeCompare(String(b.name)),
+      name:   (a, b) => title(a).localeCompare(title(b), undefined, { numeric:true, sensitivity:'base' }),
+      size:   (a, b) => (b.bytes || 0) - (a.bytes || 0),
+      kind:   (a, b) => KINDS.indexOf(a.kind) - KINDS.indexOf(b.kind) || title(a).localeCompare(title(b)),
+      newest: (a, b) => (b.createdAt || 0) - (a.createdAt || 0) || String(a.name).localeCompare(String(b.name))
+    }[o.sort || ''];
+    if(by) list = list.slice().sort(by);
     return { lib, list, board, star };
+  }
+
+  /* ------------------------------------------------------------ copies (v4)
+     A folder can keep a copy somewhere else — the Shot Library on the NAS with
+     a copy on this computer. New and changed files are copied a little after
+     the app starts, after a grab, and from "Copy now". When the folder can't be
+     reached the Library reads the copy instead (electron/library.js scanAll).
+     Settings stay on this computer: each computer chooses its own copies. */
+  async function homeRoot(){
+    const d = disk();
+    try { return d && d.home ? (await d.home()).path : ''; } catch(e){ return ''; }
+  }
+  let copyRun = null;
+  async function copyNow(only){
+    const d = disk();
+    if(!d || typeof d.mirror !== 'function') return null;
+    if(copyRun) return copyRun;
+    copyRun = (async () => {
+      const s = await settings();
+      const pairs = Object.entries(s.mirrors || {}).filter(([from, to]) => from && to && (!only || from === only));
+      if(!pairs.length) return [];
+      const r = await d.mirror(pairs);
+      if(!r || !r.ok) return [];
+      const copied = { ...((await settings()).copied || {}) };
+      for(const x of r.results || []){
+        const was = copied[x.from] || {};
+        copied[x.from] = x.skipped || x.error
+          ? { ...was, tried:Date.now(), problem:x.error || 'The folder couldn’t be reached' }
+          : { at:Date.now(), tried:Date.now(), copied:x.copied || 0, same:x.same || 0, failed:x.failed || 0, bytes:x.bytes || 0, problem:'' };
+      }
+      await setSettings({ copied });
+      return r.results || [];
+    })();
+    try { return await copyRun; } finally { copyRun = null; }
+  }
+  async function setCopy(root, to){
+    const s = await settings();
+    const mirrors = { ...(s.mirrors || {}) };
+    const copied = { ...(s.copied || {}) };
+    if(to) mirrors[root] = to; else { delete mirrors[root]; delete copied[root]; }
+    await setSettings({ mirrors, copied });
+    diskCache = null; cache = null;
+  }
+  /* the copy can't be the folder itself, inside it, around it, or another folder the Library reads */
+  const norm = p => String(p || '').replace(/[\\/]+$/, '').replace(/\\/g, '/').toLowerCase();
+  async function copyProblem(root, to){
+    const a = norm(root), b = norm(to);
+    if(!b) return 'Choose a folder';
+    if(a === b || b.startsWith(a + '/') || a.startsWith(b + '/')) return 'The copy has to be outside the folder it copies';
+    const s = await settings();
+    const others = [await homeRoot(), ...(s.roots || [])].filter(r => norm(r) !== a).map(norm);
+    if(others.some(o => o && (o === b || b.startsWith(o + '/') || o.startsWith(b + '/')))) return 'That folder is already in the Library — choose an empty or separate folder';
+    return '';
+  }
+  if(disk() && typeof disk().mirror === 'function'){
+    setTimeout(() => { copyNow().catch(() => {}); }, 20000);
+    if(typeof disk().onGrab === 'function') disk().onGrab('done', () => setTimeout(() => { copyNow().catch(() => {}); }, 3000));
   }
 
   /* ------------------------------------------------------------ "＋ adds to…" */
@@ -528,6 +606,7 @@
     allBoards, saveBoard, deleteBoard, addToBoard, importShotline,
     allStars, saveStar, deleteStar, starInto, unstar, starredSet,
     deck, search, target, setTarget, disk, videoPoster,
+    copyNow, setCopy, copyProblem,
     rescan: () => { diskCache = null; cache = null; return load(true); }
   };
 })(window);

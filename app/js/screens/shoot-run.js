@@ -64,6 +64,8 @@
   .sr-dots i{flex:1;height:4px;border-radius:2px;background:#ffffff26;cursor:pointer}
   .sr-dots i.done{background:#5BBE6A}.sr-dots i.on{background:#FB6900}
   .sr-pic{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;background:#000;touch-action:pan-y}
+  .sr-holdtip{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#ddd;font-size:12px;padding:4px 10px;border-radius:99px;pointer-events:none;white-space:nowrap}
+  .sr.clean .sr-holdtip{display:none}
   .sr-pic img,.sr-pic video{max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain;display:block}
   .sr-none{text-align:center;padding:24px;color:#969185}
   .sr-none b{display:block;font-family:var(--display),sans-serif;font-weight:900;font-size:44px;color:#EDE5D2;margin-bottom:6px}
@@ -88,6 +90,17 @@
   .sr-all button{min-width:240px;height:52px;border-radius:var(--r,4px);border:1px solid #2F2C26;background:#1F1C17;color:#EDE5D2;font-size:16px}
   .sr-all .sr-go{background:#FB6900;border-color:#FB6900;color:#151515;font-family:var(--display),sans-serif;font-weight:900}
   @media (min-width:900px){ .sr-cap{padding:14px 28px 6px} .sr-bar{grid-template-columns:90px minmax(240px,420px) 90px;justify-content:center} }`;
+
+  /* swap one shot's frame on this task (the template it came from stays) */
+  async function setFrame(id, i, uid){
+    const t = await Store.get('tasks', id);
+    if(!t) return null;
+    if(t.page && Array.isArray(t.page.slots) && t.page.slots[i]) t.page.slots[i].item = uid || '';
+    else if(t.subs && t.subs[i]) t.subs[i].frame = uid || '';
+    await Store.put('tasks', t);
+    if(global.Data && Data.invalidate) Data.invalidate('tasks');
+    return t;
+  }
 
   async function mount(el, params){
     if(!document.getElementById('sr-css')){ const st = document.createElement('style'); st.id = 'sr-css'; st.textContent = CSS; document.head.appendChild(st); }
@@ -139,7 +152,8 @@
           <div class="sr-ttl">${esc(t.title)}</div><div class="sr-n">${at + 1} / ${shots.length}</div></div>
         <div class="sr-dots">${shots.map((x, k) => `<i class="${x.done ? 'done' : ''}${k === at ? ' on' : ''}" data-go="${k}" title="Shot ${k + 1}"></i>`).join('')}</div>
         <div class="sr-pic" data-pic>${m ? picHTML(m) : `<div class="sr-none"><b>${at + 1}</b>No reference frame for this shot</div>`}
-          ${s.done ? '<span class="sr-taken">✓ Taken</span>' : ''}</div>
+          ${s.done ? '<span class="sr-taken">✓ Taken</span>' : ''}
+          ${at === 0 && global.StarPick ? '<span class="sr-holdtip">Tap: clean view · Hold: swap the frame</span>' : ''}</div>
         <div class="sr-cap">
           <p class="sr-k">Shot ${at + 1}${s.role ? ' · ' + esc(s.role) : ''}</p>
           <p class="sr-t">${esc(s.text)}</p>
@@ -156,6 +170,17 @@
           ${t.view === 'done' ? '<p>The task is ticked off too.</p>' : ''}
           <button class="sr-go" data-x>Back to the task</button><button data-review>Look through them again</button></div>` : ''}
       </div>`;
+      /* hold the picture to swap it for another starred frame — today only */
+      const pic = el.querySelector('[data-pic]');
+      if(pic && global.StarPick) U.onHold(pic, () => {
+        const s2 = shots[at];
+        StarPick.open({ title:`Shot ${at + 1} — swap its frame for today`, clear:!!s2.item, onPick: async uid => {
+          const fresh = await setFrame(id, s2.i, uid);
+          if(fresh){ t = fresh; shots = shotsOf(t); }
+          await render();
+          if(t.pageFrom && t.pageFrom.template) U.toast(`Swapped for today — “${t.pageFrom.template}” stays as it is`);
+        } });
+      });
     }
 
     const go = k => { if(k < 0 || k >= shots.length) return; at = k; render(); };
@@ -209,5 +234,5 @@
   }
 
   Screens.register('shoot-run', mount);
-  global.ShootRun = { shotsOf, setDone, open: (id, at) => Screens.push('shoot-run', { id, at }) };
+  global.ShootRun = { shotsOf, setDone, setFrame, open: (id, at) => Screens.push('shoot-run', { id, at }) };
 })(window);

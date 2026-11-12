@@ -31,6 +31,9 @@
   color:var(--cream);font:inherit;font-size:13.5px;max-width:100%}
 .lv-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0}
 .lv-row small{color:var(--dim);font-size:12.5px}
+.lv-copy{margin:-2px 0 10px 22px}
+.lv-copy small{flex:1 1 220px;word-break:break-all}
+.lv-warn{background:color-mix(in srgb,var(--red) 14%,transparent);border:1px solid color-mix(in srgb,var(--red) 40%,transparent);border-radius:10px;padding:8px 10px;font-size:13px;margin:4px 0 10px}
 .lv-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px}
 .lv-bar .lv-in[type=search]{flex:1;min-width:160px}
 .lv-bar small{opacity:.6;font-weight:600}

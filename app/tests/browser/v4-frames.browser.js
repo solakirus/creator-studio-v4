@@ -215,6 +215,16 @@ const head = s => console.log(`\n— ${s} —`);
   ok(cu.again === 0, 'and only once', cu.again + ' on the next sync');
 
   head('cleanup on the phone');
+  const c0 = await phone.evaluate(async () => {
+    TaskFrames._now = () => Date.now() + 60 * 86400000;    /* long after everything */
+    const r = await TaskFrames.run();
+    const left = (await Store.all('task-frames')).values.length;
+    /* the template is what keeps them; take it away and the 21-day rule decides */
+    const tpl = (await Store.all('shot-templates')).values.find(t => t.name === 'Beach day');
+    if(tpl) await Store.del('shot-templates', tpl.id);
+    return { removed: r.removed, left, had: !!tpl };
+  });
+  ok(c0.had && c0.removed === 0 && c0.left === 4, 'a saved template keeps its frames on the phone for good', `${c0.removed} removed`);
   const c1 = await phone.evaluate(async () => {
     TaskFrames._now = () => Date.now() + 23 * 86400000;    /* the task's date is now 23 days ago */
     const r = await TaskFrames.run();

@@ -78,10 +78,12 @@ function walk(dir, rel, depth, files, manifests) {
 const str = (v, k) => (v && typeof v[k] === 'string') ? v[k] : '';
 
 /* library.rs add_source: pages from manifests, else from the folder a file sits in */
-function scanRoot(root) {
+/* `as` names the folder the frames belong to when they're read from its copy:
+   the uids stay the same, so tasks, boards and stars still find them. */
+function scanRoot(root, as) {
   const files = [], manifests = [];
   walk(root, '', 0, files, manifests);
-  const src = 'h:' + root;
+  const src = 'h:' + (as || root);
   const rootName = path.basename(root);
   const pages = new Map();
   const meta = new Map();
@@ -148,6 +150,80 @@ function scanRoot(root) {
   return { items, pages: [...pages.values()].filter(p => p.counts[0] + p.counts[1] + p.counts[2] > 0) };
 }
 
+const isDir = p => { try { return !!p && fs.statSync(p).isDirectory(); } catch (e) { return false; } };
+const inside = (a, b) => {
+  const x = path.resolve(a).toLowerCase(), y = path.resolve(b).toLowerCase();
+  return x === y || x.startsWith(y + path.sep) || y.startsWith(x + path.sep);
+};
+
+/* v4: every folder the Library reads. A folder can have a copy (on this computer,
+   say, for one on the NAS): when the folder can't be reached its copy is read
+   in its place, under the folder's own name. */
+function scanAll(list, mirrors) {
+  roots.clear();
+  const out = { items: [], pages: [], roots: [], errors: [], fallback: [] };
+  const all = [defaultRoot(), ...(list || [])].filter((r, i, a) => r && a.indexOf(r) === i);
+  const copies = mirrors && typeof mirrors === 'object' ? mirrors : {};
+  for (const r of all) {
+    const copy = typeof copies[r] === 'string' && copies[r] && !inside(copies[r], r) ? copies[r] : '';
+    if (copy && isDir(copy)) roots.add(copy);
+    let from = r;
+    if (!isDir(r)) {
+      if (copy && isDir(copy)) { from = copy; out.fallback.push({ root: r, copy }); }
+      else { if (r !== defaultRoot()) out.errors.push('No folder at ' + r); continue; }
+    }
+    roots.add(from);
+    out.roots.push(r);
+    try { const s = scanRoot(from, r); out.items.push(...s.items); out.pages.push(...s.pages); }
+    catch (err) { out.errors.push(r + ': ' + err.message); }
+  }
+  return out;
+}
+
+/* v4: keep a copy of a folder. New and changed files go across (same size and
+   not newer = already there). Nothing in the copy is ever deleted, so losing
+   or emptying one side can't empty the other. */
+const COPY_SKIP = ['_Deleted', '_logs'];
+async function mirrorCopy(from, to, onStep) {
+  if (!isDir(from)) throw new Error('No folder at ' + from);
+  if (inside(from, to)) throw new Error('The copy can’t be inside the folder (or the other way round)');
+  const fsp = fs.promises;
+  const st = { copied: 0, same: 0, failed: 0, bytes: 0, errors: [] };
+  let seen = 0;
+  async function dir(src, dst, depth) {
+    if (depth > 12) return;
+    let entries = [];
+    try { entries = await fsp.readdir(src, { withFileTypes: true }); } catch (e) { st.failed++; st.errors.push(src + ': ' + e.message); return; }
+    for (const e of entries) {
+      if (e.name.startsWith('.') || e.name.endsWith('.cs4part') || (depth === 0 && COPY_SKIP.includes(e.name))) continue;
+      const a = path.join(src, e.name), b = path.join(dst, e.name);
+      if (e.isDirectory()) { await dir(a, b, depth + 1); continue; }
+      if (!e.isFile()) continue;
+      try {
+        const sa = await fsp.stat(a);
+        let sb = null;
+        try { sb = await fsp.stat(b); } catch (err) { sb = null; }
+        if (sb && sb.size === sa.size && sa.mtimeMs - sb.mtimeMs < 2000) st.same++;
+        else {
+          await fsp.mkdir(dst, { recursive: true });
+          const part = b + '.cs4part';
+          await fsp.copyFile(a, part);
+          await fsp.rename(part, b);
+          await fsp.utimes(b, sa.atime, sa.mtime);
+          st.copied++; st.bytes += sa.size;
+        }
+      } catch (err) {
+        st.failed++;
+        if (st.errors.length < 20) st.errors.push(a + ': ' + err.message);
+      }
+      if (onStep && ++seen % 50 === 0) onStep(st);
+    }
+  }
+  await fsp.mkdir(to, { recursive: true });
+  await dir(from, to, 0);
+  return st;
+}
+
 /* the safe name library.rs gives a folder or file */
 const safeName = s => String(s || '').replace(/[\u0000-\u001f\\/:*?"<>|]/g, ' ').split(/\s+/).filter(Boolean).join(' ').slice(0, 120);
 
@@ -192,18 +268,27 @@ function wire({ ipcMain, dialog, shell, net, getWin }) {
 
   ipcMain.handle('cs3:lib-home', () => ({ path: defaultRoot(), exists: fs.existsSync(defaultRoot()) }));
 
-  ipcMain.handle('cs3:lib-scan', (e, list) => {
-    roots.clear();
-    const out = { items: [], pages: [], roots: [], errors: [] };
-    const all = [defaultRoot(), ...(list || [])].filter((r, i, a) => r && a.indexOf(r) === i);
-    for (const r of all) {
-      if (!fs.existsSync(r) || !fs.statSync(r).isDirectory()) { if (r !== defaultRoot()) out.errors.push('No folder at ' + r); continue; }
-      roots.add(r);
-      out.roots.push(r);
-      try { const s = scanRoot(r); out.items.push(...s.items); out.pages.push(...s.pages); }
-      catch (err) { out.errors.push(r + ': ' + err.message); }
-    }
-    return out;
+  ipcMain.handle('cs3:lib-scan', (e, list, mirrors) => scanAll(list, mirrors));
+
+  /* copy each folder into its copy, one after another */
+  let copying = false;
+  ipcMain.handle('cs3:lib-mirror', async (e, pairs) => {
+    if (copying) return { ok: false, why: 'A copy is already running' };
+    copying = true;
+    const results = [];
+    try {
+      for (const [from, to] of (Array.isArray(pairs) ? pairs : [])) {
+        if (!from || !to) continue;
+        if (!isDir(from)) { results.push({ from, to, skipped: 'not reachable' }); continue; }
+        roots.add(to);
+        try {
+          const st = await mirrorCopy(from, to, s => send('cs3:lib-mirror-step', Object.assign({ from, to }, s)));
+          results.push(Object.assign({ from, to }, st));
+        } catch (err) { results.push({ from, to, error: err.message }); }
+      }
+    } finally { copying = false; }
+    send('cs3:lib-mirror-done', results);
+    return { ok: true, results };
   });
 
   ipcMain.handle('cs3:lib-pick-folder', async () => {
@@ -351,4 +436,4 @@ function wire({ ipcMain, dialog, shell, net, getWin }) {
   ipcMain.handle('cs3:grab-stop', () => { if (job) { try { job.kill(); } catch (e) {} } return true; });
 }
 
-module.exports = { wire, serve: () => new Response('Not ready', { status: 503 }), scanRoot, kindOf };
+module.exports = { wire, serve: () => new Response('Not ready', { status: 503 }), scanRoot, scanAll, mirrorCopy, allowed, kindOf };

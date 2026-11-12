@@ -12,6 +12,7 @@
 
   let tab = 'deck';
   let kind = 'all', q = '', src = 'all', selecting = false, sel = new Set();
+  let sort = '', limit = 1500, lastTick = null;   /* v4: big-library tools */
 
   async function mount(el, params){
     const embedded = !!(params && params.embedded);
@@ -36,6 +37,7 @@
         </div>
         ${t ? `<div class="lv-target"><span>＋ adds to <b>${esc(t.label || 'a template')}</b></span>
           <button class="lv-btn ghost sm" data-untarget>Stop</button></div>` : ''}
+        ${tab !== 'folders' && (lib.fallback || []).length ? `<p class="lv-warn" data-fallbackline>⚠ ${lib.fallback.length === 1 ? 'A folder' : lib.fallback.length + ' folders'} can’t be reached — showing the copy on this computer. <button class="lv-btn sm ghost" data-tab="folders">Folders</button></p>` : ''}
         <div id="libBody"></div>`;
       const body = host.querySelector('#libBody');
       if(tab === 'boards') return boardsPage(body, lib);
@@ -60,6 +62,7 @@
         <div class="lv-bar">
           <select class="lv-sel" data-src>
             <option value="all">Everything</option>
+            <option value="unused" ${src === 'unused' ? 'selected' : ''}>Unused — on no board, group, template or task</option>
             ${srcPage ? `<option value="${esc(src)}" selected>${esc(MediaLib.pageLabel(srcPage))}</option>` : ''}
             ${stars.length ? `<optgroup label="Starred — on the phone too">${stars.map(g =>
               `<option value="star:${g.id}" ${src === 'star:' + g.id ? 'selected' : ''}>★ ${esc(g.name)} (${g.items.length})</option>`).join('')}</optgroup>` : ''}
@@ -70,6 +73,10 @@
           </select>
           <input class="lv-in" type="search" data-q placeholder="Search names, labels, pages…" value="${esc(q)}">
           <button class="pill" data-play aria-pressed="${s.play !== false}">▶ Play GIFs</button>
+          <select class="lv-sel" data-sort aria-label="Sort">
+            ${[['', 'Library order'], ['newest', 'Newest first'], ['oldest', 'Oldest first'], ['name', 'Name A→Z'], ['size', 'Biggest first'], ['kind', 'GIFs, clips, stills']].map(([v, l]) =>
+              `<option value="${v}" ${sort === v ? 'selected' : ''}>${l}</option>`).join('')}
+          </select>
           <button class="pill" data-select aria-pressed="${selecting}">☐ Select</button>
         </div>
         <div class="lv-selbar" ${selecting && sel.size ? '' : 'hidden'}>
@@ -87,8 +94,8 @@
       const grid = body.querySelector('.lv-deck');
 
       async function draw(){
-        const { lib: l, list, board } = await MediaLib.deck({ kind, q, src });
-        const shown = list.slice(0, 1500);
+        const { lib: l, list, board } = await MediaLib.deck({ kind, q, src, sort });
+        const shown = list.slice(0, limit);
         grid.innerHTML = shown.length ? shown.map(it =>
           tile(it, { check:selecting, sel:sel.has(it.uid), caption:true,
             extra: t && !selecting ? `<button class="lv-plus" data-plus="${esc(it.uid)}" title="Add to ${esc(t.label)}">＋</button>` : '' })
@@ -96,7 +103,9 @@
           l.items.length ? 'Try another filter or search.' : 'Add GIFs, clips and stills from this device, a link, or (on the laptop) a folder.'}
           ${l.items.length ? '' : '<br><button class="lv-btn" data-go="add" style="margin-top:14px">＋ Add to the Library</button>'}</div>`;
         if(list.length > shown.length) grid.insertAdjacentHTML('beforeend',
-          `<p class="hintline" style="grid-column:1/-1">Showing the first ${shown.length} of ${list.length}. Search or filter to find the rest.</p>`);
+          `<p class="hintline" style="grid-column:1/-1">Showing ${shown.length} of ${list.length}.
+            <button class="lv-btn sm" data-more>Show ${Math.min(1500, list.length - shown.length)} more</button>
+            <button class="lv-btn sm ghost" data-moreall>Show all ${list.length}</button></p>`);
         grid.dataset.board = board ? board.id : '';
         hydrate(grid, l);
         grid._shown = shown.map(x => x.uid);
@@ -125,12 +134,23 @@
           if(act === 'target'){ await addToTarget([...sel]); sel.clear(); return render(); }
           if(act === 'delete') return confirmDelete([...sel]);
         }
+        if(e.target.closest('[data-more]')){ limit += 1500; return draw(); }
+        if(e.target.closest('[data-moreall]')){ limit = 1e9; return draw(); }
         const tl = e.target.closest('.lv-tile[data-uid]');
         if(!tl) return;
         if(selecting){
           const u = tl.dataset.uid;
-          sel.has(u) ? sel.delete(u) : sel.add(u);
-          tl.classList.toggle('is-sel', sel.has(u));
+          /* Shift-click ticks everything between this and the last one ticked */
+          const order = grid._shown || [];
+          if(e.shiftKey && lastTick && order.includes(lastTick)){
+            const [a, b] = [order.indexOf(lastTick), order.indexOf(u)].sort((x, y) => x - y);
+            order.slice(a, b + 1).forEach(x => sel.add(x));
+            grid.querySelectorAll('.lv-tile[data-uid]').forEach(x => x.classList.toggle('is-sel', sel.has(x.dataset.uid)));
+          } else {
+            sel.has(u) ? sel.delete(u) : sel.add(u);
+            tl.classList.toggle('is-sel', sel.has(u));
+          }
+          lastTick = u;
           return selbar();
         }
         const board = grid.dataset.board;
@@ -152,7 +172,9 @@
         const tl = e.target.closest('.lv-tile[data-uid]');
         if(tl){ e.preventDefault(); LibView.view(tl.dataset.uid); }
       });
-      body.querySelector('[data-src]').addEventListener('change', e => { src = e.target.value; draw(); });
+      /* a new source redraws the page: its selection bar changes with it (a starred group's "Take out of") */
+      body.querySelector('[data-src]').addEventListener('change', e => { src = e.target.value; limit = 1500; sel.clear(); render(); });
+      body.querySelector('[data-sort]').addEventListener('change', e => { sort = e.target.value; draw(); });
       let timer;
       body.querySelector('[data-q]').addEventListener('input', e => { clearTimeout(timer); timer = setTimeout(() => { q = e.target.value; draw(); }, 200); });
       wireDrop(grid);
@@ -330,14 +352,36 @@
       const d = MediaLib.disk();
       const homeInfo = d ? await d.home() : null;
       const hidden = new Set(s.hidden || []);
+      const canCopy = !!(d && typeof d.mirror === 'function');
+      const ago = t => { if(!t) return ''; const m = Math.round((Date.now() - t) / 60000);
+        return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; };
+      const mb = b => b >= 1048576 ? (b / 1048576).toFixed(b >= 104857600 ? 0 : 1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+      function copyRow(root){
+        if(!canCopy || !root) return '';
+        const to = (s.mirrors || {})[root];
+        if(!to) return `<div class="lv-row lv-copy"><span>⧉</span><small>No copy yet</small>
+          <button class="lv-btn sm ghost" data-copyset="${esc(root)}">Keep a copy…</button></div>`;
+        const c = (s.copied || {})[root] || {};
+        const state = c.problem ? `<span style="color:var(--red)">${esc(c.problem)}</span>${c.at ? ' · last copied ' + ago(c.at) : ''}`
+          : c.at ? `last copied ${ago(c.at)}${c.copied ? ` · ${c.copied} new (${mb(c.bytes || 0)})` : ' · up to date'}${c.failed ? ` · <span style="color:var(--red)">${c.failed} couldn’t be copied</span>` : ''}`
+          : 'not copied yet';
+        return `<div class="lv-row lv-copy" data-copyrow="${esc(root)}"><span>⧉</span><small>Copy at ${esc(to)} — <i data-copystate>${state}</i></small>
+          <button class="lv-btn sm" data-copynow="${esc(root)}">Copy now</button>
+          <button class="lv-btn sm ghost" data-open="${esc(to)}">Open</button>
+          <button class="lv-btn sm ghost" data-copyoff="${esc(root)}" title="Stops copying; the copy and its files stay where they are">Stop</button></div>`;
+      }
       body.innerHTML = `
         ${d ? `<div class="lv-card">
           <h3>Folders on this computer</h3>
+          ${(lib.fallback || []).map(f => `<p class="lv-warn" data-fallback>⚠ <b>${esc(f.root)}</b> can’t be reached right now, so the Library is showing its copy on this computer (${esc(f.copy)}). Everything still opens; new copies start again once it’s back.</p>`).join('')}
           <div class="lv-row"><span>🗀 Shot Library</span><small>${esc(homeInfo.path)}${homeInfo.exists ? '' : ' — not there yet'}</small>
             ${homeInfo.exists ? `<button class="lv-btn sm ghost" data-open="${esc(homeInfo.path)}">Open</button>` : ''}</div>
+          ${copyRow(homeInfo.path)}
           ${(s.roots || []).map(r => `<div class="lv-row"><span>🗀</span><small>${esc(r)}</small>
             <button class="lv-btn sm ghost" data-open="${esc(r)}">Open</button>
-            <button class="lv-btn sm ghost" data-unroot="${esc(r)}" title="Stops showing it here; nothing is deleted">Remove</button></div>`).join('')}
+            <button class="lv-btn sm ghost" data-unroot="${esc(r)}" title="Stops showing it here; nothing is deleted">Remove</button></div>
+            ${copyRow(r)}`).join('')}
+          <p class="hintline">⧉ A copy keeps every frame in a second place — the NAS folder with a copy on this computer, say. New and changed files are copied when the app starts, after a grab, and when you press Copy now. Nothing is ever deleted from a copy. If the folder can’t be reached, the Library reads its copy instead.</p>
           <div class="lv-row"><button class="lv-btn sm" data-addroot>Choose a folder…</button>
             <button class="lv-btn sm ghost" data-rescan>⟳ Refresh</button></div>
           ${(lib.errors || []).map(e => `<p class="hintline" style="color:var(--red)">${esc(e)}</p>`).join('')}
@@ -367,6 +411,35 @@
           const p = await d.pickFolder();
           if(p && !(s.roots || []).includes(p)){ await MediaLib.setSettings({ roots:[...(s.roots || []), p] }); await MediaLib.rescan(); render(); }
           return;
+        }
+        const cs = e.target.closest('[data-copyset]');
+        if(cs && d){
+          const root = cs.dataset.copyset;
+          const to = await d.pickFolder();
+          if(!to) return;
+          const why = await MediaLib.copyProblem(root, to);
+          if(why) return U.toast(why);
+          await MediaLib.setCopy(root, to);
+          U.toast('Copying into ' + to + '…');
+          cs.disabled = true; cs.textContent = 'Copying…';
+          const r = (await MediaLib.copyNow(root) || [])[0];
+          if(r && (r.error || r.skipped)) U.toast(r.error || 'The folder can’t be reached right now');
+          return render();
+        }
+        const cn = e.target.closest('[data-copynow]');
+        if(cn){
+          cn.disabled = true; cn.textContent = 'Copying…';
+          const r = await MediaLib.copyNow(cn.dataset.copynow);
+          const x = (r || [])[0];
+          U.toast(!x ? 'Nothing to copy' : x.error ? x.error : x.skipped ? 'The folder can’t be reached right now' : x.copied ? `Copied ${x.copied} new or changed file${x.copied === 1 ? '' : 's'}` : 'The copy is up to date');
+          return render();
+        }
+        const co = e.target.closest('[data-copyoff]');
+        if(co){
+          if(!confirm('Stop keeping a copy of this folder? The copy and its files stay where they are.')) return;
+          await MediaLib.setCopy(co.dataset.copyoff, '');
+          await MediaLib.rescan();
+          return render();
         }
         const un = e.target.closest('[data-unroot]');
         if(un){ await MediaLib.setSettings({ roots:(s.roots || []).filter(r => r !== un.dataset.unroot) }); await MediaLib.rescan(); return render(); }

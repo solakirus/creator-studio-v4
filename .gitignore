@@ -13,3 +13,4 @@ android/local.properties
 android/.idea/
 shots/
 app/update.json
+app/tests/out/

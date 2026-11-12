@@ -373,15 +373,18 @@
       }
     }
     /* v4, phone: a shot takes one of the starred frames (laptop: the Library picker) */
+    function swapFrame(i){ return window.CS3Lib ? pickInto(i) : starPick(i); }
     function starPick(i){
       if(!window.StarPick) return;
       const P = curPage();
       const sl = P && (P.slots || [])[i];
       if(!sl) return;
-      StarPick.open({ title:`Shot ${i + 1} — pick a starred frame`, clear:!!sl.item, onPick: async uid => {
+      const was = sl.item;
+      StarPick.open({ title:`Shot ${i + 1} — ${was ? 'swap its frame' : 'pick a starred frame'}`, clear:!!sl.item, onPick: async uid => {
         sl.item = uid || '';
         pageMediaKey = '';
         await save(); render();
+        if(was && t.pageFrom && t.pageFrom.template) U.toast(`Swapped for this task — “${t.pageFrom.template}” stays as it is`);
       } });
     }
     function openShoot(i){
@@ -737,7 +740,7 @@
             <div class="shotline tk-ps${dn ? ' done' : ''}${i === nx ? ' tk-next' : ''}" data-ps="${i}">
               <button class="bx" data-tick="${i}" aria-label="Tick shot ${i + 1}" aria-pressed="${dn}">${ICON.check}</button>
               <span class="sn">${i + 1}</span>
-              ${sl.item ? `<button class="tk-th" data-shootat="${i}" data-item="${esc(sl.item)}" aria-label="Shoot shot ${i + 1} full screen"></button>`
+              ${sl.item ? `<button class="tk-th" data-shootat="${i}" data-item="${esc(sl.item)}" aria-label="Shoot shot ${i + 1} full screen" title="Tap: shoot it full screen · Hold: swap the frame"></button>`
                 : !window.CS3Lib && isSteps ? `<button class="tk-th tk-thadd" data-starpick="${i}" aria-label="Give shot ${i + 1} a starred frame">＋</button>` : ''}
               <span class="tx">
                 <span class="tk-line">
@@ -974,8 +977,9 @@
       const cv = el.querySelector('[data-pagecanvas]');
       if(cv) cv.addEventListener('contextmenu', ev => slotMenu(ev, cv));
       fillThumbs();
-      /* phone: hold a step's frame to change it to another starred one */
-      if(!window.CS3Lib) el.querySelectorAll('.tk-th[data-shootat]').forEach(b => b.addEventListener('contextmenu', ev => { ev.preventDefault(); starPick(+b.dataset.shootat); }));
+      /* hold a step's frame to swap it — for this task only, the template stays
+         (phone: a starred frame; laptop: anything in the Library) */
+      el.querySelectorAll('.tk-th[data-shootat]').forEach(b => U.onHold(b, () => swapFrame(+b.dataset.shootat)));
       el.querySelectorAll('[data-pagepick]').forEach(sel => sel.addEventListener('change', () => {
         if(sel.value) linkPage(sel.value);
       }));

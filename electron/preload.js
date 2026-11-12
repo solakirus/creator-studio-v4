@@ -69,9 +69,14 @@ const grabListeners = { line: new Set(), link: new Set(), done: new Set() };
 ipcRenderer.on('cs3:grab-line', (e, v) => grabListeners.line.forEach(cb => { try { cb(v); } catch (err) {} }));
 ipcRenderer.on('cs3:grab-link', (e, v) => grabListeners.link.forEach(cb => { try { cb(v); } catch (err) {} }));
 ipcRenderer.on('cs3:grab-done', (e, v) => grabListeners.done.forEach(cb => { try { cb(v); } catch (err) {} }));
+const mirrorListeners = new Set();
+ipcRenderer.on('cs3:lib-mirror-step', (e, v) => mirrorListeners.forEach(cb => { try { cb(v, false); } catch (err) {} }));
+ipcRenderer.on('cs3:lib-mirror-done', (e, v) => mirrorListeners.forEach(cb => { try { cb(v, true); } catch (err) {} }));
 contextBridge.exposeInMainWorld('CS3Lib', {
   home: () => ipcRenderer.invoke('cs3:lib-home'),
-  scan: roots => ipcRenderer.invoke('cs3:lib-scan', roots || []),
+  scan: (roots, mirrors) => ipcRenderer.invoke('cs3:lib-scan', roots || [], mirrors || {}),
+  mirror: pairs => ipcRenderer.invoke('cs3:lib-mirror', pairs || []),
+  onMirror: cb => { if (typeof cb === 'function') { mirrorListeners.add(cb); return () => mirrorListeners.delete(cb); } return () => {}; },
   pickFolder: () => ipcRenderer.invoke('cs3:lib-pick-folder'),
   open: target => ipcRenderer.invoke('cs3:lib-open', target),
   trash: list => ipcRenderer.invoke('cs3:lib-trash', list || []),

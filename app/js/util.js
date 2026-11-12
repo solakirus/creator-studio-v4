@@ -157,7 +157,26 @@
   const midnight = ts => { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); };
   const isoOf = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
+  /* Press and hold: fn runs after `ms` held still (a finger or the mouse); the
+     click that follows the hold is swallowed, so a hold never also taps.
+     Right-click does the same on the laptop. */
+  function onHold(el, fn, ms){
+    if(!el || el._hold) return;
+    el._hold = true;
+    let t = null, x = 0, y = 0, fired = false;
+    const stop = () => { clearTimeout(t); t = null; };
+    el.addEventListener('pointerdown', e => {
+      if(e.button > 0) return;
+      fired = false; x = e.clientX; y = e.clientY;
+      stop(); t = setTimeout(() => { t = null; fired = true; if(navigator.vibrate) try { navigator.vibrate(25); } catch(err){} fn(e); }, ms || 600);
+    });
+    el.addEventListener('pointermove', e => { if(t && Math.hypot(e.clientX - x, e.clientY - y) > 12) stop(); });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(k => el.addEventListener(k, stop));
+    el.addEventListener('click', e => { if(fired){ fired = false; e.preventDefault(); e.stopPropagation(); } }, true);
+    el.addEventListener('contextmenu', e => { e.preventDefault(); stop(); fired = false; fn(e); });
+  }
+
   global.U = {
     taskId, DOW, DOW_N, DOW_FULL, dayGrid, wireDayGrid, readDayGrid, daysLabel, slug, pad, hash, generatedArt, ICON, toast, dayField, wireDayField, readDayField,
-    esc, midnight, isoOf };
+    esc, midnight, isoOf, onHold };
 })(window);

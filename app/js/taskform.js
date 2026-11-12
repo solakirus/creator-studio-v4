@@ -75,6 +75,9 @@
     /* a workout routine makes it a workout task (was only on Today's own form) */
     let routines = [];
     try { if(global.Routines && Routines.all) routines = await Routines.all(); } catch(e){ routines = []; }
+    /* templates whose shots can go straight onto a task ("Morning routine") */
+    let tpls = [];
+    try { if(global.ShotTemplates) tpls = (await ShotTemplates.all()).filter(t => (t.shots || []).length); } catch(e){ tpls = []; }
 
     App.sheet(`
       <h2 style="margin:0 0 4px">${seed.title ? esc(seed.title) : 'Add a task'}</h2>
@@ -124,6 +127,14 @@
         `<button type="button" data-tfpri="${k}" aria-pressed="${k === 'med'}">
           <b>${PRI[k].t}</b><small>${PRI[k].s}</small></button>`).join('')}</div>
 
+      ${tpls.length ? `
+      <h3 class="pgh">Shots from a template <small style="font-weight:400;color:var(--muted)">optional</small></h3>
+      <select id="tf-tpl" class="pgbar">
+        <option value="">None — plan the shots yourself</option>
+        ${tpls.map(t => `<option value="${esc(t.id)}"${seed.tpl === t.id ? ' selected' : ''}>${esc(t.name)} · ${t.shots.length} shot${t.shots.length === 1 ? '' : 's'}</option>`).join('')}
+      </select>
+      <p class="hintline">Its shots and their frames go on the task, ready to film — on every day it repeats. Hold a shot's frame to swap it for that day.</p>` : ''}
+
       <h3 class="pgh">What kind?</h3>
       <select id="tf-kind" class="pgbar">
         ${Object.keys(KINDS).map(k =>
@@ -163,6 +174,15 @@
       const $ = s => sheetEl.querySelector(s);
       const title = $('#tf-title');
       if(title) setTimeout(() => title.focus(), 80);
+
+      /* a template makes it a Shoot task, and names it if still blank */
+      const tsel = $('#tf-tpl');
+      if(tsel) tsel.addEventListener('change', () => {
+        const tp = tpls.find(x => x.id === tsel.value);
+        if(!tp) return;
+        if(!title.value.trim()) title.value = tp.name;
+        $('#tf-kind').value = 'shoot';
+      });
 
       /* choosing a workout fills in the name and the time, if still blank */
       const wsel = $('#tf-workout');
@@ -249,6 +269,21 @@
           base.kind = 'workout';
           base.routineId = routine.id;
           if(!steps.length) base.subs = (routine.items || []).map(i => ({ t:`${i.name} · ${i.sets}×${i.reps}`, done:false }));
+        }
+        /* a template's shots (and their frames) are the task's shot page;
+           shots past what one page holds stay as plain steps after them */
+        const tp = tsel && tsel.value ? tpls.find(x => x.id === tsel.value) : null;
+        if(tp && global.Notebook && ShotTemplates.pageFrom){
+          const pg = ShotTemplates.pageFrom(tp);
+          if(pg){
+            base.kind = base.kind || 'shoot';
+            base.page = Notebook.copyNew(pg);
+            base.page.slots.forEach(sl => { sl.done = false; });
+            base.pageFrom = { tid:tp.id, sid:pg.id, template:tp.name };
+            const extra = (tp.shots || []).slice(Notebook.MAX_STEPS || 14).map(s => ({ t:[s.label || s.name || s.role].filter(Boolean).join(''), done:false })).filter(s => s.t);
+            base.subs = (base.subs || []).concat(extra);
+            if(global.TaskPages) TaskPages.match(base);
+          }
         }
         /* a Shoot task starts with the task sequence shot page (taskpages.js) */
         if(window.TaskPages) await TaskPages.attachDefault(base);

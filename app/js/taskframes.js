@@ -73,6 +73,9 @@
     const cutoff = startOfToday() - KEEP_DAYS * DAY;
     const want = new Set();
     for(const g of await all('star-groups')) (g.items || []).forEach(u => { if(UID.test(u)) want.add(u); });
+    /* a template's frames are ready on the phone before it's ever used —
+       "Morning routine" at 6 am doesn't wait for the laptop to be on */
+    for(const t of await all('shot-templates')) collect(t, want);
     for(const t of await all('tasks')) if(await taskLive(t, cutoff)) collect(t, want);
     for(const v of await all('videos')){
       /* a video published before v4 stamped the date: stamp it now, so the
@@ -160,7 +163,7 @@
     const put = Store.put;
     const wrapped = async function(store, value, key){
       const r = await put.call(Store, store, value, key);
-      if(store === 'tasks' || store === 'videos' || store === 'star-groups') soon();
+      if(store === 'tasks' || store === 'videos' || store === 'star-groups' || store === 'shot-templates') soon();
       return r;
     };
     wrapped._tf = true;
