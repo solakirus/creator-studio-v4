@@ -293,10 +293,10 @@
         <div class="tkp-cwrap"><canvas class="tkp-canvas" width="720" height="900" data-pagecanvas
           title="${onMain() ? 'Tap a picture to shoot it full screen' + (window.CS3Lib ? ' (right-click to change it)' : '') + ', words to type over them, a shot’s box to tick it' : 'Click words to type over them, a picture spot to pick a shot'}"></canvas>
           <div class="pe-edit" hidden></div></div>
-        ${nx !== -1 && n ? `<div class="tkp-next"${onMain() ? ` data-a="shootnext" role="button" tabindex="0" title="Shoot it full screen"` : ''}><span>Next up</span><b>${esc(shotTitle(P, nx))}</b>${onMain() ? '<i class="tkp-go">▶</i>' : ''}</div>`
+        ${nx !== -1 && n ? `<div class="tkp-next" data-a="shootnext" role="button" tabindex="0" title="Shoot it full screen"><span>Next up</span><b>${esc(shotTitle(P, nx))}</b><i class="tkp-go">▶</i></div>`
           : n && doneN === n ? `<div class="tkp-next all"><span>All shot</span><b>Every shot on this page is done</b></div>` : ''}
         <div class="tkp-acts">
-          ${onMain() && n ? `<button class="btn-sm tkp-shoot" data-a="shootmode">▶ Shoot mode</button>` : ''}
+          ${n ? `<button class="btn-sm tkp-shoot" data-a="shootmode">▶ Shoot mode</button>` : ''}
           <button class="btn-sm" data-a="openpage">${total > 1 ? `Open all ${total} pages` : 'Open the page'}</button>
           <details class="tkp-menu"><summary class="btn-sm" aria-label="More for this page">More ▾</summary><div>
             ${from ? `<p class="tkp-from">from ${from}</p>` : ''}
@@ -435,8 +435,9 @@
       } });
     }
     function openShoot(i){
-      if(H) return Screens.push('shoot-run', { host:H, at:i == null ? undefined : i, onChange: async () => { await load(); render(); } });
-      return Screens.push('shoot-run', { id:t.id, at:i == null ? undefined : i, onChange: async () => { await load(); render(); } });
+      /* the page on show goes with it, so a tap on page 2's shot opens page 2 */
+      if(H) return Screens.push('shoot-run', { host:H, page:pgIdx, at:i == null ? undefined : i, onChange: async () => { await load(); render(); } });
+      return Screens.push('shoot-run', { id:t.id, page:pgIdx, at:i == null ? undefined : i, onChange: async () => { await load(); render(); } });
     }
     function typeOver(spot, c){
       const P = curPage();
