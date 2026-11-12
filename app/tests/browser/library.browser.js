@@ -141,12 +141,12 @@ const exe = process.env.CHROME || ['C:/Program Files (x86)/Microsoft/Edge/Applic
 
   /* use it */
   const r = await p.evaluate(async id => {
-    const v = await ShotTemplates.newVideo(id);
+    const v = await ShotTemplates.newClip(id);
     const n = await ShotTemplates.putOnDay(id, Date.now());
     const tasks = Object.values(await Store.allMap('tasks'));
     return { video: v && v.title, shots: v && v.shots.length, n, shoot: tasks.filter(t => t.title === 'Shoot — Weekly vlog').length };
   }, vid);
-  ok(r.video === 'Weekly vlog' && r.shots > 8, `new video "${r.video}" with ${r.shots} shots`);
+  ok(r.video === 'Weekly vlog' && r.shots > 8, `new clip "${r.video}" with ${r.shots} shots`);
   ok(r.n === 9 && r.shoot === 1, `put on today: ${r.n} tasks, one shoot task`);
 
   /* a page saved as a picture draws without error */

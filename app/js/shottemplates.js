@@ -209,17 +209,22 @@
 
   /* ui_videos.rs project_from_template → a Creator Studio video carrying its
      shot list, with the look and tasks in its notes */
-  async function newVideo(id){
+  /* v4: a one-off video is a Clip (Content → Clips, starting in Plan). It
+     carries the template's shot list, notes and shot page (frames included). */
+  async function newClip(id){
     const t = await get(id);
-    if(!t || !global.Videos) return null;
+    if(!t || !global.Data || !Data.saveClip) return null;
     const notes = [t.description, t.use_look ? lookLine(t.look) : '', t.tasks.length ? 'Tasks:\n' + t.tasks.map(x => '• ' + x.title).join('\n') : '']
       .filter(Boolean).join('\n\n');
     const shots = t.shots.length ? t.shots.map(shotLine)
       : t.sheets.flatMap(s => s.layout === 'steps' ? s.slots.map(x => x.text).filter(Boolean) : [s.name]);
     const page = pageFrom(t);
-    return Videos.save({ title:t.name, plat:t.format === 'Short' ? 'shorts' : 'youtube', stage:'idea',
-      hook:t.description || '', notes, shots, tags:[t.kind], template:t.id,
+    const clip = await Data.saveClip({ title:t.name, plat:t.format === 'Short' ? 'shorts' : 'youtube', stage:'idea',
+      channel:'', seriesId:null, dur:'0:00', pct:(Data.PCT_FOR || {}).raw || 0,
+      plan:{ hook:t.description || '', notes }, shots, tags:[t.kind], template:t.id,
       page, pageFrom: page ? { tid:t.id, sid:page.id, template:t.name } : null });
+    if(Data.invalidate) Data.invalidate('clips');
+    return clip;
   }
 
   /* ui_week.rs apply_template_to_day → real tasks on that date: the template's
@@ -273,6 +278,6 @@
     KINDS, ROLES, SIZES, MOVES, TRANSITIONS, DURATIONS, FORMATS,
     all, get, save, remove, duplicate, create, blank, shot, copyShot,
     shotFromItem, fillShot, addToTarget, findSheet, nearestDuration, totalSeconds,
-    newVideo, putOnDay, importShotline, pageFrom, invalidate:() => { cache = null; }
+    newClip, putOnDay, importShotline, pageFrom, invalidate:() => { cache = null; }
   };
 })(window);

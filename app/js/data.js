@@ -391,6 +391,8 @@
     const r = { ...rec };
     if(!r.id){ r.id = uid('c'); r.createdAt = Date.now(); }
     if(r.pct === undefined || r.pct === null) r.pct = PCT_FOR[r.state] ?? 0;
+    /* v4: when it went out — a template clip's frames leave the phone 21 days later */
+    if(r.stage === 'published' && !r.postedAt) r.postedAt = Date.now();
     await Store.put('clips', r);
     invalidate('clips');
     return r;

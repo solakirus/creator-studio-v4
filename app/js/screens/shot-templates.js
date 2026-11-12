@@ -70,7 +70,7 @@
         </div>
         <input class="lv-in" data-desc value="${esc(t.description)}" placeholder="What this template is for" style="width:100%;margin:8px 0">
         <div class="lv-row tp-acts">
-          <button class="lv-btn" data-tvideo>＋ New video from this</button>
+          <button class="lv-btn" data-tvideo>＋ New clip from this</button>
           <button class="lv-btn ghost" data-tday>Put on a day…</button>
           <button class="pill sm" data-useadd aria-pressed="false" title="Frames you add with ＋ in the Library land in this template's shots">Use as Library “＋ adds to”</button>
           <button class="lv-btn ghost sm" data-tdup>Duplicate</button>
@@ -370,12 +370,12 @@
       if(!t) return;
       if(g.closest('[data-tvideo]')){
         await save(true);
-        const v = await T().newVideo(t.id);
-        if(!v) return U.toast('Videos are not available');
-        App.sheet(`<h2 style="margin:0 0 8px">Video made</h2><p class="hintline">“${esc(v.title)}” is in Videos with ${plural((v.shots || []).length, 'shot')}${t.use_look ? ', the look' : ''} and the tasks in its notes.</p>
-          <div class="sheetcta"><button class="btn-primary" data-go>Open Videos</button><button class="btn-ghost" data-no>Stay here</button></div>`, sh => sh.addEventListener('click', ev => {
+        const v = await T().newClip(t.id);
+        if(!v) return U.toast('Clips are not available');
+        App.sheet(`<h2 style="margin:0 0 8px">Clip made</h2><p class="hintline">“${esc(v.title)}” is in Clips → Plan with ${plural((v.shots || []).length, 'shot')}${v.page ? ' and their frames' : ''}${t.use_look ? ', the look' : ''} and the tasks in its notes.</p>
+          <div class="sheetcta"><button class="btn-primary" data-go>Open the clip</button><button class="btn-ghost" data-no>Stay here</button></div>`, sh => sh.addEventListener('click', ev => {
             if(ev.target.closest('[data-no]')) return App.closeSheet();
-            if(ev.target.closest('[data-go]')){ App.closeSheet(); Screens.push('videos'); }
+            if(ev.target.closest('[data-go]')){ App.closeSheet(); Screens.push('clip', { id:v.id }); }
           }));
         return;
       }

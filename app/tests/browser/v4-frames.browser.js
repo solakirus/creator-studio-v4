@@ -86,7 +86,7 @@ const head = s => console.log(`\n— ${s} —`);
                    ShotTemplates.shot({ item: disk.uid, label: 'Whip pan out', role: 'Transition' })];
     const tpl = await ShotTemplates.save({ name: 'Beach day', kind: 'Vlog day', shots, tasks: [] });
     await ShotTemplates.putOnDay(tpl.id, Date.now());
-    const video = await ShotTemplates.newVideo(tpl.id);
+    const video = await ShotTemplates.newClip(tpl.id);
     /* a second task a month out, to be deleted later, using only the still */
     const t2 = await QuickAdd.add({ day: (await Data.currentDay()) + 30, title: 'Throwaway', page: { ...Notebook.stepsPage('Throwaway'), slots: [{ item: s, text: 'just the still', role: 'Action', tone: '', done: false }] } });
     const tasks = (await Store.all('tasks')).values;
@@ -102,11 +102,11 @@ const head = s => console.log(`\n— ${s} —`);
   ok(!!plan.shootId, 'Put on a day made the shoot task');
   ok(JSON.stringify(plan.slots) === JSON.stringify(plan.uids), 'its shot page holds every shot\'s frame, in order', plan.slots.length + ' spots');
   ok(plan.steps.length === 4 && /Cold open/.test(plan.steps[0]), 'and its steps are the shots', plan.steps[0]);
-  ok(JSON.stringify(plan.videoSlots) === JSON.stringify(plan.uids), 'New video kept the frames too');
+  ok(JSON.stringify(plan.videoSlots) === JSON.stringify(plan.uids), 'New clip kept the frames too');
   ok(plan.nav.includes('library') && plan.nav.includes('templates'), 'the laptop shows Library and Templates', plan.nav.join(' '));
 
   const kept = await laptop.evaluate(async () => { const r = await TaskFrames.run(); return { ...r, list: (await Store.all('task-frames')).values.map(x => [x.uid, x.kind, x.bytes, !!x.poster]) }; });
-  ok(kept.kept === 4, 'the laptop copied the four frames the task and video use', JSON.stringify(kept.list.map(x => x[1])));
+  ok(kept.kept === 4, 'the laptop copied the four frames the task and clip use', JSON.stringify(kept.list.map(x => x[1])));
   ok(kept.list.some(x => x[1] === 'video' && x[3]), 'the clip has a poster still');
 
   head('sync to the phone');
@@ -125,7 +125,7 @@ const head = s => console.log(`\n— ${s} —`);
     const kinds = [];
     for(const u of uids){ const m = await Notebook.mediaFor(lib, u); kinds.push(m ? (m.missing ? 'missing' : m.kind) : 'none'); }
     const t = (await Store.all('tasks')).values.find(x => x.id === shootId);
-    const v = (await Store.all('videos')).values.find(x => x.id === videoId);
+    const v = (await Store.all('clips')).values.find(x => x.id === videoId);
     App.go('series');
     await new Promise(z => setTimeout(z, 600));
     const nav = [...document.querySelectorAll('.ctnav [data-v]')].map(b => b.dataset.v);
@@ -159,16 +159,18 @@ const head = s => console.log(`\n— ${s} —`);
   ok(drawn.canvas, 'the phone opens the task with its shot page');
   ok(drawn.orange > 50, 'and the page shows the frame itself, not an empty spot', drawn.orange + ' px');
   await phone.evaluate(() => Screens.pop && Screens.pop());
-  await phone.evaluate(async id => { const v = await Videos.get(id); VideoSheet.open(v); }, plan.videoId);
+  await phone.evaluate(async id => Screens.push('clip', { id, tab:'shoot' }), plan.videoId);
   await phone.waitForTimeout(1500);
-  const strip = await phone.evaluate(() => ({ cells: document.querySelectorAll('#vd-fr .tf-cell').length,
-    pics: document.querySelectorAll('#vd-fr img, #vd-fr video').length, missing: document.querySelectorAll('#vd-fr .tf-miss').length }));
-  ok(strip.cells === 4 && strip.pics === 4 && !strip.missing, 'the video sheet shows the four frames', JSON.stringify(strip));
-  const sheet = await phone.$('#vd-fr');
+  await phone.evaluate(() => { const d = document.querySelector('[data-clipframes]'); if(d) d.closest('details').open = true; });
+  await phone.waitForTimeout(800);
+  const strip = await phone.evaluate(() => ({ cells: document.querySelectorAll('[data-clipframes] .tf-cell').length,
+    pics: document.querySelectorAll('[data-clipframes] img, [data-clipframes] video').length, missing: document.querySelectorAll('[data-clipframes] .tf-miss').length }));
+  ok(strip.cells === 4 && strip.pics === 4 && !strip.missing, 'the clip\'s Shot list shows the four frames', JSON.stringify(strip));
+  const sheet = await phone.$('[data-clipframes]');
   if(sheet) await sheet.scrollIntoViewIfNeeded();
   await phone.waitForTimeout(400);
-  await phone.screenshot({ path: path.join(out, 'phone-video.png') });
-  await phone.evaluate(() => App.closeSheet && App.closeSheet());
+  await phone.screenshot({ path: path.join(out, 'phone-clip.png') });
+  await phone.evaluate(() => Screens.pop());
 
   head('habits come along, and stay simple');
   const hb = await laptop.evaluate(async () => {
@@ -233,16 +235,16 @@ const head = s => console.log(`\n— ${s} —`);
   ok(c1.left === 4, 'after 21 days the frames stay while an unpublished video still uses them', `${c1.removed} removed`);
 
   const c2 = await phone.evaluate(async ({ videoId }) => {
-    const v = await Videos.get(videoId);
-    await Videos.save({ ...v, stage: 'published' });           /* published today */
+    const v = await Store.get('clips', videoId);
+    await Data.saveClip({ ...v, stage: 'published' });         /* posted today */
     TaskFrames._now = () => Date.now() + 5 * 86400000;
     const early = await TaskFrames.run();
     TaskFrames._now = () => Date.now() + 23 * 86400000;
     const r = await TaskFrames.run();
     const left = (await Store.all('task-frames')).values.map(x => x.uid);
-    return { early: early.removed, removed: r.removed, left, stamped: !!(await Videos.get(videoId)).publishedAt };
+    return { early: early.removed, removed: r.removed, left, stamped: !!(await Store.get('clips', videoId)).postedAt };
   }, plan);
-  ok(c2.stamped, 'publishing stamps when it went out');
+  ok(c2.stamped, 'posting stamps when it went out');
   ok(c2.early === 0, 'five days after publishing nothing goes');
   ok(c2.removed === 3 && c2.left.length === 1, '21 days after the shoot and the publish, its frames go', `${c2.removed} removed`);
   ok(c2.left[0] === plan.uids[1], 'except the still, which the other task still uses');

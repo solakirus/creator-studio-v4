@@ -61,6 +61,13 @@
     try { ts = await Data.dayToDate(t.day); } catch(e){ ts = null; }
     return ts == null || ts >= cutoff;
   }
+  /* a clip is live until it's posted, then for 21 days */
+  function clipLive(c, cutoff){
+    if(!c) return false;
+    const posted = global.Versions && Versions.isPublished ? Versions.isPublished(c) : c.stage === 'published';
+    if(!posted) return true;
+    return !c.postedAt || c.postedAt >= cutoff;
+  }
   function videoLive(v, cutoff){
     if(!v) return false;
     if(v.stage !== 'published') return true;
@@ -85,6 +92,16 @@
         try { await Store.put('videos', v); } catch(e){}
       }
       if(videoLive(v, cutoff)) collect(v, want);
+    }
+    /* v4: clips made from a template carry its shot page */
+    for(const c of await all('clips')){
+      if(!c || !c.page) continue;
+      const posted = global.Versions && Versions.isPublished ? Versions.isPublished(c) : c.stage === 'published';
+      if(posted && !c.postedAt){
+        c.postedAt = now();
+        try { await Store.put('clips', c); } catch(e){}
+      }
+      if(clipLive(c, cutoff)) collect(c, want);
     }
     return want;
   }
@@ -163,7 +180,7 @@
     const put = Store.put;
     const wrapped = async function(store, value, key){
       const r = await put.call(Store, store, value, key);
-      if(store === 'tasks' || store === 'videos' || store === 'star-groups' || store === 'shot-templates') soon();
+      if(store === 'tasks' || store === 'videos' || store === 'clips' || store === 'star-groups' || store === 'shot-templates') soon();
       return r;
     };
     wrapped._tf = true;

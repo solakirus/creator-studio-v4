@@ -159,7 +159,6 @@ const FILES = [
   "./js/screens/streak.js",
   "./js/screens/swipe.js",
   "./js/screens/task.js",
-  "./js/screens/videos.js",
   "./js/screens/vlog-day.js",
   "./js/screens/vlog.js",
   "./js/screens/week-board.js",

@@ -355,6 +355,9 @@
               as steps when this lands on a shoot day.</p>
             <textarea class="cp-hook" data-f="shots" placeholder="Wide of the bench&#10;Hands on the drill&#10;Reveal, slow push in"
               >${(clip.shots || []).join('\n')}</textarea>
+            ${clip.page ? `<div class="tf-strip" data-clipframes style="margin-top:12px"></div>
+              <p class="note" style="text-align:left;margin:8px 0 0">Frames from the “${U.esc((clip.pageFrom || {}).template || 'template')}” template.
+                To shoot them in shoot mode: Add a task → Shots from a template.</p>` : ''}
           </div>
         </details>
 `;
@@ -423,6 +426,8 @@
       autoGrow();
       const refsSec = el.querySelector('#sec-refs');
       if(refsSec) refsSec.addEventListener('toggle', () => { refsOpen = refsSec.open; });
+      const cf = el.querySelector('[data-clipframes]');
+      if(cf && window.TaskFrames) TaskFrames.strip(cf, clip.page);
       SwipeRefs.fill(el.querySelector('#swr-slot'), { own: p.swipeIds,
         empty:'Link the videos this clip is borrowing from. Its shoot and edit tasks will show them too.' });
     }
