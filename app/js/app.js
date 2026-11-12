@@ -237,6 +237,7 @@
 
     window.addEventListener('resize', measureDock);
     wireEdgeSwipe();
+    wireToTop();
     wireHardwareBack();
     /* something shared in from Instagram, YouTube or TikTok */
     if(global.Share && Share.listen) Share.listen();
@@ -290,6 +291,43 @@
     if(Screens.depth && Screens.depth()){ Screens.pop(); return true; }
     if(current && current !== 'today'){ go('today'); return true; }
     return false;
+  }
+
+  /* Back to the top of a long page: a small ↑ that shows once you are more
+     than about a screen down whatever is on top (a tab or a pushed
+     screen), and a tap on the page's title does the same. */
+  function wireToTop(){
+    if(!document.getElementById('totop-css')){
+      const st = document.createElement('style'); st.id = 'totop-css';
+      st.textContent = `.totop{position:fixed;z-index:30;right:14px;bottom:calc(var(--h-tabbar) + var(--sab) + 96px);width:44px;height:44px;border-radius:50%;
+        border:1px solid var(--line);background:var(--surface-2);color:var(--cream);display:flex;align-items:center;justify-content:center;
+        box-shadow:0 6px 18px rgba(0,0,0,.45);opacity:0;pointer-events:none;transform:translateY(8px);transition:opacity .18s,transform .18s}
+        .totop.on{opacity:1;pointer-events:auto;transform:none}
+        .totop svg{width:20px;height:20px}
+        .screenbar .mid h1,.page-title{cursor:pointer}`;
+      document.head.appendChild(st);
+    }
+    const btn = document.createElement('button');
+    btn.className = 'totop'; btn.type = 'button'; btn.setAttribute('aria-label', 'Back to the top');
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
+    document.body.appendChild(btn);
+    /* the page that scrolls on top right now: the top pushed screen's, else the tab's */
+    const topView = () => {
+      const scr = document.querySelector('#screens > .screen:last-child');
+      if(scr && !scr.classList.contains('sr-screen')) return scr.querySelector('.view');
+      return scr ? null : document.getElementById('view');
+    };
+    const check = () => {
+      const v = topView();
+      btn.classList.toggle('on', !!v && v.scrollTop > v.clientHeight * 0.9 && !document.querySelector('.sheet.open'));
+    };
+    document.addEventListener('scroll', e => { if(e.target && e.target.classList && e.target.classList.contains('view')) check(); }, true);
+    setInterval(check, 700);
+    const up = () => { const v = topView(); if(v) v.scrollTo({ top:0, behavior:'smooth' }); btn.classList.remove('on'); };
+    btn.addEventListener('click', up);
+    document.addEventListener('click', e => {
+      if(e.target.closest && e.target.closest('.screenbar .mid h1, .screenbar .mid .kick, .page-title')) up();
+    });
   }
 
   /* A drag starting at the very left edge. Narrow on purpose: cards elsewhere on

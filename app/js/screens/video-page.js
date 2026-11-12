@@ -41,8 +41,6 @@
   async function mount(el, params){
     if(!document.getElementById('vp-css')){ const st = document.createElement('style'); st.id = 'vp-css'; st.textContent = CSS; document.head.appendChild(st); }
     let id = params.id, v = null, parts = [], series = null, when = '';
-    let scriptOpen = true;
-    const CHEV = '<svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
 
     async function load(){
       v = await Videos.get(id);
@@ -60,7 +58,6 @@
 
     function render(){
       if(!v){ el.innerHTML = Screens.bar({ title:'Video' }) + '<div class="view"><div class="empty"><b>Gone</b>This video isn’t here any more.</div></div>'; return; }
-      const n = (v.shotList || v.shots || []).length;
       const at = parts.findIndex(x => x.id === v.id);
       el.innerHTML = Screens.bar({ kicker:series ? 'Series · ' + esc(series.title || '') : 'Video', title:esc(v.title),
         actions:'<button class="btn-sm" data-a="details">Details</button>' }) + `
@@ -86,11 +83,8 @@
                 <button class="btn-sm${v.day ? '' : ' accent'}" data-a="day">${v.day ? 'Move' : 'Put on a day'}</button>
                 ${v.day ? '<button class="btn-sm" data-a="unday">Take it off</button>' : ''}</div></div>
           </div>
-          <details class="cp-sec vp-script"${scriptOpen ? ' open' : ''} data-vpscript>
-            <summary>Structure and script<span class="n" data-vpsn>${v.structure && v.structure.name ? esc(v.structure.name) : (v.beats || []).length ? (v.beats.length + ' beats') : 'pick a structure'}</span>${CHEV}</summary>
-            <div class="cp-body"><div id="vpScript"></div></div>
-          </details>
-          <div class="block" style="margin:0"><h4>Steps${n ? ` <span class="cnt">${n} shots</span>` : ''}</h4><div id="vpSteps"></div></div>
+          <div id="vpScript"></div>
+          <div class="block" style="margin:0"><div id="vpSteps"></div></div>
           ${v.notes ? `<div class="vp-fold"><b>Notes</b><span>${esc(v.notes)}</span></div>` : ''}
           ${(v.tags || []).length ? `<div class="vp-fold"><b>Tags</b><span>${v.tags.map(t => '#' + esc(t)).join(' ')}</span></div>` : ''}
         </div>
@@ -101,15 +95,13 @@
         const sc = el.querySelector('#vpScript'); if(sc && sc._st) sc._st.refresh();
       });
       steps();
-      const ds = el.querySelector('[data-vpscript]');
-      if(ds) ds.addEventListener('toggle', () => { scriptOpen = ds.open; });
-      /* the beats and the lines said over each shot (structures.js); the plan is the video itself */
+      /* the structure as one bar over the Steps, which already show the shots
+         under their beats with each one's script (structures.js); the plan is
+         the video itself */
       const savePlan = async () => { v = await Videos.save(v); changed(); };
-      Structures.script(el.querySelector('#vpScript'), { host:ShotList.hostVideo(v.id), plan:() => v, savePlan, flush:savePlan,
+      Structures.bar(el.querySelector('#vpScript'), { host:ShotList.hostVideo(v.id), plan:() => v, savePlan, flush:savePlan,
         onChange: async () => { v = await Videos.get(id) || v; changed(); steps(); },
-        onHook: h => { const p = el.querySelector('[data-vphook]'); if(p) p.textContent = h ? '“' + h + '”' : ''; },
-        onStats: st => { const n = el.querySelector('[data-vpsn]'); if(n) n.textContent = [v.structure && v.structure.name, (v.beats || []).length ? v.beats.length + ' beats' : '',
-          st.shots ? `${st.withLines} of ${st.shots} shots have lines` : '', st.words ? 'about ' + Structures.secsLabel(st.secs) : ''].filter(Boolean).join(' · ') || 'pick a structure'; } });
+        onHook: h => { const p = el.querySelector('[data-vphook]'); if(p) p.textContent = h ? '“' + h + '”' : ''; } });
     }
 
     el.addEventListener('click', async e => {

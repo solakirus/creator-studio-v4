@@ -199,7 +199,7 @@ const head = s => console.log(`\n— ${s} —`);
   head('a series video gets the same');
   const vid = await lap.evaluate(async () => (await Videos.save({ title: 'Part 2 — the kettle', hook: 'Old hook', hookT: 1 })).id);
   await lap.evaluate(id => Screens.push('video-page', { id }), vid); await lap.waitForTimeout(1800);
-  ok(await lap.evaluate(t => !!document.querySelector(t + ' #vpScript .sx'), top), 'Structure and script on the video page');
+  ok(await lap.evaluate(t => !!document.querySelector(t + ' #vpScript .sx-barw') && !document.querySelector(t + ' #vpScript .sx-shot'), top), 'the video page has the structure as one bar, not a second list of the shots');
   await lap.click(`${top} #vpScript [data-st="pick"]`); await lap.waitForTimeout(500);
   await lap.click('.sheet [data-use="b-tutorial"]'); await lap.waitForTimeout(1500);
   let v = await lap.evaluate(id => Store.get('videos', id), vid);

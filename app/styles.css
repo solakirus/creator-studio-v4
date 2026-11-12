@@ -617,6 +617,14 @@ html[data-mode="light"] .dur{background:rgba(255,255,255,.86);color:var(--cream)
 #ctWrap > .view{padding-top:0;padding-left:0;padding-right:0;
   padding-bottom:calc(var(--h-tabbar) + var(--sab) + 84px)}
 #ctWrap{min-width:0;overflow-x:hidden}
+/* Only the tab itself (#view) scrolls in Content. overflow-x:hidden made the
+   wrapper a scroll box of its own (overflow-y turns to auto), and a section
+   that is a .view (Series sets it on the wrapper; embedded screens bring one)
+   added overscroll-behavior:contain — a box with nothing to scroll that won't
+   pass the swipe on, so a finger on the list scrolled nothing. clip trims the
+   sides without making a scroll box. */
+#ctWrap,#ctWrap.view,#ctWrap > .view{overflow-y:visible;overscroll-behavior:auto}
+#ctWrap,#ctWrap.view{overflow-x:clip}
 
 /* ---- physique log ---- */
 .phstats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}

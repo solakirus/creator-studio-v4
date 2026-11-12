@@ -84,7 +84,9 @@
       .tk-lt:hover{border-color:var(--line)}.tk-lt:focus{border-color:var(--orange);background:var(--bg)}
       .tk-lrm{width:24px;height:24px;flex:0 0 24px;padding:0;border:0;background:none;color:var(--dim);font-size:16px;cursor:pointer;margin-top:2px}
       .tk-ladd{align-self:flex-start;height:26px;padding:0 9px;border:1px solid var(--line);border-radius:var(--r);background:transparent;color:var(--muted);font:inherit;font-size:12px;cursor:pointer}
-      .tk-beat{margin:12px 0 4px;font-family:var(--display),sans-serif;font-weight:900;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--orange)}
+      .tk-lfoot{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+      .tk-lbeat{height:26px;max-width:150px;padding:0 6px;border:1px solid var(--line);border-radius:var(--r);background:transparent;color:var(--muted);font:inherit;font-size:12px}
+      .tk-beat{scroll-margin-top:70px;margin:12px 0 4px;font-family:var(--display),sans-serif;font-weight:900;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--orange)}
       .tk-beat:first-child{margin-top:0}
       .tk-rowsbar{display:flex;align-items:center;gap:9px;margin:0 0 8px;padding:7px 8px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);cursor:pointer}
       .tk-rowsbar .fcv{width:16px;height:16px;flex:0 0 16px;color:var(--cream);transition:transform .15s}
@@ -788,7 +790,9 @@
           ${l.hook ? '<span class="tk-lhook" title="The hook">HOOK</span>' : ''}
           <textarea class="tk-lt" rows="1" data-tlt="${i}:${j}" placeholder="${l.k === 'txt' ? 'Words on screen' : 'What is said over this shot'}" aria-label="Script line">${esc(l.t || '')}</textarea>
           <button class="tk-lrm" data-tlrm="${i}:${j}" aria-label="Remove this line">×</button></div>`).join('')}
-        <button class="tk-ladd" data-tladd="${i}">+ Add a line</button></div>`;
+        <div class="tk-lfoot"><button class="tk-ladd" data-tladd="${i}">+ Add a line</button>
+          ${onMain() && (t.beatNames || []).length > 1 ? `<select class="tk-lbeat" data-tlbeat="${i}" aria-label="Which beat this shot is in" title="Move this shot to another beat">${t.beatNames.map((b, k) =>
+            `<option value="${k}" ${beatAt()[i] === k ? 'selected' : ''}>${esc(b || 'Beat ' + (k + 1))}</option>`).join('')}</select>` : ''}</div></div>`;
     }
     /* the beat each shot starts, when the record has a structure (structures.js) */
     function beatAt(){
@@ -820,7 +824,7 @@
         if(hide && dn){ hidden++; return ''; }
         const r = sl.role || '';
         const bk = bAt.length ? bAt[i] : -1;
-        const div = bk >= 0 && bk !== lastBeat ? `<p class="tk-beat">${esc(t.beatNames[bk] || 'Beat ' + (bk + 1))}</p>` : '';
+        const div = bk >= 0 && bk !== lastBeat ? `<p class="tk-beat" data-beatk="${bk}">${esc(t.beatNames[bk] || 'Beat ' + (bk + 1))}</p>` : '';
         lastBeat = bk;
         const nl = linesOf(i).filter(l => String(l.t || '').trim()).length;
         const lk = pgIdx + ':' + i, lo = linesOpen.has(lk);
@@ -1068,6 +1072,16 @@
         }
       });
       /* a script line: saved when left; its kind the moment it changes */
+      /* a shot moved to another beat, from its Script panel; the shots after it
+         that were following its beat keep theirs */
+      el.querySelectorAll('.tk-lbeat').forEach(sel => sel.addEventListener('change', async () => {
+        const i = +sel.dataset.tlbeat; TaskPages.match(t);
+        const s2 = stepOf(i); if(!s2) return;
+        const was = beatAt();
+        (curPage().slots || []).forEach((_, j) => { const x = stepOf(j); if(x && x.beat == null) x.beat = was[j]; });
+        s2.beat = +sel.value;
+        await save(); render();
+      }));
       el.querySelectorAll('.tk-lt').forEach(ta => {
         const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
         grow();

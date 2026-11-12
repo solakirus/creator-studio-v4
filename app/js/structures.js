@@ -229,6 +229,10 @@
   .sx-en:focus{border-color:var(--orange)}
   .sx-cuthead{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr) minmax(0,1fr);gap:12px;padding:0 10px 6px}
   @media (max-width:700px){ .sx-cut,.sx-cuthead{grid-template-columns:1fr} .sx-cuthead span:not(:first-child){display:none} }
+  .sx-barw{margin:0 0 12px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2)}
+  .sx-barw .sx-head{margin:0 0 8px}
+  .sx-barw .sx-jump{margin:0}
+  .sx-barw .sx-none{font-size:13px}
   .sx-pick{display:flex;gap:8px;align-items:stretch;margin:0 0 7px}
   .sx-pick .vt-pick{flex:1;margin:0}
   .sx-pick .vt-pick em{display:block;font-style:normal;margin-top:5px;font-size:12px;color:var(--orange);line-height:1.4}
@@ -276,7 +280,7 @@
       t = await opts.host.load();
       if(!t) return;
       /* the hook and shot 1's hook line are one: whichever was written last */
-      if(mode === 'script'){
+      if(mode === 'script' || mode === 'bar'){
         const h = hookLine(t), p = P();
         if(h && h.l.t !== (p.hook || '')){
           /* the line was changed on the shot (here, or under a step) after the box: the box follows */
@@ -340,6 +344,20 @@
       const bo = beatsOf(t, bn.length);
       const groups = bn.map((_, k) => bo.map((b, i) => b === k ? i : -1).filter(i => i >= 0));
       const p = P();
+      /* the bar: the structure in one line over a Steps block that already shows
+         the shots under their beats — pick, jump to a beat, edit beats, paste */
+      if(mode === 'bar'){
+        container.innerHTML = `<div class="sx sx-barw">
+          <div class="sx-head"><span class="k">Structure</span>
+            <b>${p.structure && p.structure.name ? esc(p.structure.name) : bn.length ? 'Your own beats' : 'None yet'}</b>
+            <button class="btn-sm" data-st="pick">${bn.length ? 'Change' : 'Pick a structure'}</button>
+            ${bn.length ? '<button class="btn-sm" data-st="beats">Edit beats</button>' : ''}
+            <button class="btn-sm" data-st="paste">Paste a script</button></div>
+          ${bn.length ? `<div class="sx-jump">${bn.map((b, k) => `<button data-stjump="${k}">${esc(b || 'Beat ' + (k + 1))}<i>${groups[k].length}</i></button>`).join('')}</div>`
+            : '<p class="sx-none">Pick one and its beats head your steps, with a shot for each.</p>'}
+        </div>`;
+        return stat();
+      }
       if(mode === 'cuts'){
         container.innerHTML = !n ? '<p class="sx-none">No shots yet — add them on the Plan or Shoot tab.</p>' : `
           <div class="sx-cuthead"><span class="k">The shot</span><span class="k">Over this cut</span><span class="k">Edit note</span></div>
@@ -396,9 +414,17 @@
           return;
         }
         if(a.dataset.st === 'paste') return pasteSheet();
+        if(a.dataset.st === 'beats') return beatsSheet();
       }
       const jp = e.target.closest('[data-stjump]');
-      if(jp){ const sec = container.querySelector(`#${uidp}-${jp.dataset.stjump}`); if(sec) sec.scrollIntoView({ behavior:'smooth', block:'start' }); return; }
+      if(jp){
+        const k = jp.dataset.stjump;
+        const scope = container.closest('.screen') || document;
+        const sec = container.querySelector(`#${uidp}-${k}`) || scope.querySelector(`[data-beatk="${k}"]`);
+        if(sec) sec.scrollIntoView({ behavior:'smooth', block:'start' });
+        else U.toast(beatsOf(t, beats().length).includes(+k) ? 'Open the steps to see it' : 'No shots in that beat yet');
+        return;
+      }
       const sa = e.target.closest('[data-sadd]');
       if(sa){
         const k = +sa.dataset.sadd;
@@ -548,6 +574,49 @@
       });
     }
 
+    /* the beats on their own: rename, move, remove, add. Shots follow their
+       beat; a removed beat's shots go to the beat before it. */
+    function beatsSheet(){
+      const rows = beats().map((n, k) => ({ n, g:guides()[k] || '', o:k }));
+      const bo = beatsOf(t, beats().length);
+      const count = o => bo.filter(b => b === o).length;
+      const draw2 = sh => { sh.querySelector('[data-rows]').innerHTML = rows.map((r, k) => `<div class="sx-ed" data-k="${k}"><div class="r">
+          <input class="nm" value="${esc(r.n)}" placeholder="Beat ${k + 1}" aria-label="Beat ${k + 1} name">
+          <span style="color:var(--muted);font-size:12px;white-space:nowrap">${r.o >= 0 ? count(r.o) + ' shot' + (count(r.o) === 1 ? '' : 's') : 'new'}</span>
+          <button data-mv="-1" ${k === 0 ? 'disabled' : ''} aria-label="Move up">↑</button><button data-mv="1" ${k === rows.length - 1 ? 'disabled' : ''} aria-label="Move down">↓</button>
+          <button data-rm aria-label="Remove">×</button></div></div>`).join(''); };
+      const read = sh => sh.querySelectorAll('.sx-ed').forEach(el => { rows[+el.dataset.k].n = el.querySelector('.nm').value.trim(); });
+      App.sheet(`<h2 style="margin:0 0 4px">Beats</h2>
+        <p class="hintline" style="margin:0 0 12px">Shots stay with their beat. A beat taken out hands its shots to the one before it.</p>
+        <div data-rows></div>
+        <button class="btn-ghost" data-add style="width:100%;margin:4px 0 0">+ Add a beat</button>
+        <div class="sheetcta"><button class="btn-primary" data-ok>Save</button><button class="btn-ghost" data-no>Cancel</button></div>`, sh => {
+        draw2(sh);
+        sh.addEventListener('click', async e => {
+          if(e.target.closest('[data-no]')) return App.closeSheet();
+          const r = e.target.closest('.sx-ed');
+          if(e.target.closest('[data-add]')){ read(sh); rows.push({ n:'', g:'', o:-1 }); draw2(sh); const ins = sh.querySelectorAll('.sx-ed .nm'); ins[ins.length - 1].focus(); return; }
+          if(r && e.target.closest('[data-rm]')){ read(sh); rows.splice(+r.dataset.k, 1); return draw2(sh); }
+          const mv = e.target.closest('[data-mv]');
+          if(r && mv){ read(sh); const k = +r.dataset.k, j = k + +mv.dataset.mv; if(j < 0 || j >= rows.length) return; [rows[k], rows[j]] = [rows[j], rows[k]]; return draw2(sh); }
+          if(!e.target.closest('[data-ok]')) return;
+          read(sh);
+          const keep = rows.filter(r2 => r2.n || r2.o >= 0);
+          const at = o => keep.findIndex(r2 => r2.o === o);
+          /* an old beat → where it is now; gone → the nearest earlier one still here */
+          const map = o => { for(let x = o; x >= 0; x--){ const k = at(x); if(k >= 0) return k; } return 0; };
+          if(keep.length) remapBeats(b => map(b)); else slots(t).forEach((_, i) => { const s2 = stepOf(t, i); if(s2) delete s2.beat; });
+          const p = P();
+          p.beats = keep.map((r2, k) => r2.n || 'Beat ' + (k + 1));
+          p.beatGuide = keep.map(r2 => r2.g);
+          if(!keep.length) p.structure = null;
+          App.closeSheet();
+          await opts.savePlan();
+          await persist();
+        });
+      });
+    }
+
     const api = {
       async refresh(){ await load(); draw(); },
       async setHook(text){ if(!t) return; if(placeHook(t, text, beats().length)) await persist(mode === 'script'); },
@@ -559,6 +628,7 @@
   }
 
   const script = (container, opts) => view(container, opts, 'script');
+  const bar = (container, opts) => view(container, opts, 'bar');
   const cuts = (container, opts) => view(container, opts, 'cuts');
 
   /* ------------------------------------------------------------ the sheet */
@@ -662,5 +732,5 @@
   /* the hook box changed: its words go on shot 1 (one view on screen is enough) */
   async function setHook(container, text){ if(container && container._st) await container._st.setHook(text); }
 
-  global.Structures = { BUILTIN, KINDS, KIND_NAME, KIND_SHORT, KIND_NEXT, KIND_TIP, all, custom, saveCustom, get, script, cuts, pick, editor, setHook, stats, beatsOf, placeHook, hookLine, secsLabel };
+  global.Structures = { BUILTIN, KINDS, KIND_NAME, KIND_SHORT, KIND_NEXT, KIND_TIP, all, custom, saveCustom, get, script, cuts, bar, pick, editor, setHook, stats, beatsOf, placeHook, hookLine, secsLabel };
 })(window);
