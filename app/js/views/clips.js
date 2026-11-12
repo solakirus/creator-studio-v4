@@ -17,6 +17,7 @@
   const isDone = c => Versions.isPublished(c);
 
   let rows = [], tab = 'plan', chanFilter = 'all', root;
+  const dropOpen = new Set();   /* v4: cards whose shots drop-down is open */
   let CHANNELS = [];        /* the same list the series filter offers */
   const chanColour = n => (CHANNELS.find(c => c.n === n) || {}).c || 'var(--orange)';
   const inChan = c => chanFilter === 'all' ? true : chanFilter === 'none' ? !c.channel : c.channel === chanFilter;
@@ -81,6 +82,7 @@
             <span class="st">${c.seriesName}</span>
             <span class="sep">|</span><span class="st" style="color:${isDone(c) ? 'var(--green)' : 'var(--orange)'}">
               ${stageLine(c, stageOf(c))}</span>
+            ${global.ShotList ? `<span class="sep">|</span>${ShotList.dropChip(c, 'clip:' + c.id, dropOpen.has('clip:' + c.id))}` : ''}
             <span class="sep">|</span>
             <span class="st" data-edit="${c.id}" style="color:var(--muted)">edit details</span>
           </div></div>
@@ -95,7 +97,7 @@
           }
           return c.pct || 0;
         })()}%"></i></div>
-      </div></article>`;
+      </div>${dropOpen.has('clip:' + c.id) ? `<div class="subs" data-sldrop-body="clip:${c.id}"></div>` : ''}</article>`;
       } catch(err){
         console.warn('Clip row failed', c && c.id, err);
         return `<article class="mediacard"><div class="card" data-edit="${c.id}">
@@ -114,6 +116,7 @@
       (done.length ? `<p class="note" style="text-align:left;margin:18px 0 10px;letter-spacing:.14em;
           text-transform:uppercase;font-weight:800;font-size:12px">Posted · ${done.length}</p>` +
         done.map(card).join('') : '');
+    if(global.ShotList) ShotList.wireDrops(host, dropOpen);
   }
 
   async function reload(){
@@ -185,6 +188,8 @@
       });
 
       root.addEventListener('click', e => {
+      /* v4: the shots drop-down, as on a task */
+      if(global.ShotList && ShotList.toggleDrop(e, dropOpen)) return renderList();
       const t = e.target.closest('[data-tab]');
       if(t){ tab = t.dataset.tab; renderList(); return; }
 

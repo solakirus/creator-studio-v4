@@ -17,6 +17,7 @@
     let run = null, vids = [], clips = [], chans = [], today = 1;
     let swipes = [], thumbs = {};
     let vq = '', vstage = 'all';   /* the filter over this series' videos */
+    const dropOpen = new Set();     /* v4: videos whose shots drop-down is open */
 
     async function load(){
       const list = await Data.seriesWithProgress();
@@ -62,11 +63,11 @@
             <div class="meta"><span class="st">${when}</span>
               ${(v.tags || []).length ? `<span class="sep">|</span>
                 <span class="st">${v.tags.map(t => '#' + esc(t)).join(' ')}</span>` : ''}
-              ${(v.shotList || v.shots || []).length ? `<span class="sep">|</span><span class="st">${(v.shotList || v.shots).length} shots</span>` : ''}
+              ${window.ShotList ? `<span class="sep">|</span>${ShotList.dropChip(v, 'video:' + v.id, dropOpen.has('video:' + v.id))}` : ''}
             </div>
           </div>
           <div class="progress"><i style="width:${pct}%"></i></div>
-        </div></article>`;
+        </div>${dropOpen.has('video:' + v.id) ? `<div class="subs" data-sldrop-body="video:${v.id}"></div>` : ''}</article>`;
     }
 
     /* search looks in the title and the notes; the stage narrows it further */
@@ -185,7 +186,7 @@
           <button class="btn-ghost" data-a="bulkideas" style="width:100%;margin:8px 0 0">
             Add several ideas at once</button>
         </div>`;
-      if(window.ShotList) ShotList.fillPics(el);
+      if(window.ShotList){ ShotList.fillPics(el); ShotList.wireDrops(el, dropOpen); }
     }
 
     const refresh = async () => { await load(); render(); if(params.onChange) params.onChange(); };
@@ -198,7 +199,7 @@
       const html = n.length ? `<div class="list" id="sv-list">${n.map(videoCard).join('')}</div>`
         : `<div class="empty" id="sv-list"><b>Nothing matches</b>Try another word or stage.</div>`;
       if(list) list.outerHTML = html;
-      if(window.ShotList) ShotList.fillPics(el);
+      if(window.ShotList){ ShotList.fillPics(el); ShotList.wireDrops(el, dropOpen); }
       const alt = el.querySelector('.sec .alt');
       if(alt) alt.textContent = n.length === vids.length ? vids.length : `${n.length} of ${vids.length}`;
     });
@@ -313,6 +314,8 @@
         return;
       }
 
+      /* v4: the shots drop-down, as on a task */
+      if(window.ShotList && ShotList.toggleDrop(e, dropOpen)) return render();
       /* and an existing one opens the same sheet, edited in place */
       const v = e.target.closest('[data-video]');
       if(v){

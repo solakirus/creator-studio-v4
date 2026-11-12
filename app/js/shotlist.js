@@ -129,6 +129,10 @@
   .sl-mini img,.sl-mini video{width:100%;height:100%;object-fit:cover;display:block}
   .sl-mini i{display:none}
   .sl-strip em{font-style:normal;color:var(--dim);font-size:12px;align-self:center;margin-left:2px}
+  .sl-dropchip{cursor:pointer;white-space:nowrap}
+  .sl-dropchip .chev svg{width:12px;height:12px;vertical-align:-1px;margin-left:3px;transition:transform .15s}
+  .sl-dropchip.open .chev svg{transform:rotate(180deg)}
+  .sl-dropnone{margin:0;padding:10px 13px;color:var(--muted);font-size:14px}
   .tk-host.embedded > .block{margin:0;border:0;background:transparent;padding:0}
   .tk-host.embedded > .block > h4{display:none}`;
   function css(){
@@ -244,6 +248,92 @@
   /* a series' video */
   const hostVideo = id => listHost('video:' + id, 'Video', () => Store.get('videos', id).catch(() => null), r => Videos.save(r));
 
+  /* ------------------------------------------------------------ the drop-down
+     The steps under a card, like a task's on Today: "1 / 6 shots ⌄" opens
+     them; the box ticks one (crossed out), the words are edited in place.
+     Saved through the record's host, so the page and its steps stay one. */
+  function counts(rec){
+    if(rec && rec.page && (rec.subs || []).length){
+      return { d:rec.subs.filter(x => x.done).length, n:rec.subs.length };
+    }
+    const l = norm(rec && (Array.isArray(rec.shotList) ? rec.shotList : rec.shots));
+    return { d:l.filter(x => x.done).length, n:l.length };
+  }
+  const CHEVD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+  const TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  /* the chip in a card's meta line — key: 'clip:<id>' or 'video:<id>' */
+  function dropChip(rec, key, open){
+    const c = counts(rec);
+    return `<span class="steps sl-dropchip${open ? ' open' : ''}" data-sldrop="${esc(key)}" role="button" tabindex="0" aria-expanded="${!!open}">${
+      c.n ? `${c.d} / ${c.n} shots` : 'no shots yet'}<span class="chev">${CHEVD}</span></span>`;
+  }
+  const hostOf = key => { const [k, id] = String(key).split(':'); return k === 'clip' ? hostClip(id) : k === 'video' ? hostVideo(id) : null; };
+  /* fill an open drop-down: <div class="subs" data-sldrop-body="key"></div> */
+  async function fillDrop(box, onChange){
+    css();
+    const h = hostOf(box.dataset.sldropBody);
+    if(!h) return;
+    let t = await h.load();
+    const draw = () => {
+      if(!box.isConnected) return;
+      const subs = (t && t.subs) || [];
+      box.innerHTML = subs.length ? subs.map((x, i) => `
+        <div class="sub${x.done ? ' done' : ''}" data-sub="${i}">
+          <button class="box" data-subtick="${i}" aria-label="Tick shot ${i + 1}" aria-pressed="${!!x.done}">${TICK}</button>
+          <input class="subname" data-subname="${i}" value="${esc(x.t || '')}" aria-label="Shot ${i + 1}" enterkeyhint="done">
+        </div>`).join('') : '<p class="sl-dropnone">No shots yet — open it to add them.</p>';
+    };
+    const save = async () => { if(global.TaskPages && t.page) TaskPages.match(t); await h.save(t); t = await h.load(); draw(); if(onChange) onChange(counts({ page:t.page, subs:t.subs })); };
+    if(!box._sl){
+      box._sl = true;
+      /* taps in here belong to the steps, never to the card underneath */
+      box.addEventListener('click', async e => {
+        e.stopPropagation();
+        const b = e.target.closest('[data-subtick]');
+        if(!b) return;
+        const s2 = t.subs[+b.dataset.subtick];
+        if(!s2) return;
+        s2.done = !s2.done;
+        if(t.page && s2.shot != null && t.page.slots && t.page.slots[s2.shot])
+          t.page.slots[s2.shot].done = t.subs.filter(x => x.shot === s2.shot).every(x => x.done);
+        await save();
+      });
+      box.addEventListener('keydown', e => {
+        const f = e.target.closest('[data-subname]');
+        if(!f) return;
+        if(e.key === 'Enter'){ e.preventDefault(); f.blur(); }
+        if(e.key === 'Escape'){ e.stopPropagation(); f.value = f.defaultValue; f.blur(); }
+      });
+      box.addEventListener('change', async e => {
+        const f = e.target.closest('[data-subname]');
+        if(!f) return;
+        const s2 = t.subs[+f.dataset.subname];
+        const v = f.value.trim();
+        if(!s2 || !v || v === s2.t){ if(!v && s2) f.value = s2.t; return; }
+        s2.t = v;
+        if(t.page && s2.shot != null && t.page.slots && t.page.slots[s2.shot]) t.page.slots[s2.shot].text = v;
+        await save();
+      });
+    }
+    draw();
+  }
+  /* wire a list: chips toggle, open drop-downs fill. `open` is the caller's Set of keys. */
+  function wireDrops(host, open, redraw){
+    host.querySelectorAll('[data-sldrop-body]').forEach(box => fillDrop(box, c => {
+      const chip = host.querySelector(`[data-sldrop="${box.dataset.sldropBody}"]`);
+      if(chip && chip.firstChild) chip.firstChild.textContent = c.n ? `${c.d} / ${c.n} shots` : 'no shots yet';
+    }));
+  }
+  /* a chip tap: true when it was one (the caller then redraws) */
+  function toggleDrop(e, open){
+    const chip = e.target.closest && e.target.closest('[data-sldrop]');
+    if(!chip) return false;
+    e.stopPropagation();
+    const k = chip.dataset.sldrop;
+    open.has(k) ? open.delete(k) : open.add(k);
+    return true;
+  }
+
   /* the Steps block of the task screen, inside another screen */
   function embed(container, h, onChange){
     css();
@@ -251,6 +341,6 @@
     return Screens.mountInto('task', container, { host:h, embedded:true, onChange });
   }
 
-  global.ShotList = { hostBeat, hostClip, hostVideo, embed, fromTask, toTask, copyPage, putOnDay, daySheet, norm, texts, frames, lineOf,
+  global.ShotList = { hostBeat, hostClip, hostVideo, embed, counts, dropChip, fillDrop, wireDrops, toggleDrop, fromTask, toTask, copyPage, putOnDay, daySheet, norm, texts, frames, lineOf,
     fromTplShot, stripHTML, thumbHTML, fillPics, css };
 })(window);
