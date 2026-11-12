@@ -75,7 +75,7 @@ const head = s => console.log(`\n— ${s} —`);
   }, { gif: FX('opener.gif'), png: FX('still.png') });
   await p.evaluate(id => Screens.push('task', { id }), id);
   await p.waitForTimeout(1800);
-  const st = await p.evaluate(() => ({ th: document.querySelectorAll('.tk-th').length, img: document.querySelectorAll('.tk-th img').length,
+  const st = await p.evaluate(() => ({ th: document.querySelectorAll('.tk-th[data-shootat]').length, add: document.querySelectorAll('.tk-th[data-starpick]').length, img: document.querySelectorAll('.tk-th img').length,
     folded: !!document.querySelector('[data-a="showpage"]') && document.querySelector('.tkp-cwrap').hidden }));
   ok(st.th === 2 && st.img === 2, 'each shot step with a frame shows it', `${st.img} of 2`);
   ok(st.folded, 'the page drawing is folded on a phone — the steps already list the shots');

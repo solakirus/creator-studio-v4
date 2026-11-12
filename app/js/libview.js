@@ -102,6 +102,7 @@
           <div class="lv-vacts">
             ${(extra && extra.actions) || ''}
             <button class="lv-btn" data-board>◈ Add to a board</button>
+            ${global.CS3Lib ? `<button class="lv-btn" data-star>★ Star</button>` : ''}
             <button class="lv-btn ghost" data-close>Close</button>
           </div>
         </div></div>`;
@@ -120,6 +121,7 @@
     box.addEventListener('click', async e => {
       if(e.target === box || e.target.closest('[data-close]')) return close();
       if(e.target.closest('[data-board]')){ close(); return boardMenu([it.uid]); }
+      if(e.target.closest('[data-star]')){ close(); return starMenu([it.uid]); }
       const a = e.target.closest('[data-act]');
       if(a && extra && extra.onAction){ close(); extra.onAction(a.dataset.act, it); }
     });
@@ -156,6 +158,38 @@
           setTimeout(() => boardDialog(null, uids, after), 260);
         }
       });
+    });
+  }
+
+  /* ★ Star into a group — the frames go to the phone too, and stay */
+  async function starMenu(uids, after){
+    const groups = await MediaLib.allStars();
+    App.sheet(`<h2 style="margin:0 0 6px">Star ${plural(uids.length, 'frame')}</h2>
+      <p class="hintline" style="margin:0 0 14px">Starred frames live on your phone too, always — for the shots you make every day.</p>
+      ${groups.map(g => `<button class="noterow" data-sg="${g.id}"><span class="dot" style="background:var(--amber)"></span>
+          <span class="t"><b>★ ${esc(g.name)}</b><small>${plural(g.items.length, 'frame')}</small></span></button>`).join('')}
+      ${groups.length ? '' : '<p class="hintline">No groups yet — name the first one.</p>'}
+      <div style="display:flex;gap:8px;margin:12px 0 0"><input id="sg-new" class="pgname" type="text" placeholder="New group, e.g. Walking, Car work, Transitions" autocomplete="off" style="margin:0;flex:1">
+        <button class="btn-sm" data-sgnew>＋ Make</button></div>`, sh => {
+      const make = async () => {
+        const name = sh.querySelector('#sg-new').value.trim();
+        if(!name) return U.toast('Give the group a name');
+        const g = await MediaLib.saveStar({ name, items:uids });
+        App.closeSheet(); U.toast(`★ ${plural(uids.length, 'frame')} in “${g.name}”`);
+        if(after) after(g);
+      };
+      sh.addEventListener('click', async e => {
+        const t = e.target.closest('[data-sg]');
+        if(t){
+          const n = await MediaLib.starInto(t.dataset.sg, uids);
+          App.closeSheet();
+          U.toast(n ? `★ Starred ${plural(n, 'frame')}` : 'Already in that group');
+          if(after) after();
+          return;
+        }
+        if(e.target.closest('[data-sgnew]')) return make();
+      });
+      sh.querySelector('#sg-new').addEventListener('keydown', e => { if(e.key === 'Enter') make(); });
     });
   }
 
@@ -256,5 +290,5 @@
     });
   }
 
-  global.LibView = { tile, hydrate, view, pick, boardMenu, boardDialog, esc, plural };
+  global.LibView = { tile, hydrate, view, pick, boardMenu, boardDialog, starMenu, esc, plural };
 })(window);

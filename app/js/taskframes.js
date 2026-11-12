@@ -67,10 +67,12 @@
     return !v.publishedAt || v.publishedAt >= cutoff;
   }
 
-  /* uid → true for everything a live task or video points at */
+  /* uid → true for everything a live task or video points at, and every
+     starred frame (those never age out) */
   async function wanted(){
     const cutoff = startOfToday() - KEEP_DAYS * DAY;
     const want = new Set();
+    for(const g of await all('star-groups')) (g.items || []).forEach(u => { if(UID.test(u)) want.add(u); });
     for(const t of await all('tasks')) if(await taskLive(t, cutoff)) collect(t, want);
     for(const v of await all('videos')){
       /* a video published before v4 stamped the date: stamp it now, so the
@@ -158,7 +160,7 @@
     const put = Store.put;
     const wrapped = async function(store, value, key){
       const r = await put.call(Store, store, value, key);
-      if(store === 'tasks' || store === 'videos') soon();
+      if(store === 'tasks' || store === 'videos' || store === 'star-groups') soon();
       return r;
     };
     wrapped._tf = true;

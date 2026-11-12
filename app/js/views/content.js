@@ -28,6 +28,9 @@
        the Templates — shot structures, task lists, looks and notebook pages. */
     { v:'library',  label:'Library',  screen:'library', laptop:true,
       d:'M4 5h5v14H4zM10.5 5h4v14h-4zM16 6.2l3.6-1 3 13.6-3.6 1z' },
+    /* v4: on the phone, the starred groups made in the laptop's Library */
+    { v:'starred', label:'Starred', screen:'starred', phone:true,
+      d:'M12 3.5l2.6 5.3 5.9.9-4.25 4.1 1 5.85L12 16.9l-5.25 2.75 1-5.85L3.5 9.7l5.9-.9z' },
     { v:'templates', label:'Templates', screen:'shot-templates', laptop:true,
       d:'M5 3h10l4 4v14H5zM15 3v4h4M8 11h8M8 14.5h8M8 18h5' }
   ];
@@ -36,7 +39,7 @@
      The phone gets what they put on tasks and videos (taskframes.js), not the
      Library itself. window.CS3Lib is the laptop's disk bridge (electron/preload.js). */
   const onLaptop = () => !!global.CS3Lib;
-  const shown = () => NAV.filter(n => !n.laptop || onLaptop());
+  const shown = () => NAV.filter(n => (!n.laptop || onLaptop()) && (!n.phone || !onLaptop()));
 
   let view = 'clips';
 

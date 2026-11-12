@@ -330,6 +330,8 @@
       const keep = b.items.filter(x => !uids.includes(x));
       if(keep.length !== b.items.length) await saveBoard({ ...b, items:keep });
     }
+    // and out of every starred group (the copies leave the phone with them)
+    await unstar(null, uids);
     invalidate();
     diskCache = null;
     return n;
@@ -408,6 +410,50 @@
     return rec;
   }
   async function deleteBoard(id){ await Store.del('lib-boards', id); }
+
+  /* ------------------------------------------------------------ starred groups
+     The everyday frames, picked on the laptop, kept on every device. A group
+     is { id, name, items:[uid], created }; the 'star-groups' store syncs (the
+     boards don't), and taskframes.js copies every starred frame across and
+     never sweeps it. Starring happens on the laptop; the phone reads. */
+  async function allStars(){
+    try { return (await Store.all('star-groups')).values.map(g => ({ items:[], ...g }))
+      .sort((a, b) => String(a.name).localeCompare(String(b.name))); }
+    catch(e){ return []; }
+  }
+  async function saveStar(g){
+    const rec = { id:g.id || ('sg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)),
+                  name:(String(g.name || '').trim() || 'Starred').slice(0, 40),
+                  items:[...new Set(g.items || [])], created:g.created || Date.now() };
+    await Store.put('star-groups', rec);
+    if(global.TaskFrames) TaskFrames.soon(1500);
+    return rec;
+  }
+  async function deleteStar(id){
+    await Store.del('star-groups', id);
+    if(global.TaskFrames) TaskFrames.soon(1500);
+  }
+  /* add frames to a group; returns how many were new to it */
+  async function starInto(id, uids){
+    const g = (await allStars()).find(x => x.id === id);
+    if(!g) return 0;
+    const before = g.items.length;
+    g.items = [...new Set([...g.items, ...uids])];
+    await saveStar(g);
+    return g.items.length - before;
+  }
+  /* take frames out of one group, or (id null) out of every group */
+  async function unstar(id, uids){
+    const drop = new Set(uids);
+    let n = 0;
+    for(const g of await allStars()){
+      if(id && g.id !== id) continue;
+      const keep = g.items.filter(u => !drop.has(u));
+      if(keep.length !== g.items.length){ n += g.items.length - keep.length; await saveStar({ ...g, items:keep }); }
+    }
+    return n;
+  }
+  async function starredSet(){ return new Set((await allStars()).flatMap(g => g.items)); }
   async function addToBoard(id, uids){
     const b = (await allBoards()).find(x => x.id === id);
     if(!b) return 0;
@@ -447,13 +493,18 @@
     const lib = await load();
     const s = await settings();
     const hidden = new Set(s.hidden || []);
-    let board = null;
+    let board = null, star = null;
     const src = o.src || 'all';
     if(src.startsWith('board:')){
       board = (await allBoards()).find(b => b.id === src.slice(6));
     }
+    if(src.startsWith('star:')){
+      star = (await allStars()).find(g => g.id === src.slice(5));
+    }
     let list;
-    if(board){
+    if(star){
+      list = star.items.map(u => find(lib, u)).filter(Boolean);
+    } else if(board){
       list = board.items.map(u => find(lib, u)).filter(Boolean);
     } else {
       list = lib.items.filter(it => !hidden.has(it.page));
@@ -462,7 +513,7 @@
     }
     if(o.kind && o.kind !== 'all') list = list.filter(it => it.kind === o.kind);
     if(o.q) list = list.filter(it => search(lib, it, o.q));
-    return { lib, list, board };
+    return { lib, list, board, star };
   }
 
   /* ------------------------------------------------------------ "＋ adds to…" */
@@ -475,6 +526,7 @@
     settings, setSettings, load, invalidate, find, url, posterUrl, blobOf,
     addFiles, addFromLink, update, remove, moveToLibrary, bringIn,
     allBoards, saveBoard, deleteBoard, addToBoard, importShotline,
+    allStars, saveStar, deleteStar, starInto, unstar, starredSet,
     deck, search, target, setTarget, disk, videoPoster,
     rescan: () => { diskCache = null; cache = null; return load(true); }
   };

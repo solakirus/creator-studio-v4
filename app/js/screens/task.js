@@ -22,6 +22,7 @@
       .shotline.tk-ps .mini{margin-top:2px}
       .tk-th{width:46px;height:58px;flex:0 0 46px;padding:0;border:1px solid var(--line);border-radius:3px;background:var(--surface-2);overflow:hidden;cursor:pointer;margin-top:1px}
       .tk-th img,.tk-th video{width:100%;height:100%;object-fit:cover;display:block}
+      .tk-thadd{border-style:dashed;color:var(--dim);font-size:20px;background:transparent}
       .shotline.done .tk-th{opacity:.45}
       .tkp-showpage{width:100%;justify-content:center;margin:4px 0 10px}
       .tkp-shoot{background:var(--orange)!important;border-color:var(--orange)!important;color:#151515!important;font-weight:700}
@@ -370,6 +371,18 @@
         if(!b.isConnected || !u) continue;
         b.innerHTML = it.kind === 'video' ? `<video src="${esc(u)}" muted loop autoplay playsinline preload="metadata"></video>` : `<img src="${esc(u)}" alt="">`;
       }
+    }
+    /* v4, phone: a shot takes one of the starred frames (laptop: the Library picker) */
+    function starPick(i){
+      if(!window.StarPick) return;
+      const P = curPage();
+      const sl = P && (P.slots || [])[i];
+      if(!sl) return;
+      StarPick.open({ title:`Shot ${i + 1} — pick a starred frame`, clear:!!sl.item, onPick: async uid => {
+        sl.item = uid || '';
+        pageMediaKey = '';
+        await save(); render();
+      } });
     }
     function openShoot(i){
       return Screens.push('shoot-run', { id:t.id, at:i == null ? undefined : i, onChange: async () => { await load(); render(); } });
@@ -724,7 +737,8 @@
             <div class="shotline tk-ps${dn ? ' done' : ''}${i === nx ? ' tk-next' : ''}" data-ps="${i}">
               <button class="bx" data-tick="${i}" aria-label="Tick shot ${i + 1}" aria-pressed="${dn}">${ICON.check}</button>
               <span class="sn">${i + 1}</span>
-              ${sl.item ? `<button class="tk-th" data-shootat="${i}" data-item="${esc(sl.item)}" aria-label="Shoot shot ${i + 1} full screen"></button>` : ''}
+              ${sl.item ? `<button class="tk-th" data-shootat="${i}" data-item="${esc(sl.item)}" aria-label="Shoot shot ${i + 1} full screen"></button>`
+                : !window.CS3Lib && isSteps ? `<button class="tk-th tk-thadd" data-starpick="${i}" aria-label="Give shot ${i + 1} a starred frame">＋</button>` : ''}
               <span class="tx">
                 <span class="tk-line">
                   ${isSteps ? `<select class="tk-rolesel${r ? '' : ' none'}" data-pf="role:${i}" aria-label="Shot ${i + 1} type">
@@ -960,6 +974,8 @@
       const cv = el.querySelector('[data-pagecanvas]');
       if(cv) cv.addEventListener('contextmenu', ev => slotMenu(ev, cv));
       fillThumbs();
+      /* phone: hold a step's frame to change it to another starred one */
+      if(!window.CS3Lib) el.querySelectorAll('.tk-th[data-shootat]').forEach(b => b.addEventListener('contextmenu', ev => { ev.preventDefault(); starPick(+b.dataset.shootat); }));
       el.querySelectorAll('[data-pagepick]').forEach(sel => sel.addEventListener('change', () => {
         if(sel.value) linkPage(sel.value);
       }));
@@ -1367,6 +1383,8 @@
         /* open the clip on the tab for the job this task is */
         tab: { shoot:'shoot', edit:'edit', publish:'post' }[t.kind] });
       /* the page in the task works as in the page editor; only a shot's own box ticks it */
+      const sp = e.target.closest('[data-starpick]');
+      if(sp) return starPick(+sp.dataset.starpick);
       const th = e.target.closest('[data-shootat]');
       if(th) return openShoot(+th.dataset.shootat);
       const pc2 = e.target.closest('[data-pagecanvas]');

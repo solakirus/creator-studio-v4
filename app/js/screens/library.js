@@ -31,7 +31,7 @@
         <div class="pagehead"><h1 class="page-title">Library</h1><span class="count">${lib.items.length}</span>
           <div class="headacts"><button class="headbtn" data-go="add">＋ ADD</button></div></div>
         <div class="segrow lv-tabs" role="tablist">
-          ${[['deck','Deck'],['boards','Boards'],['folders','Folders'],['add','Add & grab']].map(([k, l]) =>
+          ${[['deck','Deck'],['starred','★ Starred'],['boards','Boards'],['folders','Folders'],['add','Add & grab']].map(([k, l]) =>
             `<button class="seg" role="tab" data-tab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}
         </div>
         ${t ? `<div class="lv-target"><span>＋ adds to <b>${esc(t.label || 'a template')}</b></span>
@@ -39,6 +39,7 @@
         <div id="libBody"></div>`;
       const body = host.querySelector('#libBody');
       if(tab === 'boards') return boardsPage(body, lib);
+      if(tab === 'starred') return starredPage(body, lib);
       if(tab === 'folders') return foldersPage(body, lib, s);
       if(tab === 'add') return addPage(body, lib, s);
       return deckPage(body, lib, s, t);
@@ -47,6 +48,8 @@
     /* ---------------------------------------------------------- Deck */
     async function deckPage(body, lib, s, t){
       const boards = await MediaLib.allBoards();
+      const stars = await MediaLib.allStars();
+      const inStar = src.startsWith('star:') ? stars.find(g => g.id === src.slice(5)) : null;
       const count = k => lib.items.filter(it => k === 'all' || it.kind === k).length;
       const srcPage = src.startsWith('page:') ? lib.pageIdx.get(src.slice(5)) : null;
       body.innerHTML = `
@@ -58,6 +61,8 @@
           <select class="lv-sel" data-src>
             <option value="all">Everything</option>
             ${srcPage ? `<option value="${esc(src)}" selected>${esc(MediaLib.pageLabel(srcPage))}</option>` : ''}
+            ${stars.length ? `<optgroup label="Starred — on the phone too">${stars.map(g =>
+              `<option value="star:${g.id}" ${src === 'star:' + g.id ? 'selected' : ''}>★ ${esc(g.name)} (${g.items.length})</option>`).join('')}</optgroup>` : ''}
             ${boards.length ? `<optgroup label="Boards">${boards.map(b =>
               `<option value="board:${b.id}" ${src === 'board:' + b.id ? 'selected' : ''}>◈ ${esc(b.name)} (${b.items.length})</option>`).join('')}</optgroup>` : ''}
             ${lib.collections.length ? `<optgroup label="Libraries">${lib.collections.map(c =>
@@ -69,6 +74,8 @@
         </div>
         <div class="lv-selbar" ${selecting && sel.size ? '' : 'hidden'}>
           <b data-seln>${plural(sel.size, 'frame')}</b>
+          <button class="lv-btn sm" data-sel="star">★ Star into…</button>
+          ${inStar ? `<button class="lv-btn sm ghost" data-sel="unstar">Take out of ★ ${esc(inStar.name)}</button>` : ''}
           <button class="lv-btn sm" data-sel="board">◈ Add to board</button>
           ${t ? `<button class="lv-btn sm" data-sel="target">＋ Add to ${esc(t.label || 'template')}</button>` : ''}
           <button class="lv-btn sm ghost" data-sel="all">Select all shown</button>
@@ -113,6 +120,8 @@
           if(act === 'clear'){ sel.clear(); grid.querySelectorAll('.is-sel').forEach(x => x.classList.remove('is-sel')); return selbar(); }
           if(act === 'all'){ (grid._shown || []).forEach(u => sel.add(u)); grid.querySelectorAll('.lv-tile').forEach(x => x.classList.add('is-sel')); return selbar(); }
           if(act === 'board') return LibView.boardMenu([...sel], () => { sel.clear(); render(); });
+          if(act === 'star') return LibView.starMenu([...sel], () => { sel.clear(); render(); });
+          if(act === 'unstar' && inStar){ const n = await MediaLib.unstar(inStar.id, [...sel]); sel.clear(); U.toast(`Took ${plural(n, 'frame')} out — they leave the phone`); return render(); }
           if(act === 'target'){ await addToTarget([...sel]); sel.clear(); return render(); }
           if(act === 'delete') return confirmDelete([...sel]);
         }
@@ -198,6 +207,65 @@
     }
 
     /* ---------------------------------------------------------- Boards */
+    /* ---------------------------------------------------------- Starred
+       the groups that live on the phone too; managing a big group happens in
+       the Deck (Show in Deck → Select), where search and bulk tools are */
+    async function starredPage(body, lib){
+      const groups = await MediaLib.allStars();
+      const all = [...new Set(groups.flatMap(g => g.items))];
+      const bytes = all.reduce((n, u) => { const it = MediaLib.find(lib, u); return n + (it && it.bytes || 0); }, 0);
+      const missing = all.filter(u => !MediaLib.find(lib, u)).length;
+      body.innerHTML = `
+        <div class="lv-card lv-starhead"><h3>★ Starred — on your phone too</h3>
+          <p class="hintline" style="margin:0">${plural(all.length, 'frame')} in ${plural(groups.length, 'group')} · ${bytes < 1048576 ? 'under 1 MB' : 'about ' + (bytes / 1048576).toFixed(0) + ' MB'} on the phone${missing ? ` · ${missing} no longer in the Library` : ''}.
+            Star frames in the Deck (☐ Select → ★ Star into…) or with ★ on a frame. They never expire on the phone; take them out here to free the space.</p></div>
+        <div class="lv-bar"><button class="lv-btn" data-newstar>＋ New group</button></div>
+        ${groups.length ? `<div class="lv-boards">${groups.map(g => `
+          <article class="lv-board" data-star="${g.id}">
+            <div class="lv-quad" data-starshow="${g.id}">${[0,1,2,3].map(k => g.items[k] && MediaLib.find(lib, g.items[k])
+              ? tile(MediaLib.find(lib, g.items[k]), { badge:false }) : '<div class="lv-tile lv-blank"></div>').join('')}</div>
+            <div class="lv-bname"><b>★ ${esc(g.name)}</b><small>${plural(g.items.length, 'frame')}</small></div>
+            <div class="lv-bacts">
+              <button class="lv-btn sm" data-starshow="${g.id}">Show in Deck</button>
+              <button class="lv-btn sm ghost" data-starrename="${g.id}">Rename</button>
+              <button class="lv-btn sm ghost danger" data-stardel="${g.id}">Delete</button>
+            </div>
+          </article>`).join('')}</div>`
+          : `<div class="empty"><b>Nothing starred yet</b>Make groups for the shots you make all the time — Walking, Car work, Transitions — and star frames into them. Each group is on your phone, ready for any task.</div>`}`;
+      hydrate(body, lib, { play:false });
+      body.addEventListener('click', async e => {
+        const nameSheet = (title, val, done) => App.sheet(`<h2 style="margin:0 0 14px">${title}</h2>
+          <input id="sg-n" class="pgname" type="text" value="${esc(val || '')}" placeholder="e.g. Walking, Car work, Transitions" autocomplete="off">
+          <div class="sheetcta"><button class="btn-primary" data-save>Save</button><button class="btn-ghost" data-cancel>Cancel</button></div>`, sh => {
+            sh.addEventListener('click', async ev => {
+              if(ev.target.closest('[data-cancel]')) return App.closeSheet();
+              if(!ev.target.closest('[data-save]')) return;
+              const n = sh.querySelector('#sg-n').value.trim();
+              if(!n) return U.toast('Give the group a name');
+              await done(n); App.closeSheet(); render();
+            });
+            setTimeout(() => { const f = sh.querySelector('#sg-n'); if(f) f.focus(); }, 180);
+          });
+        if(e.target.closest('[data-newstar]')) return nameSheet('New starred group', '', n => MediaLib.saveStar({ name:n, items:[] }));
+        const sh = e.target.closest('[data-starshow]');
+        if(sh){ src = 'star:' + sh.dataset.starshow; tab = 'deck'; selecting = false; sel.clear(); return render(); }
+        const rn = e.target.closest('[data-starrename]');
+        if(rn){ const g = groups.find(x => x.id === rn.dataset.starrename); return nameSheet('Rename group', g.name, n => MediaLib.saveStar({ ...g, name:n })); }
+        const del = e.target.closest('[data-stardel]');
+        if(del){
+          const g = groups.find(x => x.id === del.dataset.stardel);
+          App.sheet(`<h2 style="margin:0 0 10px">Delete ★ ${esc(g.name)}?</h2>
+            <p class="hintline">Its ${plural(g.items.length, 'frame')} leave the phone (unless another group or a task still uses them). The Library keeps them.</p>
+            <div class="sheetcta"><button class="btn-primary" data-yes style="background:var(--red)">Delete</button>
+            <button class="btn-ghost" data-no>Cancel</button></div>`, s2 => s2.addEventListener('click', async ev => {
+              if(ev.target.closest('[data-no]')) return App.closeSheet();
+              if(!ev.target.closest('[data-yes]')) return;
+              await MediaLib.deleteStar(g.id); App.closeSheet(); render();
+            }));
+        }
+      });
+    }
+
     async function boardsPage(body, lib){
       const boards = await MediaLib.allBoards();
       const groups = [...new Set([...MediaLib.BOARD_GROUPS, ...boards.map(b => b.group)])].filter(g => boards.some(b => b.group === g));
