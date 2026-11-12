@@ -189,7 +189,7 @@
     const mt = m ? await monthTotals(m) : null;
     const decided = mt ? mt.wins + mt.losses : 0;
 
-    el.innerHTML = Screens.bar({ kicker:'Stat card', title:esc(v.title) || 'Episode' }) + `
+    el.innerHTML = Screens.bar({ kicker:'Stat card', title:esc(v.title) || 'Vlog' }) + `
     <div class="view">
       <div class="sc">
         <div>

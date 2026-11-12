@@ -369,9 +369,9 @@
         <div class="cp-head">
           ${seriesRec ? `<div class="cp-series">
             <button class="cp-sername" data-a="series">${esc(seriesRec.title || 'Series')}</button>
-            ${pi >= 0 ? `<span>Part ${pi + 1} of ${parts.length}</span>
-              <button class="cp-partnav" data-part="${pi - 1}" ${pi <= 0 ? 'disabled' : ''} aria-label="Previous part">‹</button>
-              <button class="cp-partnav" data-part="${pi + 1}" ${pi >= parts.length - 1 ? 'disabled' : ''} aria-label="Next part">›</button>` : ''}
+            ${pi >= 0 ? `<span>Episode ${pi + 1} of ${parts.length}</span>
+              <button class="cp-partnav" data-part="${pi - 1}" ${pi <= 0 ? 'disabled' : ''} aria-label="Previous episode">‹</button>
+              <button class="cp-partnav" data-part="${pi + 1}" ${pi >= parts.length - 1 ? 'disabled' : ''} aria-label="Next episode">›</button>` : ''}
           </div>` : ''}
           <p class="t">${clip.title || 'Untitled clip'}</p>
           <div class="cp-meta">

@@ -79,7 +79,7 @@
       /* one deliberately on another date is fine; it should just be visible */
       const offDay = act.day ? seqs.filter(b => b.day && b.day !== act.day).length : 0;
 
-      el.innerHTML = Screens.bar({ kicker:v.title || 'Episode', title:act.title }) + `
+      el.innerHTML = Screens.bar({ kicker:v.title || 'Vlog', title:act.title }) + `
         <div class="view">
           <div class="pagehead"><h1 class="page-title">${esc(act.title)}</h1></div>
           <p class="hintline" style="margin:0 0 12px">${seqs.length

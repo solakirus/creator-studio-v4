@@ -125,13 +125,13 @@
       /* earliest first: month 1 at the top, "No week set" last */
       const keys = Object.keys(groups).sort();
 
-      const head = Screens.bar({ kicker:'Creator studio', title:'Episodes',
+      const head = Screens.bar({ kicker:'Creator studio', title:'Vlog',
         actions:`<button class="btn-sm" data-a="challenges">Challenges</button>
                  <button class="btn-sm accent" data-a="new">+ New</button>` });
 
       el.innerHTML = (embedded ? '' : head) + `
       <div class="view">
-        ${embedded ? `<div class="pagehead"><h1 class="page-title">Episodes</h1>
+        ${embedded ? `<div class="pagehead"><h1 class="page-title">Vlog</h1>
           <span class="headacts" style="display:flex;gap:8px;align-items:center">
             <button class="headbtn" data-a="challenges">CHALLENGES</button>
             <button class="headbtn" data-a="new">NEW</button>
@@ -169,8 +169,8 @@
               </div></article>`;
             }).join('')}
           </div>`).join('')
-        : `<div class="empty"><b>No episodes yet</b>One episode per week, Sunday to Saturday. Plan its days, sequences and shots here, then shoot against it.</div>`}
-        <p class="note">Episodes are numbered by week and run continuously. Scheduled sequences appear on Today.</p>
+        : `<div class="empty"><b>No vlogs yet</b>One vlog per week, Sunday to Saturday. Plan its days, sequences and shots here, then shoot against it.</div>`}
+        <p class="note">Vlogs are numbered by week and run continuously. Scheduled sequences appear on Today.</p>
       </div>`;
     }
     /* The Content tab re-mounts a section every time you switch to it, so an
@@ -178,9 +178,9 @@
     /* hold an episode to pick several, then delete them together */
     if(window.Select) Select.enable(el, {
       itemSelector: '.mediacard',
-      noun: 'episode',
+      noun: 'vlog',
       idOf: n => { const c = n.querySelector('[data-open]'); return c ? c.dataset.open : null; },
-      warning: 'The episodes and their sequences go for good. Research on them goes back to unassigned; tasks already on your days stay.',
+      warning: 'The vlogs and their sequences go for good. Research on them goes back to unassigned; tasks already on your days stay.',
       onDelete: deleteEpisodes,
       onDone: render
     });
@@ -213,9 +213,9 @@
       /* The page used to have a navy gradient and its own set of classes — a
          visual language nothing else in the app spoke. Same controls, the
          standard page format. */
-      el.innerHTML = Screens.bar({ kicker:'Episodes', title:'New episode' }) + `
+      el.innerHTML = Screens.bar({ kicker:'Vlog', title:'New vlog' }) + `
       <div class="view">
-        <div class="pagehead"><h1 class="page-title">New episode</h1></div>
+        <div class="pagehead"><h1 class="page-title">New vlog</h1></div>
 
         <h3 class="pgh" style="margin-top:4px">Format</h3>
         <div class="pgseg" data-group="format">
@@ -240,7 +240,7 @@
         <h3 class="pgh">Which week</h3>
         <button class="noterow" data-a="week">
           <span class="dot" style="background:var(--orange)"></span>
-          <span class="t"><b>Episode ${week}</b><small id="wkdates">Week ${week}</small></span>
+          <span class="t"><b>Vlog ${week}</b><small id="wkdates">Week ${week}</small></span>
           ${ICON.chevR}
         </button>
 
@@ -256,7 +256,7 @@
           ${PRESETS[preset].acts.length} day blocks to start — add sequences inside each one.</p>
 
         <div class="sheetcta" style="margin-top:18px">
-          <button class="btn-primary" data-a="create">Create the episode</button>
+          <button class="btn-primary" data-a="create">Create the vlog</button>
         </div>
       </div>`;
     }
@@ -324,7 +324,7 @@
         const cur = await Data.currentWeek();
         App.sheet(`<h2>Which week</h2>
           <p style="margin:0 0 16px;color:var(--muted);font-size:14.5px;line-height:1.55">
-            One episode per week, Sunday to Saturday. Episode number is the week number.</p>
+            One vlog per week, Sunday to Saturday. Its number is the week number.</p>
           <div class="field"><label for="wk">Week</label>
             <input id="wk" type="number" min="1" value="${week}"></div>
           <p id="wkprev" style="margin:0;color:var(--cream);font-size:14.5px"></p>
@@ -336,7 +336,7 @@
             const n = Math.max(1, +input.value || 1);
             const d = await Data.weekDates(n);
             const m = await Data.monthOfWeek(n);
-            prev.innerHTML = `<b>Episode ${n}</b> · ${d.label} · ${m.label}${n === cur ? ' · this week' : ''}`;
+            prev.innerHTML = `<b>Vlog ${n}</b> · ${d.label} · ${m.label}${n === cur ? ' · this week' : ''}`;
           };
           input.addEventListener('input', refresh); refresh();
           sheetEl.addEventListener('click', async ev => {
@@ -537,7 +537,7 @@
         })() : ''}
 
         <div class="ep5-h"><span>Result</span><i></i></div>
-        <div class="mo-seg" role="group" aria-label="Episode result" style="margin:0">
+        <div class="mo-seg" role="group" aria-label="Vlog result" style="margin:0">
           <button data-ep5res="W" class="W" aria-pressed="${x.result === 'W'}">WON</button>
           <button data-ep5res="" aria-pressed="${!x.result}">PENDING</button>
           <button data-ep5res="L" class="L" aria-pressed="${x.result === 'L'}">LOST</button>
@@ -583,7 +583,7 @@
       }
       if(!fit.inRange && !confirm(Months.hasWeek(v)
           ? `Project week ${v.week} is outside ${m.name}'s weeks. Tag it anyway?`
-          : `This episode has no week set, so it won't sit in one of ${m.name}'s weeks yet. Tag it anyway?`)) return;
+          : `This vlog has no week set, so it won't sit in one of ${m.name}'s weeks yet. Tag it anyway?`)) return;
       v.monthId = m.id;
       v.isVerdict = !!fit.last;
       if(!Array.isArray(v.segments) || !v.segments.length) v.segments = Months.defaultSegments();
@@ -692,7 +692,7 @@
       const shots = beats.reduce((n,x) => n + (x.beat.shots || []).length, 0);
       const shotsDone = beats.reduce((n,x) => n + (x.beat.shots || []).filter(s => s.done).length, 0);
 
-      el.innerHTML = Screens.bar({ kicker:v.week ? `Episode ${v.week}` : 'Vlog builder', title:v.title,
+      el.innerHTML = Screens.bar({ kicker:v.week ? `Vlog ${v.week}` : 'Vlog builder', title:v.title,
         actions:`<span class="modetog">
           <button data-a="mode-plan" aria-pressed="${mode==='plan'}">Plan</button>
           <button data-a="mode-board" aria-pressed="false">Board</button>
@@ -766,7 +766,7 @@
             <span class="tx">${m.title}<br><span style="font-size:12px;color:var(--dim)">${m.challenge.title}</span></span>
           </div>`).join('')}
           <p style="margin:11px 0 0;font-size:13px;color:var(--dim);line-height:1.5">
-            What this episode is about. Build the acts around these.</p>
+            What this vlog is about. Build the acts around these.</p>
         </div>` : ''}
 
         <div class="block" style="padding:14px">
@@ -807,7 +807,7 @@
 
         <button class="addbeat" data-a="addact">+ Add an act</button>
         <p class="note">Setting a day on an act schedules every beat in it. Beats with a day appear on Today.</p>
-        <button class="btn-ghost" data-a="delete" style="width:100%;margin-top:14px;color:var(--red);border-color:rgba(226,86,74,.4)">Delete episode</button>
+        <button class="btn-ghost" data-a="delete" style="width:100%;margin-top:14px;color:var(--red);border-color:rgba(226,86,74,.4)">Delete vlog</button>
       </div>`;
     }
 
@@ -859,7 +859,7 @@
 
       App.sheet(`
         <h2 style="margin:0 0 3px">${isNew ? 'A source for this week' : 'Source'}</h2>
-        <p class="hintline" style="margin:0 0 14px">Belongs to this episode. The quarter's
+        <p class="hintline" style="margin:0 0 14px">Belongs to this vlog. The quarter's
           reading stays where it is.</p>
 
         <h3 class="pgh" style="margin-top:0">What kind?</h3>
@@ -1061,7 +1061,7 @@
          what Shoot mode is for. */
       const byAct = v.acts.map(a => ({ act:a, items:a.beats.map(b => ({ act:a, beat:b })) }));
 
-      el.innerHTML = Screens.bar({ kicker:v.week ? `Episode ${v.week}` : 'Vlog builder', title:v.title,
+      el.innerHTML = Screens.bar({ kicker:v.week ? `Vlog ${v.week}` : 'Vlog builder', title:v.title,
         actions:`<span class="modetog">
           <button data-a="mode-plan" aria-pressed="true">Plan</button>
           <button data-a="mode-board" aria-pressed="false">Board</button>
@@ -1214,7 +1214,7 @@
       const mine = focus ? beats.filter(x => x.beat.day === focus.day) : [];
       const mineLeft = mine.filter(x => !x.beat.done);
 
-      el.innerHTML = Screens.bar({ kicker:v.week ? `Episode ${v.week}` : 'Vlog builder', title:v.title,
+      el.innerHTML = Screens.bar({ kicker:v.week ? `Vlog ${v.week}` : 'Vlog builder', title:v.title,
         actions:`<span class="modetog">
           <button data-a="mode-plan" aria-pressed="false">Plan</button>
           <button data-a="mode-board" aria-pressed="false">Board</button>
@@ -1682,7 +1682,7 @@
             const n = Math.max(1, +input.value || 1);
             const d = await Data.weekDates(n);
             const m = await Data.monthOfWeek(n);
-            prev.innerHTML = `<b>Episode ${n}</b> · ${d.label} · ${m.label}`;
+            prev.innerHTML = `<b>Vlog ${n}</b> · ${d.label} · ${m.label}`;
           };
           input.addEventListener('input', refresh); refresh();
           sheetEl.addEventListener('click', async ev => {
@@ -1761,7 +1761,7 @@
       }
 
       if(a2.dataset.a === 'board') return BoardLink.open({ type:'vlog', id:v.id, name:v.title,
-        kicker: v.week ? `Episode ${v.week}` : 'Episode', onChange: async () => { await load(); render(); } });
+        kicker: v.week ? `Vlog ${v.week}` : 'Vlog', onChange: async () => { await load(); render(); } });
       if(a2.dataset.a === 'board-old'){
         if(v.boardId){
           /* the way back is this episode, so the other app can return you */
@@ -1857,7 +1857,7 @@
       /* The board is a canvas and wants the whole screen, so it opens over
          the episode rather than inside it; back returns here. */
       if(a2.dataset.a === 'mode-board') return BoardLink.open({ type:'vlog', id:v.id, name:v.title,
-        kicker: v.week ? `Episode ${v.week}` : 'Episode', onChange: async () => { await load(); render(); } });
+        kicker: v.week ? `Vlog ${v.week}` : 'Vlog', onChange: async () => { await load(); render(); } });
       if(a2.dataset.a === 'mode-outline'){ mode = 'outline'; return render(); }
       if(a2.dataset.a === 'mode-week'){ mode = 'week'; return render(); }
       if(a2.dataset.a === 'wprev'){ weekOffset--; return renderWeek(); }
@@ -1883,7 +1883,7 @@
         return;
       }
       if(a2.dataset.a === 'delete'){
-        if(!confirm(`Delete "${v.title || 'this episode'}"? Its sequences go with it; research on it goes back to unassigned.`)) return;
+        if(!confirm(`Delete "${v.title || 'this vlog'}"? Its sequences go with it; research on it goes back to unassigned.`)) return;
         await deleteEpisodes([v.id]);
         params.onChange && params.onChange();
         Screens.pop();

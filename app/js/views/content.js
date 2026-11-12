@@ -10,7 +10,7 @@
     /* The quarter is set up once every twelve weeks, so it does not earn a
        permanent button; it is reached from the line at the top of a week's plan.
        Clips are the footage itself and get looked at daily once you are shooting. */
-    { v:'episodes', label:'Episodes', screen:'vlog-builder',
+    { v:'episodes', label:'Vlog', screen:'vlog-builder',
       d:'M4 5h16v14H4zM4 9.5h16M9.5 9.5V19' },
     { v:'series',   label:'Series',   view:'ViewSeries',
       d:'M3.8 5h16.4v13.4H3.8zM10 8.9v6.2l5.2-3.1z' },

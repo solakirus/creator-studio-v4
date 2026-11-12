@@ -193,7 +193,7 @@
             <p class="ch${m.challenge ? '' : ' empty'}">${esc(m.challenge) || 'No challenge set yet'}</p>
             <div class="meta">
               <span>Record <b>${rec.w}W · ${rec.l}L</b></span>
-              <span><b>${linked}</b> of ${weeks} episodes</span>
+              <span><b>${linked}</b> of ${weeks} vlogs</span>
               <span>${Months.label(m.startDate)} – ${Months.label(m.endDate)}</span>
               ${m.verdictReleaseDate ? `<span>Verdict <b>${Months.label(m.verdictReleaseDate, { weekday:'short', month:'short', day:'numeric' })}</b></span>` : ''}
             </div>
@@ -250,7 +250,7 @@
         pv.obj.phase ? ` · Phase ${esc(pv.obj.phase)}` : ''} — nothing is written until you tap Import.</p>
       <div class="mo-facts" style="margin:0 0 12px">
         ${planish ? `<div><small>Months</small><b>${mC.length} new · ${mS.length} skipped</b></div>
-        <div><small>Episodes</small><b>${eC.length} new · ${eS.length} skipped</b></div>` : ''}
+        <div><small>Vlogs</small><b>${eC.length} new · ${eS.length} skipped</b></div>` : ''}
         ${hasSeries ? `<div><small>Channel series</small><b>${sC.length} new · ${sS.length} skipped</b></div>
         <div><small>Series video ideas</small><b>${iC.length} new · ${iS.length} skipped</b></div>` : ''}
       </div>
@@ -263,7 +263,7 @@
       ${mS.length ? `<p style="margin:12px 0 0;font-weight:800;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
         color:var(--muted)">Skipped months</p>${list(mS, x => `<li>${esc(x.rec.name)} — ${esc(x.reason)}</li>`)}` : ''}
       ${eS.length ? `<p style="margin:12px 0 0;font-weight:800;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
-        color:var(--muted)">Skipped episodes</p>${list(eS, x => `<li>${esc(x.rec.title)} — ${esc(x.reason)}</li>`)}` : ''}
+        color:var(--muted)">Skipped vlogs</p>${list(eS, x => `<li>${esc(x.rec.title)} — ${esc(x.reason)}</li>`)}` : ''}
       ${pv.warnings.length ? `<div class="mo-prev warn" style="margin:12px 0 0">${pv.warnings.map(esc).join('<br>')}</div>` : ''}
       ${sC.length ? `<div id="pi-slist"><p style="margin:12px 0 0;font-weight:800;font-size:12px;letter-spacing:.12em;
         text-transform:uppercase;color:var(--muted)">New series</p>${list(Object.entries(byChan), ([ch, names]) =>
@@ -283,7 +283,7 @@
       function label(){
         const bits = [];
         if(mC.length) bits.push(`${mC.length} month${mC.length === 1 ? '' : 's'}`);
-        if(eC.length) bits.push(`${eC.length} episode${eC.length === 1 ? '' : 's'}`);
+        if(eC.length) bits.push(`${eC.length} vlog${eC.length === 1 ? '' : 's'}`);
         if(withSeries() && sC.length) bits.push(`${sC.length} series`);
         if(withSeries() && iC.length) bits.push(`${iC.length} idea${iC.length === 1 ? '' : 's'}`);
         goBtn.disabled = !bits.length;
@@ -303,7 +303,7 @@
           App.closeSheet();
           const skipped = mS.length + eS.length + (pv.includeSeries ? sS.length + iS.length : 0);
           const n = (k, one, many) => made[k] ? `${made[k]} ${made[k] === 1 ? one : many}` : '';
-          const got = [n('months','month','months'), n('episodes','episode','episodes'),
+          const got = [n('months','month','months'), n('episodes','vlog','vlogs'),
                        pv.includeSeries ? n('series','series','series') : '', pv.includeSeries ? n('ideas','idea','ideas') : '']
             .filter(Boolean);
           U.toast(`${got.length ? 'Created ' + got.join(', ') : 'Nothing new created'}${skipped ? ` · skipped ${skipped}` : ''}`);
@@ -501,7 +501,7 @@
           ${head}
           <p class="sk" style="margin:6px 0 0">${dates}</p>
           <div class="acts">
-            <button class="btn-sm accent" data-create="${slot.index}">Create episode</button>
+            <button class="btn-sm accent" data-create="${slot.index}">Create vlog</button>
             <button class="btn-sm" data-link="${slot.index}">Link existing</button>
           </div>
         </div>`;
@@ -509,7 +509,7 @@
         const done = segs.filter(x => x.status === 'done').length;
         return `<div class="mo-slot filled" data-ep="${v.id}">
           ${head}
-          <p class="t">${esc(v.title) || 'Untitled episode'}</p>
+          <p class="t">${esc(v.title) || 'Untitled vlog'}</p>
           <p class="sk">${v.skill ? esc(v.skill) : '<span style="color:var(--dim)">No skill set</span>'}</p>
           <div class="row">
             <span>${dates}</span>
@@ -578,9 +578,9 @@
         ${stray.length ? `<div class="mo-h"><span>Tagged, outside these weeks</span><i></i></div>
           <div class="mo-ladder">${stray.map(v => `<div class="mo-slot filled" data-ep="${v.id}">
             <div class="wk"><span>${v.week !== null && v.week !== undefined && v.week !== '' ? `Project week ${v.week}` : 'No week set'}</span></div>
-            <p class="t">${esc(v.title) || 'Untitled episode'}</p></div>`).join('')}</div>` : ''}
+            <p class="t">${esc(v.title) || 'Untitled vlog'}</p></div>`).join('')}</div>` : ''}
 
-        <div class="mo-verdict">Verdict episode releases <b>${
+        <div class="mo-verdict">Verdict vlog releases <b>${
           Months.label(m.verdictReleaseDate, { weekday:'long', month:'long', day:'numeric' }) || '—'}</b></div>
 
         ${m.notes ? `<p class="note" style="text-align:left;margin-top:14px">${esc(m.notes)}</p>` : ''}
@@ -598,7 +598,7 @@
       const list = await Months.linkable(slot);
       const full = { weekday:'short', month:'short', day:'numeric' };
       App.sheet(`
-        <h2>Link an episode</h2>
+        <h2>Link a vlog</h2>
         <p style="margin:0 0 12px;color:var(--muted);font-size:14px;line-height:1.5">
           Week ${slot.index} · ${Months.label(slot.sunday, full)} – ${Months.label(slot.saturday, full)}${
           slot.last ? ' · the verdict week' : ''}</p>
@@ -606,11 +606,11 @@
           <button class="vt-pick" data-pick="${v.id}" style="display:block;width:100%;text-align:left;
             margin:0 0 7px;padding:11px 12px;border:1px solid ${here ? 'var(--orange)' : 'var(--line)'};
             border-radius:var(--r);background:var(--surface-2);color:var(--cream);cursor:pointer">
-            <b style="display:block;font-size:15px">${esc(v.title) || 'Untitled episode'}</b>
+            <b style="display:block;font-size:15px">${esc(v.title) || 'Untitled vlog'}</b>
             <small style="display:block;margin-top:3px;font-size:12.5px;color:${here ? 'var(--orange)' : 'var(--muted)'}">${
               here ? 'Films this week' : Months.hasWeek(v) ? `Set to project week ${v.week}` : 'No week set'}</small>
           </button>`).join('')}</div>`
-        : `<div class="empty"><b>Nothing to link</b>Every episode already belongs to a month. Create one for this week instead.</div>`}
+        : `<div class="empty"><b>Nothing to link</b>Every vlog already belongs to a month. Create one for this week instead.</div>`}
         <div class="sheetcta"><button class="btn-ghost" data-cancel>Cancel</button></div>`, sheetEl => {
         sheetEl.addEventListener('click', async ev => {
           if(ev.target.closest('[data-cancel]')) return App.closeSheet();
@@ -621,7 +621,7 @@
              !confirm(`"${hit.v.title}" is set to project week ${hit.v.week}. Move it to week ${slot.week}?`)) return;
           const r = await Months.linkEpisode(b.dataset.pick, m, slot);
           if(!r.ok){
-            return U.toast(r.reason === 'taken' ? `Week ${slot.index} already has "${r.holder.title}"` : 'That episode is gone');
+            return U.toast(r.reason === 'taken' ? `Week ${slot.index} already has "${r.holder.title}"` : 'That vlog is gone');
           }
           App.closeSheet();
           params && params.onChange && params.onChange();
@@ -679,7 +679,7 @@
         if(!r.ok) return U.toast(`Week ${slot.index} already has "${r.holder.title}"`);
         params && params.onChange && params.onChange();
         await render();
-        U.toast(slot.last ? 'Verdict episode created' : `Week ${slot.index} episode created`);
+        U.toast(slot.last ? 'Verdict vlog created' : `Week ${slot.index} vlog created`);
         return Screens.push('vlog', { id:r.episode.id, onChange:render });
       }
       const ln = e.target.closest('[data-link]');
@@ -701,7 +701,7 @@
       });
       if(a.dataset.a === 'delete'){
         const n = (await Months.linked(m)).length;
-        if(!confirm(`Delete ${m.name || 'this month'}?${n ? ` Its ${n} episode${n === 1 ? '' : 's'} stay — they just lose the month tag.` : ''}`)) return;
+        if(!confirm(`Delete ${m.name || 'this month'}?${n ? ` Its ${n} vlog${n === 1 ? '' : 's'} stay — they just lose the month tag.` : ''}`)) return;
         await Months.remove(m.id);
         params && params.onChange && params.onChange();
         U.toast('Month deleted');

@@ -9,14 +9,14 @@
     async function render(){
       const [items, eps] = await Promise.all([Research.all(), Research.episodes()]);
       const title = id => { const v = eps.find(x => x.id === id);
-        return v ? `${v.week ? `Ep ${v.week} · ` : ''}${v.title || 'Untitled episode'}` : ''; };
+        return v ? `${v.week ? `Vlog ${v.week} · ` : ''}${v.title || 'Untitled vlog'}` : ''; };
       const list = items.filter(r =>
         (!type || r.kind === type) &&
         (!status || Research.statusOf(r).k === status) &&
         (!assigned || (assigned === 'no' ? !r.vlogId : !!r.vlogId)));
       const unCount = items.filter(r => !r.vlogId).length;
 
-      el.innerHTML = Screens.bar({ kicker:'Episodes', title:'Research',
+      el.innerHTML = Screens.bar({ kicker:'Vlog', title:'Research',
         actions:`<button class="btn-sm accent" data-a="add">+ Log</button>` }) + `
       <div class="view">
         <div class="rs-filters">
@@ -29,7 +29,7 @@
           <select id="rs-f-asg">
             <option value="" ${!assigned ? 'selected' : ''}>All · ${items.length}</option>
             <option value="no" ${assigned === 'no' ? 'selected' : ''}>Unassigned · ${unCount}</option>
-            <option value="yes" ${assigned === 'yes' ? 'selected' : ''}>On an episode · ${items.length - unCount}</option>
+            <option value="yes" ${assigned === 'yes' ? 'selected' : ''}>On a vlog · ${items.length - unCount}</option>
           </select>
         </div>
         ${list.length ? list.map(r => Research.rowHTML(r, { epTitle:title(r.vlogId) })).join('')

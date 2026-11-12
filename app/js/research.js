@@ -158,10 +158,10 @@
         ${chips('useIn', USE_IN, r.useIn)}</div>
       ${isNew && !o.full ? '' : `
         <div class="field"><label>Status</label>${chips('status', STATUS, statusOf(r).k)}</div>
-        <div class="field"><label for="rs-ep">Episode</label>
+        <div class="field"><label for="rs-ep">Vlog</label>
           <select id="rs-ep"><option value="">Unassigned</option>
             ${eps.map(v => `<option value="${v.id}" ${r.vlogId === v.id ? 'selected' : ''}>${
-              v.week ? `Ep ${v.week} · ` : ''}${esc(v.title || 'Untitled episode')}</option>`).join('')}
+              v.week ? `Vlog ${v.week} · ` : ''}${esc(v.title || 'Untitled vlog')}</option>`).join('')}
           </select></div>`}
       <div class="sheetcta">
         <button class="btn-primary" data-save>${isNew ? 'Log it' : 'Save'}</button>
@@ -205,7 +205,7 @@
         if($('#rs-ep')) out.vlogId = $('#rs-ep').value || null;
         const saved = await save(out);
         App.closeSheet();
-        U.toast(isNew ? (out.vlogId ? 'Logged to this episode' : 'Logged — unassigned') : 'Saved');
+        U.toast(isNew ? (out.vlogId ? 'Logged to this vlog' : 'Logged — unassigned') : 'Saved');
         o.onSaved && o.onSaved(saved);
       });
       setTimeout(() => { if(isNew) $('#rs-item').focus(); }, 180);
@@ -220,9 +220,9 @@
     const list = await unassigned();
     App.sheet(`
       <h2>Link research</h2>
-      <p style="margin:0 0 12px;color:var(--muted);font-size:14px">Unassigned items. Tap any to attach it to this episode.</p>
+      <p style="margin:0 0 12px;color:var(--muted);font-size:14px">Unassigned items. Tap any to attach it to this vlog.</p>
       ${list.length ? `<div style="max-height:58vh;overflow:auto">${list.map(r => rowHTML(r)).join('')}</div>`
-        : `<div class="empty"><b>Nothing unassigned</b>Everything you've logged is already on an episode.</div>`}
+        : `<div class="empty"><b>Nothing unassigned</b>Everything you've logged is already on a vlog.</div>`}
       <div class="sheetcta"><button class="btn-ghost" data-cancel>Done</button></div>`, el => {
       el.addEventListener('click', async e => {
         if(e.target.closest('[data-cancel]')){ App.closeSheet(); return onDone && onDone(); }

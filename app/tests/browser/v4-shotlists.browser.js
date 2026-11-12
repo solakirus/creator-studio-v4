@@ -188,7 +188,7 @@ const head = s => console.log(`\n— ${s} —`);
   await lap.click(`${top} [data-ctab="shoot"]`); await lap.waitForTimeout(1500);
   ui = await lap.evaluate(t => ({ part: ((document.querySelector(t + ' .cp-series') || {}).textContent || '').replace(/\s+/g, ' ').trim(),
     rows: document.querySelectorAll(t + ' #clipShots .tk-ps').length, canvas: !!document.querySelector(t + ' #clipShots [data-pagecanvas]') }), top);
-  ok(/Part 1 of 2/.test(ui.part), 'it knows its series and part', ui.part);
+  ok(/Episode 1 of 2/.test(ui.part), 'it knows its series and part', ui.part);
   ok(ui.rows === 2 && ui.canvas, 'and has its Steps + Shot page', `${ui.rows} rows`);
   await lap.click(`${top} [data-a="toshoot"]`); await lap.waitForTimeout(700);
   await lap.click('#sheet [data-ok]'); await lap.waitForTimeout(1500);

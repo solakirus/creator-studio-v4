@@ -23,7 +23,7 @@
     const changed = () => { if(params && params.onChange) params.onChange(); };
 
     function render(){
-      el.innerHTML = Screens.bar({ kicker:'Episodes', title:'Sequence templates' }) + `
+      el.innerHTML = Screens.bar({ kicker:'Vlog', title:'Sequence templates' }) + `
         <div class="view">
           <div class="pagehead"><h1 class="page-title">Templates</h1>
             <span class="headacts" style="display:flex;gap:8px;align-items:center">

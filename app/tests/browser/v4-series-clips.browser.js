@@ -76,13 +76,13 @@ const head = s => console.log(`\n— ${s} —`);
   await p.evaluate(() => Screens.push('series-view', { id: 'sr1' })); await p.waitForTimeout(1400);
   ui = await p.evaluate(t => ({ cards: [...document.querySelectorAll(t + ' [data-video]')].map(x => x.querySelector('h3').textContent + ' · ' + x.querySelector('.meta .st').textContent),
     state: (document.querySelector(t + ' [data-video] .state') || {}).textContent, footage: /Footage/.test(document.querySelector(t).textContent) }), top);
-  ok(ui.cards.join(' | ') === 'The kettle · Part 1 | The walk · Part 2', 'its videos in order, as parts', ui.cards.join(' | '));
+  ok(ui.cards.join(' | ') === 'The kettle · Episode 1 | The walk · Episode 2', 'its videos in order, as parts', ui.cards.join(' | '));
   ok(ui.state === 'Planned' && !ui.footage, 'each shows its stage; no second "Footage" list');
   await p.click(`${top} [data-video="cv_vid_a"]`); await p.waitForTimeout(1600);
   ui = await p.evaluate(t => ({ kick: (document.querySelector(t + ' .screenbar .kick') || {}).textContent, ser: ((document.querySelector(t + ' .cp-series') || {}).textContent || '').replace(/\s+/g, ' ').trim(),
     tabs: [...document.querySelectorAll(t + ' [data-ctab]')].map(x => x.textContent).join(), screen: document.querySelector(t).dataset.screen }), top);
   ok(ui.screen === 'clip' && ui.tabs === 'Plan,Shoot,Edit,Post', 'it opens on the clip page — Plan, Shoot, Edit, Post');
-  ok(ui.kick === 'Series · Mornings' && /Mornings Part 1 of 2/.test(ui.ser), 'it says which series and which part', ui.ser);
+  ok(ui.kick === 'Series · Mornings' && /Mornings Episode 1 of 2/.test(ui.ser), 'it says which series and which part', ui.ser);
   await p.click(`${top} [data-ctab="shoot"]`); await p.waitForTimeout(1000);
   await p.click(`${top} [data-part="1"]`); await p.waitForTimeout(1600);
   ui = await p.evaluate(t => ({ title: (document.querySelector(t + ' .cp-head .t') || {}).textContent, tab: (document.querySelector(t + ' [data-ctab][aria-selected="true"]') || {}).textContent,

@@ -58,7 +58,7 @@
           <div class="art" style="background-image:${U.generatedArt(v.id, v.title)}"></div>
           <span class="state" style="background:${st.c};color:#151515">${st.label}</span>
           <div class="body"><h3>${esc(v.title)}</h3>
-            <div class="meta"><span class="st">Part ${n}</span>
+            <div class="meta"><span class="st">Episode ${n}</span>
               ${p.structure && p.structure.name ? `<span class="sep">|</span><span class="st">${esc(p.structure.name)}</span>` : ''}
               ${window.ShotList ? `<span class="sep">|</span>${ShotList.dropChip(v, 'clip:' + v.id, dropOpen.has('clip:' + v.id))}` : ''}
             </div>
@@ -122,7 +122,7 @@
             + Describe this series and its type of videos</button>`}
 
           <div class="phstats">
-            <div><b>${vids.length}</b><small>videos</small></div>
+            <div><b>${vids.length}</b><small>episodes</small></div>
             <div><b>${run.raw || 0}</b><small>to edit</small></div>
             <div><b>${run.queued || 0}</b><small>to post</small></div>
             <div><b>${run.done || 0}</b><small>published</small></div>
@@ -146,10 +146,10 @@
           <button class="btn-ghost" data-a="addref" style="width:100%;margin:10px 0 18px">
             Add a reference</button>
 
-          <div class="sec"><h2>Videos in this series</h2><div class="rule"></div>
+          <div class="sec"><h2>Episodes</h2><div class="rule"></div>
             <span class="alt">${shownVids().length === vids.length ? vids.length : `${shownVids().length} of ${vids.length}`}</span></div>
           ${vids.length > 1 ? `<div class="vidbar" style="display:grid;grid-template-columns:1fr auto;gap:8px;margin:0 0 12px">
-            <input id="sv-q" class="pgbar" type="search" placeholder="Search these videos…" value="${esc(vq)}" autocomplete="off">
+            <input id="sv-q" class="pgbar" type="search" placeholder="Search these episodes…" value="${esc(vq)}" autocomplete="off">
             <select id="sv-s" class="pgbar">
               <option value="all" ${vstage === 'all' ? 'selected' : ''}>Every stage</option>
               ${Lifecycle.STAGES.map(st => { const n = vids.filter(v => stageK(v) === st.k).length;
@@ -160,12 +160,12 @@
             ? (shownVids().length ? `<div class="list" id="sv-list">${shownVids().map(videoCard).join('')}</div>`
                : `<div class="empty" id="sv-list"><b>Nothing matches</b>Try another word or stage.</div>`)
             : `<div class="empty"><b>Nothing planned yet</b>
-                Add a video below — it opens on its Plan, like a clip.</div>`}
+                Add an episode below — it opens on its Plan, like a clip.</div>`}
 
           <button class="btn-ghost" data-a="newvideo" style="width:100%;margin:18px 0 0">
-            Add a video to this series</button>
+            Add an episode</button>
           <button class="btn-ghost" data-a="bulkideas" style="width:100%;margin:8px 0 0">
-            Add several ideas at once</button>
+            Add several episode ideas at once</button>
         </div>`;
       if(window.ShotList){ ShotList.fillPics(el); ShotList.wireDrops(el, dropOpen); }
     }
@@ -253,7 +253,7 @@
 
       /* a new video opens already belonging to this series */
       if(e.target.closest('[data-a="newvideo"]')){
-        App.sheet(`<h2 style="margin:0 0 4px">A video for ${esc(run.title)}</h2>
+        App.sheet(`<h2 style="margin:0 0 4px">A new episode of ${esc(run.title)}</h2>
           <p class="hintline" style="margin:0 0 12px">It opens on its Plan — purpose, script and shots — and goes Plan → Shoot → Edit → Post like any clip.</p>
           <input id="sv-nt" class="pgname" type="text" placeholder="What is it called?" autocomplete="off" enterkeyhint="done">
           <div class="sheetcta"><button class="btn-primary" data-go>Make it</button><button class="btn-ghost" data-cancel>Cancel</button></div>`, sh => {
@@ -277,7 +277,7 @@
       /* A list pasted in, one video idea per line, each becoming a video at the
          Idea stage in this series. "Title — note" or "Title | note" keeps a note. */
       if(e.target.closest('[data-a="bulkideas"]')){
-        App.sheet(`<h2>Add ideas</h2>
+        App.sheet(`<h2>Add episode ideas</h2>
           <div class="field"><label for="bi-list">One idea per line</label>
             <textarea id="bi-list" rows="9" placeholder="What is a datacenter?&#10;How the internet gets to your phone — start with the fibre&#10;Build a homelab for $200 | parts list in the description"></textarea></div>
           <p style="margin:-4px 0 14px;color:var(--muted);font-size:13.5px;line-height:1.5">Add a note after

@@ -17,7 +17,7 @@
    The database is untouched by any of this. IndexedDB is not part of the cache
    and a service worker update never clears it. */
 
-const BUILD = '2cb568cb086a';
+const BUILD = 'aafc34328d4c';
 const CACHE = 'cs4-' + BUILD;
 const FILES = [
   "./index.html",
