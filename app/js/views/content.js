@@ -14,6 +14,10 @@
       d:'M4 5h16v14H4zM4 9.5h16M9.5 9.5V19' },
     { v:'series',   label:'Series',   view:'ViewSeries',
       d:'M3.8 5h16.4v13.4H3.8zM10 8.9v6.2l5.2-3.1z' },
+    /* v4: one-off videos — what Templates → New video makes, and anything
+       not in a series. Before, only a button after New video reached them. */
+    { v:'videos',   label:'Videos',   screen:'videos',
+      d:'M3.5 6.5h12v11h-12zM15.5 10.5l5-3v9l-5-3' },
     { v:'clips',    label:'Clips',    screen:'clips-screen',
       d:'M4 5h16v14H4zM8 5v14M16 5v14M4 9.5h4M4 14.5h4M16 9.5h4M16 14.5h4' },
     /* The swipe file lived two levels down under Tools → Shots, which is a long
