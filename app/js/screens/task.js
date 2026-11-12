@@ -4,7 +4,7 @@
   const CADENCES = ['Daily','Weekly','Shoot day','One-off'];
   const PRI = [['low','Low'],['med','Medium'],['high','High']];
   const PRI_LABEL = { low:'Low', med:'Medium', high:'High' };
-  const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const esc = s => U.esc(s);   /* shared: util.js */
 
   /* A task's steps beside its pages: each shot's name and type are edited in
      place, its box is the only thing that ticks it, and arrows slide between

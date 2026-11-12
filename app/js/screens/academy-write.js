@@ -8,8 +8,7 @@
 
   const COLOURS = ['#4B8A57', '#C4613A', '#3C7FA8', '#7B4FA8', '#C18A2E', '#5A6270'];
 
-  const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const esc = s => U.esc(s);   /* shared: util.js */
 
   /* ---------- the course ---------- */
 

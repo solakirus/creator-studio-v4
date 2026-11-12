@@ -16,7 +16,7 @@
     walking:'Walking & street', desk:'Desk & screen work', hands:'Hands & detail',
     exterior:'Exterior establishing', job:'On-the-job', home:'Home & property', gym:'Gym & training' };
 
-  const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const esc = s => U.esc(s);   /* shared: util.js */
 
   async function folders(list){
     let custom = [];

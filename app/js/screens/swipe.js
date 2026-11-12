@@ -182,7 +182,7 @@
     /* 'all' is the grid as it always was; 'folders' is the folder tiles; a
        folder id (or '__none') is one folder open */
     let view = (params && params.folder) || 'all';
-    const esc = t => String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+    const esc = s => U.esc(s);   /* shared: util.js */
     const inFolder = () => view !== 'all' && view !== 'folders';
 
     async function render(){

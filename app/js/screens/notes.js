@@ -1,8 +1,7 @@
 /* Notes — the pile, with the unfiled ones put in front of you first. */
 (function(){
 
-  const esc = s => String(s == null ? '' : s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const esc = s => U.esc(s);   /* shared: util.js */
 
   const AGO = ts => {
     const d = Math.floor((Date.now() - (ts || 0)) / 86400000);

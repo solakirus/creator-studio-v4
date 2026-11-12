@@ -15,7 +15,7 @@
 
      Screens.push('shoot-run', { id: taskId, at: shotIndex? }) */
 (function(global){
-  const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  const esc = s => U.esc(s);   /* shared: util.js */
 
   /* the shots a task is shot by: its shot page's spots, or its steps */
   function shotsOf(t){

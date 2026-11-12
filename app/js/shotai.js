@@ -21,7 +21,7 @@
   const FRAMING  = ['Wide','Medium','Close','Over-shoulder','POV','Top-down'];
   const MOVEMENT = ['Static','Pan','Tilt','Push in','Pull out','Tracking','Handheld'];
 
-  const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const esc = s => U.esc(s);   /* shared: util.js */
 
   async function cfg(){ try { return (await Store.get('settings', KEY)) || {}; } catch(e){ return {}; } }
   async function setCfg(c){ await Store.put('settings', c, KEY); }

@@ -24,7 +24,7 @@
 
   /* ---------------------------------------------------------- dates */
   const pad2 = n => String(n).padStart(2, '0');
-  const isoOf = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  const isoOf = d => U.isoOf(d);   /* shared: util.js */
   const dOf = iso => new Date(iso + 'T12:00');
   const today = () => isoOf(new Date());
   const addDays = (iso, n) => { const d = dOf(iso); d.setDate(d.getDate() + n); return isoOf(d); };
@@ -41,7 +41,7 @@
   const fromMin = m => `${pad2(Math.floor(m / 60) % 24)}:${pad2(m % 60)}`;
   const atLabel = at => { const m = toMin(at); if(m === null) return '';
     const h = Math.floor(m / 60), mm = m % 60; return `${(h + 11) % 12 + 1}${mm ? ':' + pad2(mm) : ''}${h < 12 ? 'am' : 'pm'}`; };
-  const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+  const esc = s => U.esc(s);   /* shared: util.js */
 
   /* ---------------------------------------------------------- state */
   let H = null, host = null, ro = null;

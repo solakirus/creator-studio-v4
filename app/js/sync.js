@@ -419,7 +419,7 @@
     }, EVERY);
   }
 
-  global.Sync = { syncNow, connect, disconnect, probe, localCount, status, setPaused, touch,
+  global.Sync = { syncNow, connect, disconnect, probe, localCount, status, setPaused, touch, LOCAL_STORES,
                   onChange: f => listeners.push(f), APP };
   start();
 })(window);

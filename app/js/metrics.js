@@ -12,7 +12,7 @@
 (function(global){
 
   const DAY = 86400000;
-  const midnight = ts => { const d = new Date(ts); d.setHours(0,0,0,0); return d.getTime(); };
+  const midnight = ts => U.midnight(ts);   /* shared: util.js */
   const dayKey = ts => midnight(ts);
 
   /* consecutive calendar days present in a set of timestamps */

@@ -8,8 +8,7 @@
    steps, so ticking the last shot finishes the task. */
 (function(global){
 
-  const esc = s => String(s == null ? '' : s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const esc = s => U.esc(s);   /* shared: util.js */
 
   /* One task per sequence. Anything already sent is skipped rather than
      duplicated — pressing this twice is safe. */

@@ -127,14 +127,15 @@
         <button class="row" data-go="appupdate"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${D.down}"/></svg>
           <span class="lbl">App updates<small id="upLine">checking…</small></span>${chev}</button>
         ${row(D.down,'Import from CSV','Meals, clips, tasks or pantry items','data-go="csv"')}
-        ${row(D.down,'Restore from backup','A Creator Studio JSON file','data-go="restore"')}
+        ${row(D.down,'Restore from backup','A Creator Studio file — a backup, or one from the other device','data-go="restore"')}
         ${row(D.down,'Open a plan pack','A plan file from the Reference Library app — safe to open twice','data-go="planpack"')}
         <!-- First in the group on purpose: the automatic one is the one that
              saves you, and it only works if you can see that it is working. -->
         <button class="row" data-go="autobackup"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${D.up}"/></svg>
           <span class="lbl">Automatic backup<small id="bkLine">checking…</small></span>
           <i class="bkdot" id="bkDot"></i>${chev}</button>
-        ${row(D.up,'Export everything','Every record and picture — for the other device or a new phone','data-go="backup"')}
+        ${row(D.up,'Export for the other device','Without sync: plans, tasks, habits and the frames they use — not the Library','data-go="devicefile"')}
+        ${row(D.up,'Export everything','Every record and picture, the Library too — a full backup or a new laptop','data-go="backup"')}
         ${row(D.up,'Export as spreadsheets','CSV files that open in Notion or Sheets','data-go="csvout"')}
         ${row(D.grid,'Load sample content','Meals, series and clips to try things out','data-go="samples"')}
         <button class="row" data-go="wipe"><svg class="ic" style="color:var(--red)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${D.trash}"/></svg>
@@ -292,6 +293,7 @@
       if(go.dataset.go === 'samples')   return openSamples();
       if(go.dataset.go === 'csv')       return openCsvImport();
       if(go.dataset.go === 'restore')   return openRestore();
+      if(go.dataset.go === 'devicefile') return exportForDevice();
       if(go.dataset.go === 'planpack')  return openPlanPack();
       if(go.dataset.go === 'ai')        return ShotAI.openSettings();
       if(go.dataset.go === 'sync')      return openSync(() => mount(el));
@@ -376,8 +378,7 @@
   }
 
   async function openSync(after){
-    const esc = t => String(t == null ? '' : t)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+    const esc = s => U.esc(s);   /* shared: util.js */
     const s = await Sync.status();
     const p = 'margin:0 0 14px;color:var(--muted);font-size:14.5px;line-height:1.55';
 
@@ -1056,6 +1057,28 @@
         } catch(err){ console.error(err); U.toast('Export failed'); go.disabled = false; go.textContent = 'Export'; }
       });
     });
+  }
+
+  /* ---------- v4: the file to carry by hand when sync can't ----------
+     Exactly what sync would send: every store but the laptop's own Library
+     (Sync.LOCAL_STORES), with the frames tasks and videos use copied in first.
+     The other device opens it with Restore from backup → Add to what's here. */
+  async function exportForDevice(){
+    U.toast('Packing it up…');
+    try {
+      if(window.TaskFrames) await TaskFrames.run();
+      const local = (window.Sync && Sync.LOCAL_STORES) || new Set(['lib-items', 'lib-blob', 'lib-poster', 'lib-boards', 'nb-music']);
+      const names = [...(await Store.db()).objectStoreNames].filter(n => !local.has(n));
+      const data = await Transfer.exportAll({ photos:true, only:names });
+      data.kind = 'for-other-device';
+      /* this device's own: backup bookkeeping and the laptop's Library folders (as sync) */
+      if(data.keyed && data.keyed.settings) data.keyed.settings = data.keyed.settings.filter(([k]) => !/^(backup:|sync:|library$)/.test(String(k)));
+      const d = new Date();
+      const name = `creator-studio-v4-for-other-device-${d.getFullYear()}-${U.pad(d.getMonth()+1)}-${U.pad(d.getDate())}.json`;
+      const text = JSON.stringify(data);
+      const saved = await Transfer.download(name, text, 'application/json');
+      if(saved !== false) U.toast(`Saved ${name} (${(text.length / 1048576).toFixed(1)} MB). On the other device: Restore from backup → Add to what's here.`);
+    } catch(err){ U.toast('Couldn’t export: ' + (err && err.message || err)); }
   }
 
   /* ---------- plan pack ----------

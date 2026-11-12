@@ -41,8 +41,7 @@
   ];
   const statusOf = r => STATUS.find(s => s.k === (r && r.status)) || STATUS[0];
 
-  const esc = t => String(t == null ? '' : t)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const esc = s => U.esc(s);   /* shared: util.js */
   const isUrl = t => /^https?:\/\/\S+$/i.test(String(t || '').trim());
 
   async function all(){

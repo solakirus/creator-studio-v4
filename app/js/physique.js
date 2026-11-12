@@ -134,8 +134,7 @@
 
   /* ---- taking it with you ---- */
 
-  const esc = s => String(s == null ? '' : s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const esc = s => U.esc(s);   /* shared: util.js */
 
   async function csv(){
     const list = (await all()).slice().sort((a, b) => a.at - b.at);

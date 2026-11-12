@@ -3,8 +3,7 @@
    starts from. */
 (function(){
 
-  const esc = s => String(s == null ? '' : s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const esc = s => U.esc(s);   /* shared: util.js */
 
   async function mount(el, params){
     const embedded = !!(params && params.embedded);

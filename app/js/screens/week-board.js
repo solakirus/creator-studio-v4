@@ -9,7 +9,7 @@
 (function(){
 
   const KIND = { shoot:['#FB6900','Shoot'], edit:['#A855F7','Edit'], publish:['#5BBE6A','Publish'], workout:['#3F8A88','Workout'] };
-  const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const esc = s => U.esc(s);   /* shared: util.js */
   const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
   function fmtTime(t){

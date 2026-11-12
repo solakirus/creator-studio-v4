@@ -7,8 +7,7 @@
 (function(){
   const { ICON } = U;
 
-  const esc = s => String(s == null ? '' : s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const esc = s => U.esc(s);   /* shared: util.js */
 
   const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
 

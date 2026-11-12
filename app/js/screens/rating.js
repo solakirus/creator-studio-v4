@@ -5,8 +5,7 @@
    a rule you add today unlock against what you did last month. */
 (function(){
 
-  const esc = s => String(s == null ? '' : s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const esc = s => U.esc(s);   /* shared: util.js */
 
   /* ---------- the shared rule sheet ---------- */
 

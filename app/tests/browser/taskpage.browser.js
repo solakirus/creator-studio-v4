@@ -33,7 +33,8 @@ const exe = process.env.CHROME || ['C:/Program Files (x86)/Microsoft/Edge/Applic
 
   await p.evaluate(async () => {
     await ShotTemplates.all();
-    await Store.put('tasks', { id: 9901, day: await Data.currentDay(), title: 'Workout', cad: 'One-off', pri: 'med', mins: 0, prog: '', at: null,
+    /* v4: a Shoot task — only those start with the nine-shot sequence */
+    await Store.put('tasks', { id: 9901, kind: 'shoot', day: await Data.currentDay(), title: 'Workout', cad: 'One-off', pri: 'med', mins: 0, prog: '', at: null,
       view: 'todo', subs: [{ t: 'Jumping', done: false }], shots: [{ id: 'sh_x', text: 'Jumping', note: '', angles: [] }] });
     Data.invalidate('tasks');
     Screens.push('task', { id: 9901 });
@@ -180,12 +181,16 @@ const exe = process.env.CHROME || ['C:/Program Files (x86)/Microsoft/Edge/Applic
 
   /* new tasks start with the task sequence; a removed page stays removed */
   const fresh = await p.evaluate(async () => {
-    const a = await QuickAdd.add({ title: 'Swim' });
-    const b = await QuickAdd.add({ title: 'Edit', subs: [{ t: 'Rough cut', done: false }] });
+    /* v4: Shoot tasks start with the sequence; a plain one stays plain */
+    const a = await QuickAdd.add({ title: 'Swim', kind: 'shoot' });
+    const b = await QuickAdd.add({ title: 'Edit', kind: 'shoot', subs: [{ t: 'Rough cut', done: false }] });
+    const c = await QuickAdd.add({ title: 'Call the doctor' });
+    window.__plain = { page: !!c.page, subs: c.subs.length };
     return [a, b].map(x => ({ id: x.id, n: x.page && x.page.slots.length, subs: x.subs.length, shot0: x.subs[0] && x.subs[0].shot, name: x.page && x.page.name }));
   });
-  ok(fresh[0].n === 9 && fresh[0].subs === 9 && fresh[0].name === 'Shot sequence · Swim', 'a new task with no steps gets the 9 shots as steps');
-  ok(fresh[1].n === 9 && fresh[1].subs === 10 && fresh[1].shot0 === 0, 'a new task with steps gets the 9 shots as steps and keeps its own after them');
+  ok(await p.evaluate(() => !window.__plain.page && window.__plain.subs === 0), 'a new plain task stays plain: no page, no steps');
+  ok(fresh[0].n === 9 && fresh[0].subs === 9 && fresh[0].name === 'Shot sequence · Swim', 'a new Shoot task with no steps gets the 9 shots as steps');
+  ok(fresh[1].n === 9 && fresh[1].subs === 10 && fresh[1].shot0 === 0, 'a new Shoot task with steps gets the 9 shots as steps and keeps its own after them');
   await p.evaluate(id => Screens.push('task', { id }), fresh[0].id);
   await p.waitForTimeout(1200);
   await p.locator('.tkp-menu > summary').last().click();

@@ -151,6 +151,13 @@
     return lastTaskId;
   }
 
+  /* v4: shared once instead of copied into forty files (redundancy audit).
+     esc — for text going into HTML or an attribute; never for textContent. */
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  const midnight = ts => { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  const isoOf = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
   global.U = {
-    taskId, DOW, DOW_N, DOW_FULL, dayGrid, wireDayGrid, readDayGrid, daysLabel, slug, pad, hash, generatedArt, ICON, toast, dayField, wireDayField, readDayField };
+    taskId, DOW, DOW_N, DOW_FULL, dayGrid, wireDayGrid, readDayGrid, daysLabel, slug, pad, hash, generatedArt, ICON, toast, dayField, wireDayField, readDayField,
+    esc, midnight, isoOf };
 })(window);

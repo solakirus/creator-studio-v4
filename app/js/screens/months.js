@@ -5,8 +5,7 @@
    the right weekday and shows you the result before you save. */
 (function(){
 
-  const esc = t => String(t == null ? '' : t)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const esc = s => U.esc(s);   /* shared: util.js */
 
   const CSS = `
   .mo-list{display:flex;flex-direction:column;gap:10px}

@@ -11,8 +11,7 @@
   };
   const colour = p => (PLATFORMS[p] || { c:'#9AA0A6' }).c;
   /* channel names are the user's own text and go into markup */
-  const esc = s => String(s == null ? '' : s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const esc = s => U.esc(s);   /* shared: util.js */
   const monthKey = (y,m) => `${y}-${pad(m+1)}`;
   const sameDay = (ts, d) => { const x = new Date(ts);
     return x.getFullYear()===d.getFullYear() && x.getMonth()===d.getMonth() && x.getDate()===d.getDate(); };

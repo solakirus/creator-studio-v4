@@ -143,14 +143,17 @@ const head = s => console.log(`\n— ${s} —`);
   /* what it looks like: the shoot task on the phone, and the video sheet */
   await phone.evaluate(async id => { Screens.push('task', { id }); }, plan.shootId);
   await phone.waitForTimeout(2500);
+  /* on a phone the page drawing starts folded under the steps */
+  if(await phone.$('[data-a="showpage"]')){ await phone.click('[data-a="showpage"]'); await phone.waitForTimeout(1500); }
   await phone.screenshot({ path: path.join(out, 'phone-task.png') });
   const drawn = await phone.evaluate(() => {
     const c = document.querySelector('[data-pagecanvas]');
     if(!c) return { canvas: false };
     const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
-    /* the opener GIF's first frame is orange (251,105,0): look for it on the page */
+    /* the opener GIF's frames are orange, green and blue — it moves now, so any of them */
+    const C = [[251, 105, 0], [91, 190, 106], [59, 158, 255]];
     let orange = 0;
-    for(let i = 0; i < d.length; i += 16) if(Math.abs(d[i] - 251) < 12 && Math.abs(d[i + 1] - 105) < 12 && d[i + 2] < 20) orange++;
+    for(let i = 0; i < d.length; i += 16) if(C.some(([r, g, b]) => Math.abs(d[i] - r) < 14 && Math.abs(d[i + 1] - g) < 14 && Math.abs(d[i + 2] - b) < 14)) orange++;
     return { canvas: true, orange };
   });
   ok(drawn.canvas, 'the phone opens the task with its shot page');

@@ -6,8 +6,7 @@
    are stills. */
 (function(global){
 
-  const esc = s => String(s == null ? '' : s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const esc = s => U.esc(s);   /* shared: util.js */
   const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
   /* One frame, filled in later by hydrate(). `cls` adds classes, `sel` ticks it. */

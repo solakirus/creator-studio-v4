@@ -7,7 +7,7 @@
    tick a step's box, click the music strip to add or play music.
    Port of Shotline's ui_pages.rs pages_editor / page_open / page_form. */
 (function(global){
-  const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const esc = s => U.esc(s);   /* shared: util.js */
   const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
   const NB = () => global.Notebook;
 

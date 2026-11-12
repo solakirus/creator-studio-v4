@@ -175,7 +175,7 @@
      stills as pictures, clips playing muted on a loop */
   async function strip(host, page){
     if(!host || !page || !global.MediaLib) return;
-    const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+    const esc = s => U.esc(s);   /* shared: util.js */
     const slots = (page.slots || []).filter(sl => sl.item);
     if(!slots.length){ host.innerHTML = ''; return; }
     let lib = null;

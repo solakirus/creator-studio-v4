@@ -12,7 +12,7 @@
 (function(){
 
   const pad2 = n => String(n).padStart(2, '0');
-  const isoOf = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  const isoOf = d => U.isoOf(d);   /* shared: util.js */
 
   async function mount(el, params){
     const o = params || {};

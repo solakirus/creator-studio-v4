@@ -5,8 +5,7 @@
    to be seen. This is that: what is in it, grouped by where each piece stands. */
 (function(){
 
-  const esc = s => String(s == null ? '' : s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const esc = s => U.esc(s);   /* shared: util.js */
 
   const CLIP_STAGE = [
     { k:'raw',    label:'Shot, needs editing', c:'#E8A33D' },

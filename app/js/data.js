@@ -81,7 +81,7 @@
   const version = () => stamp;
 
   /* ---- the program clock: what turns "Day 3" into a real date ---- */
-  const midnight = ts => { const d = new Date(ts); d.setHours(0,0,0,0); return d.getTime(); };
+  const midnight = ts => U.midnight(ts);   /* shared: util.js */
 
   /* Adding 86,400,000ms is not adding a day. Across a daylight saving change the
      two drift by an hour, which was enough to make a finished task stop matching

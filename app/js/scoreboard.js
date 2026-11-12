@@ -178,7 +178,7 @@
       const st = document.createElement('style'); st.id = 'sc-css'; st.textContent = SC_CSS;
       document.head.appendChild(st);
     }
-    const esc = t => String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    const esc = s => U.esc(s);   /* shared: util.js */
     const v = await Store.get('vlogs', params && params.id);
     if(!v){ el.innerHTML = Screens.bar({ kicker:'Stat card', title:'Not found' }); return; }
     const m = v.monthId ? await Months.get(v.monthId) : null;

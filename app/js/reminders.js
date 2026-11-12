@@ -50,7 +50,7 @@
     };
 
     const program = await Data.program();
-    const midnight = ts => { const d = new Date(ts); d.setHours(0,0,0,0); return d.getTime(); };
+    const midnight = ts => U.midnight(ts);   /* shared: util.js */
     const dateOf = (day, hhmm) => {
       const d = new Date(midnight(program.start));
       d.setDate(d.getDate() + (day - 1));

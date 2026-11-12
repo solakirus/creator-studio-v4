@@ -6,8 +6,7 @@
    you lifted last time, which is the only thing you need before you lift again. */
 (function(){
 
-  const esc = s => String(s == null ? '' : s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const esc = s => U.esc(s);   /* shared: util.js */
 
   const hms = sec => {
     const s = Math.max(0, Math.round(sec || 0));

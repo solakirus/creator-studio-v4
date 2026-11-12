@@ -26,7 +26,9 @@ global.Store = {
   del: async (s, k) => { delete (db[s] || {})[k]; },
   names: () => Object.keys(db)
 };
-global.U = { ICON:new Proxy({}, { get:()=> '<svg/>' }), toast(){} };
+global.U = { ICON:new Proxy({}, { get:()=> '<svg/>' }), toast(){},
+  midnight: ts => { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); },
+  esc: v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])) };
 global.window = global;
 
 /* Day 1 = Mon 5 Oct 2026. A shoot sits on day 10 → Wed 14 Oct. */

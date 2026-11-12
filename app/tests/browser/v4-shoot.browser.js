@@ -45,6 +45,8 @@ const head = s => console.log(`\n— ${s} —`);
   head('the shot page on the task');
   await p.evaluate(id => Screens.push('task', { id }), id);
   await p.waitForTimeout(2200);
+  /* on a phone the page drawing starts folded under the steps */
+  if(await p.$('[data-a="showpage"]')){ await p.click('[data-a="showpage"]'); await p.waitForTimeout(1500); }
   /* the GIF's spot, sampled twice: its three frames are orange, green and blue */
   const sample = () => p.evaluate(() => {
     const c = document.querySelector('[data-pagecanvas]');

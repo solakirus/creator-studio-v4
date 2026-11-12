@@ -5,7 +5,7 @@
    and can make a new video, be put on a day, or take the Library's ＋.
    Port of Shotline's ui_videos.rs templates_page and ui_plan.rs editors. */
 (function(){
-  const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const esc = s => U.esc(s);   /* shared: util.js */
   const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
   const T = () => window.ShotTemplates;
 

@@ -30,7 +30,7 @@
 
   /* ------------------------------------------------ dates, local and calendar-true */
   const pad = n => String(n).padStart(2, '0');
-  function midnight(ts){ const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); }
+  const midnight = ts => U.midnight(ts);   /* shared: util.js */
   function addDays(ts, n){ const d = new Date(ts); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + n); return d.getTime(); }
   function keyOf(ts){ const d = new Date(ts); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
   function fromKey(k){ const [y, m, d] = String(k).split('-').map(Number); return new Date(y, m - 1, d).getTime(); }

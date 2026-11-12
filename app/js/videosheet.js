@@ -5,8 +5,7 @@
    so the two can never drift apart. */
 (function(global){
 
-  const esc = s => String(s == null ? '' : s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const esc = s => U.esc(s);   /* shared: util.js */
 
   async function open(v, opts){
     const o = opts || {};

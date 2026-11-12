@@ -44,7 +44,7 @@ t('the No channel row only shows when something has none',
   /clips\.some\(c => !c\.channel\) \? `/.test(cal));
 
 console.log('\n— channel names are the user’s text, so they are escaped —');
-t('this file has its own esc', /const esc = s => String\(s == null \? '' : s\)/.test(cal));
+t('this file escapes, through the shared U.esc', /const esc = s => U\.esc\(s\)/.test(cal));
 t('used on the row', /data-ch="\$\{esc\(c\.n\)\}"/.test(cal));
 t('and on the label', /<span class="lbl">\$\{esc\(c\.n\)\}<\/span>/.test(cal));
 /* U does not export one; a bare esc here would be a ReferenceError at render */
