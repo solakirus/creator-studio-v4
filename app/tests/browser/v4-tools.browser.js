@@ -167,6 +167,12 @@ const head = s => console.log(`\n— ${s} —`);
   await lap.click('[data-copyoff="/nas/Shot Library"]'); await lap.waitForTimeout(1000);
   st = await lap.evaluate(async () => ({ m: (await MediaLib.settings()).mirrors, c: (await MediaLib.settings()).copied }));
   ok(!Object.keys(st.m).length && !Object.keys(st.c).length, 'Stop forgets the copy (its files stay where they are)');
+  /* the NAS folder was added to the list first, then picked as the Shot Library's copy */
+  await lap.evaluate(() => { __t.pick = '/nas/Shot Library'; __t.copied = 7; window.confirm = () => true; });
+  await lap.click('[data-copyset="/home/kris/Shot Library"]'); await lap.waitForTimeout(1500);
+  st = await lap.evaluate(async () => ({ roots: (await MediaLib.settings()).roots, m: (await MediaLib.settings()).mirrors, last: __t.copies[__t.copies.length - 1] }));
+  ok(!st.roots.includes('/nas/Shot Library') && st.m['/home/kris/Shot Library'] === '/nas/Shot Library', 'a folder already on the list can become the copy (it comes off the list)', JSON.stringify(st.roots));
+  ok(JSON.stringify(st.last) === JSON.stringify([['/home/kris/Shot Library', '/nas/Shot Library']]), 'and the copy starts at once', JSON.stringify(st.last));
   const local = await lap.evaluate(async () => Sync.LOCAL_STORES && /^(backup:|sync:|library$)/.test('library'));
   ok(local, 'copy settings stay on this computer — they never sync');
 

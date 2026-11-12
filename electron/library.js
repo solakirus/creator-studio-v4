@@ -209,7 +209,8 @@ async function mirrorCopy(from, to, onStep) {
           const part = b + '.cs4part';
           await fsp.copyFile(a, part);
           await fsp.rename(part, b);
-          await fsp.utimes(b, sa.atime, sa.mtime);
+          /* keep the time where the share allows it (some SMB mounts don't) */
+          try { await fsp.utimes(b, sa.atime, sa.mtime); } catch (err) { /* the size check still works */ }
           st.copied++; st.bytes += sa.size;
         }
       } catch (err) {

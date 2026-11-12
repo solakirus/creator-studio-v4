@@ -146,25 +146,29 @@
   async function load(force){
     if(cache && !force) return cache;
     if(loading && !force) return loading;
-    loading = (async () => {
+    /* built in a local and handed over at the end: a rescan or a settings change
+       can clear the cache while this one is still reading */
+    const run = (async () => {
       const a = await appItems();
       const h = await diskItems(force);
-      cache = index([...a.items, ...h.items], [...a.pages, ...h.pages]);
+      const c = index([...a.items, ...h.items], [...a.pages, ...h.pages]);
       /* v4: frames kept for tasks and videos (taskframes.js). They answer to the
          Library uid they were copied from, so a page or shot finds them on the
          phone, which has no Library. They are not Library items: they never show
          in the Library's own grids, and the Library's copy wins on the laptop. */
       for(const it of await keptItems()){
-        if(!cache.byUid.has(it.uid)) cache.byUid.set(it.uid, it);
+        if(!c.byUid.has(it.uid)) c.byUid.set(it.uid, it);
         const plain = it.uid.includes('|') ? it.uid.slice(it.uid.indexOf('|') + 1) : '';
-        if(plain && !cache.byPlain.has(plain)) cache.byPlain.set(plain, it);
+        if(plain && !c.byPlain.has(plain)) c.byPlain.set(plain, it);
       }
-      cache.roots = h.roots || [];
-      cache.errors = h.errors || [];
-      cache.fallback = h.fallback || [];
-      loading = null;
-      return cache;
+      c.roots = h.roots || [];
+      c.errors = h.errors || [];
+      c.fallback = h.fallback || [];
+      cache = c;
+      if(loading === run) loading = null;
+      return c;
     })();
+    loading = run;
     return loading;
   }
   function invalidate(){ cache = null; }

@@ -356,6 +356,18 @@
       const ago = t => { if(!t) return ''; const m = Math.round((Date.now() - t) / 60000);
         return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; };
       const mb = b => b >= 1048576 ? (b / 1048576).toFixed(b >= 104857600 ? 0 : 1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+      /* live progress: the laptop side reports every 50 files (cs3:lib-mirror-step) */
+      if(d && typeof d.onMirror === 'function' && !foldersPage._mirrorOn){
+        foldersPage._mirrorOn = true;
+        d.onMirror((st, done) => {
+          if(done || !st || !st.from) return;
+          document.querySelectorAll('[data-copyrow]').forEach(row => {
+            if(row.dataset.copyrow !== st.from) return;
+            const x = row.querySelector('[data-copystate]');
+            if(x) x.textContent = `copying… ${st.copied} copied${st.same ? ` · ${st.same} already there` : ''}${st.failed ? ` · ${st.failed} failed` : ''}`;
+          });
+        });
+      }
       function copyRow(root){
         if(!canCopy || !root) return '';
         const to = (s.mirrors || {})[root];
@@ -417,13 +429,26 @@
           const root = cs.dataset.copyset;
           const to = await d.pickFolder();
           if(!to) return;
+          /* the folder picked is already on the list above (added with Choose a
+             folder…): it can become the copy instead — taken off the list, so the
+             same frames aren't shown twice */
+          const nrm = x => String(x || '').replace(/[\\/]+$/, '').replace(/\\/g, '/').toLowerCase();
+          const listed = (s.roots || []).find(r => nrm(r) === nrm(to));
+          if(listed && nrm(listed) !== nrm(root)){
+            if(!confirm('That folder is already on your Library list. Use it as the copy instead? It comes off the list; nothing in it is deleted.')) return;
+            s.roots = (s.roots || []).filter(r => r !== listed);
+            await MediaLib.setSettings({ roots:s.roots });
+          }
           const why = await MediaLib.copyProblem(root, to);
           if(why) return U.toast(why);
           await MediaLib.setCopy(root, to);
-          U.toast('Copying into ' + to + '…');
-          cs.disabled = true; cs.textContent = 'Copying…';
+          s = await MediaLib.settings();
+          render();
+          U.toast('Copying into ' + to + ' — the row shows how far it has got');
           const r = (await MediaLib.copyNow(root) || [])[0];
           if(r && (r.error || r.skipped)) U.toast(r.error || 'The folder can’t be reached right now');
+          else if(r) U.toast(`Copied ${r.copied} file${r.copied === 1 ? '' : 's'}${r.failed ? ` · ${r.failed} couldn’t be copied` : ''}`);
+          await MediaLib.rescan();
           return render();
         }
         const cn = e.target.closest('[data-copynow]');
