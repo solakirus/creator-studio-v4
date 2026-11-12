@@ -57,7 +57,7 @@ if defined ZIP (
   git diff --cached --quiet && (echo  That zip had nothing new.) || git commit -q -m "Update: !ZNAME!"
 ) else (
   echo  No new update zip in Downloads - looking on GitHub...
-  git pull -q --ff-only origin main 2>nul && (echo  Got what was new on GitHub.) || (
+  git pull -q --ff-only origin main 2>nul && (call :pulled) || (
     git ls-remote --exit-code origin >nul 2>nul && (
       echo.
       echo  GitHub has changes this folder can't simply add on top of.
@@ -110,6 +110,10 @@ if defined SHELL (
   echo  minutes and offers Restart now - or Settings, App updates, Check now.
 )
 goto :done
+
+:pulled
+for /f %%H in ('git rev-parse HEAD') do if not "%%H"=="%OLD%" echo  Got what was new on GitHub.
+exit /b 0
 
 :failed
 echo.

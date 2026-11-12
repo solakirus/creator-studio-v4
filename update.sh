@@ -50,7 +50,8 @@ if [ -n "$ZIP" ]; then
   if git diff --cached --quiet; then echo " That zip had nothing new."; else git commit -q -m "Update: $(basename "$ZIP")"; fi
 else
   echo " No new update zip in Downloads - looking on GitHub..."
-  if git pull -q --ff-only origin main 2>/dev/null; then echo " Got what was new on GitHub."
+  if git pull -q --ff-only origin main 2>/dev/null; then
+    [ "$(git rev-parse HEAD)" != "$OLD" ] && echo " Got what was new on GitHub."
   elif git ls-remote --exit-code origin >/dev/null 2>&1; then
     echo
     echo " GitHub has changes this folder can't simply add on top of."
@@ -67,7 +68,9 @@ SHELLCHANGE="$(git diff --name-only "$OLD" "$NEW" -- electron android native pac
 # --- 2. out to GitHub and nastime
 echo
 echo " Sending to GitHub..."
-if git push -q -u origin main 2>/dev/null; then
+if [ "$OLD" = "$NEW" ] && [ -z "$(git log origin/main..HEAD --oneline 2>/dev/null)" ] && git rev-parse -q --verify origin/main >/dev/null; then
+  echo " GitHub already has it."
+elif git push -q -u origin main 2>/dev/null; then
   echo " GitHub has it. Phone, laptop and nastime update from there in a few minutes."
 else
   echo " Could not send to GitHub - not set up yet, or no internet. Carrying on;"
