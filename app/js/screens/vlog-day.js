@@ -113,7 +113,7 @@
             return `
               <article class="seqcard${all ? ' all' : ''}${open ? ' open' : ''}">
                 <div class="sc-row">
-                  <button class="sc-head" data-fold="${b.id}" aria-expanded="${open}">
+                  <button class="sc-head" data-seqfold="${b.id}" aria-expanded="${open}">
                     <span class="sc-cv">${open ? DOWN : ICON.chevR}</span>
                     <span class="t">
                       <b>${esc(b.title)}</b>
@@ -276,6 +276,8 @@
     });
 
     el.addEventListener('click', async e => {
+      /* the Steps + Shot page block handles its own taps (screens/task.js) */
+      if(e.target.closest && e.target.closest('.tk-host')) return;
       /* ticking a shot must win over opening the sequence it sits in */
       const sh = e.target.closest('[data-shot]');
       if(sh){
@@ -344,10 +346,10 @@
         return;
       }
 
-      const fo = e.target.closest('[data-fold]');
+      const fo = e.target.closest('[data-seqfold]');
       if(fo){
         isOpen({ id:'' });
-        const id = fo.dataset.fold;
+        const id = fo.dataset.seqfold;
         if(opened.has(id)) opened.delete(id); else opened.add(id);
         return render();
       }

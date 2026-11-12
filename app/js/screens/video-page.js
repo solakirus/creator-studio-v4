@@ -90,6 +90,8 @@
     }
 
     el.addEventListener('click', async e => {
+      /* the Steps + Shot page block handles its own taps (screens/task.js) */
+      if(e.target.closest && e.target.closest('.tk-host')) return;
       const pt = e.target.closest('[data-part]');
       if(pt){ id = pt.dataset.part; await load(); return render(); }
       const st = e.target.closest('[data-stage]');

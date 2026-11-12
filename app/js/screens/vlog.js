@@ -2043,6 +2043,7 @@
     }
 
     el.addEventListener('input', e => {
+      if(e.target.closest && e.target.closest('.tk-host')) return;
       /* the two long fields save themselves as you type */
       if(e.target.id === 'purpose') b.purpose = e.target.value;
       else if(e.target.id === 'bscript') b.script = e.target.value;
@@ -2058,6 +2059,8 @@
     });
 
     el.addEventListener('click', async e => {
+      /* the Steps + Shot page block handles its own taps (screens/task.js) */
+      if(e.target.closest && e.target.closest('.tk-host')) return;
       /* the job this beat does in the episode */
       const f = e.target.closest('[data-fn]');
       if(f){

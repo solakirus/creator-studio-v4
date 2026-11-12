@@ -678,6 +678,7 @@
 
     /* typing never re-renders, so the caret stays put */
     el.addEventListener('input', e => {
+      if(e.target.closest && e.target.closest('.tk-host')) return;   /* the Steps block handles its own */
       const vn = e.target.dataset.vnote;
       if(vn){ const v = findVersion(vn); if(v){ v.note = e.target.value; save(true); } return; }
       const vna = e.target.dataset.vname;
@@ -714,6 +715,7 @@
 
     /* the two dropdowns on a cut save the moment they change */
     el.addEventListener('change', async e => {
+      if(e.target.closest && e.target.closest('.tk-host')) return;   /* the Steps block handles its own */
       const pl = e.target.dataset.cutplat;
       if(pl){
         const cut = (clip.cuts || []).find(c => c.id === pl);
@@ -734,6 +736,7 @@
     });
 
     el.addEventListener('click', async e => {
+      if(e.target.closest && e.target.closest('.tk-host')) return;   /* the Steps block handles its own */
       const ct = e.target.closest('[data-ctab]');
       if(ct){
         if(ct.dataset.ctab === tab) return;
