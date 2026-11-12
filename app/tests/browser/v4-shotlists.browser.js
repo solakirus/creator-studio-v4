@@ -110,7 +110,7 @@ const head = s => console.log(`\n— ${s} —`);
   await lap.evaluate(() => Screens.pop()); await lap.waitForTimeout(400);
   await lap.evaluate(() => Screens.push('vlog', { id: 'vl_test' })); await lap.waitForTimeout(1800);
   const wtf = await lap.evaluate(() => [...document.querySelectorAll('.dayrow[data-day]')].map(r => [r.dataset.day, r.querySelectorAll('.sl-strip img').length]));
-  ok(wtf.length === 2 && wtf[0][1] === 7 && wtf[1][1] === 0, 'What to film shows each day\'s frames', JSON.stringify(wtf));
+  ok(wtf.length === 2 && wtf.every(x => x[1] === 0), 'What to film stays plain day rows (no filmstrip)', JSON.stringify(wtf));
   await lap.evaluate(() => { const r = document.querySelector('.dayrow[data-day]'); if(r) r.scrollIntoView(); });
   await lap.screenshot({ path: path.join(out, 'laptop-what-to-film.png') });
   await lap.evaluate(() => Screens.pop()); await lap.waitForTimeout(400);

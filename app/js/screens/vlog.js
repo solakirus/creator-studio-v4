@@ -1161,7 +1161,6 @@
                        return c.onTasks ? `${c.onTasks} on your days` : ''; })()
                     ].filter(Boolean).join(' · ')
                   : 'Nothing planned yet'}</small>
-                ${ShotList.stripHTML(items.flatMap(x => x.beat.shots || []), 9)}
               </span>
               ${shots ? `<span class="dr-c${got === shots ? ' all' : ''}">${got}/${shots}</span>` : ''}
               ${ICON.chevR}
