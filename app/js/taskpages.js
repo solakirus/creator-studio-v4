@@ -1,7 +1,7 @@
 /* A task's shot page: which Templates page a task starts with, and how a page
    is put on a task.
 
-   Every new task starts with the nine-shot task sequence ("Sequence · Task",
+   Every new Shoot task starts with the nine-shot task sequence ("Sequence · Task",
    Shotline sheet.rs TASK_STEPS) from Templates, so nobody has to pick a page
    each time. A task whose page was removed (t.pageOff) is left alone, and
    picking another page from the Steps dropdown still works as before.
@@ -84,8 +84,10 @@
   /* the default page on a task that has none and never had it removed */
   async function attachDefault(t){
     if(!t || t.page || t.pageOff) return false;
-    /* v4: a habit's own task ("Drink water") is a tick, not a shoot — no shot page */
-    if(t.habitId) return false;
+    /* v4: only a Shoot task starts with the nine-shot sequence. Everything
+       else — calling the doctor, a habit's own task — stays a plain to-do;
+       a page can still be added from the task's Steps. */
+    if(t.kind !== 'shoot') return false;
     const d = await defaultSource();
     if(!d) return false;
     attach(t, d.tp, d.sh);

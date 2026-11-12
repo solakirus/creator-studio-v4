@@ -26,7 +26,13 @@
         return { i, item:sl.item || '', role:sl.role || '', text:sl.text || `Shot ${i + 1}`, note:step.note || sl.note || '', done:!!step.done };
       });
     }
-    return (t.subs || []).map((s2, i) => ({ i, item:s2.frame || '', role:'', text:s2.t || `Step ${i + 1}`, note:s2.note || '', done:!!s2.done }));
+    /* steps: an episode sequence's shots keep their Reference Library stills on
+       t.shots[i].angles[].refIds — the first one is the shot's frame */
+    return (t.subs || []).map((s2, i) => {
+      const sh = (t.shots || [])[i];
+      const ref = sh && (sh.angles || []).flatMap(a => a.refIds || [])[0];
+      return { i, item:s2.frame || '', ref:ref || null, role:'', text:s2.t || `Step ${i + 1}`, note:s2.note || '', done:!!s2.done };
+    });
   }
 
   /* tick one shot — the same rule as the task screen: a page spot ticks the
@@ -99,6 +105,11 @@
     let lib = null;
     try { lib = global.MediaLib ? await MediaLib.load() : null; } catch(e){ lib = null; }
     const media = async s => {
+      if(!s.item && s.ref && global.Refs){
+        const r = await Refs.get(s.ref).catch(() => null);
+        const u = r ? await Refs.src(s.ref, r).catch(() => null) : null;
+        return u ? { kind: r.kind === 'video' ? 'video' : 'image', url:u } : null;
+      }
       if(!s.item || !lib) return null;
       const it = MediaLib.find(lib, s.item);
       if(!it) return null;

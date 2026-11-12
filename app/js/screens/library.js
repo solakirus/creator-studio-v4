@@ -366,14 +366,7 @@
         ${d ? grabCard(gr, s) : `<div class="lv-card"><h3>Grab media</h3><p class="hintline" style="margin:0">Grabbing whole pages, YouTube, Instagram or TikTok videos runs on the laptop with Shot Library’s grabber.</p></div>`}
         ${d ? `<div class="lv-card"><h3>From Shotline</h3>
           <p class="hintline" style="margin:0 0 10px">Bring in the boards Shot Library shares (Shot Library/_boards.json) and the templates you made in Shotline (Shot Library/_Shotline/plan.json).</p>
-          <button class="lv-btn" data-shotline>Import boards and templates</button></div>` : ''}
-        <div class="lv-card" data-phonecard><h3>Phone ⇄ laptop</h3>
-          <p class="hintline" style="margin:0 0 10px">Move the Library (GIFs, clips, stills, boards), Templates (shots, tasks, look, notebook pages) and your tasks with their shot pages between this ${d ? 'laptop' : 'phone'} and the ${d ? 'phone' : 'laptop'} app. Importing adds and updates; it never deletes anything.</p>
-          ${d ? `<div class="lv-row"><button class="lv-btn ghost" data-bringin>1 · Copy grabbed files into the app</button>
-            <small class="hintline" data-bringnote>Grabbed GIFs live in folders on this laptop; copying them in lets them travel to the phone (with their bigger-GIF links).</small></div>` : ''}
-          <div class="lv-row"><button class="lv-btn" data-libexport>${d ? '2 · ' : ''}Export Library & Templates</button>
-            <button class="lv-btn ghost" data-libimport>Import a Library & Templates file</button></div>
-          <p class="hintline" data-phonelog style="margin:6px 0 0"></p></div>`;
+          <button class="lv-btn" data-shotline>Import boards and templates</button></div>` : ''}`;
       const input = body.querySelector('[data-input]');
       const libName = () => body.querySelector('[data-libname]').value.trim();
       body.querySelector('[data-libname]').addEventListener('change', e => MediaLib.setSettings({ libName:e.target.value.trim() }));
@@ -398,54 +391,12 @@
           if(window.ShotTemplates && r.templates.length) t = await ShotTemplates.importShotline(r.templates);
           return U.toast(`Brought in ${plural(r.boards, 'board')} and ${plural(t, 'template')}`);
         }
-        if(await phoneClick(e, body)) return;
         await grabClick(e, body, s);
       });
     }
 
-    /* Phone ⇄ laptop: the stores that make up the Library, Templates and the
-       tasks' shot pages, in one file both apps read (Transfer's backup format) */
-    const PHONE_STORES = ['lib-items', 'lib-blob', 'lib-poster', 'lib-boards', 'shot-templates', 'tasks'];
-    async function phoneClick(e, body){
-      const log = body.querySelector('[data-phonelog]');
-      const say = t => { if(log) log.textContent = t; };
-      if(e.target.closest('[data-bringin]')){
-        say('Copying grabbed files into the app…');
-        const r = await MediaLib.bringIn(null, (i, n) => say(`Copying grabbed files into the app… ${i} of ${n}`));
-        say(`${plural(r.copied, 'file')} copied in${r.already ? ` · ${r.already} already in` : ''}${r.failed ? ` · ${r.failed} couldn’t be read` : ''}. Now export.`);
-        return true;
-      }
-      if(e.target.closest('[data-libexport]')){
-        say('Packing the Library and Templates…');
-        try {
-          const data = await Transfer.exportAll({ photos:true, only:PHONE_STORES });
-          data.kind = 'library-templates';
-          const text = JSON.stringify(data);
-          const name = `CSv4 Library & Templates ${new Date().toISOString().slice(0, 10)}.json`;
-          const ok = await Transfer.download(name, text, 'application/json');
-          const lib = await MediaLib.load(true);
-          const onDisk = lib.items.filter(it => it.src === 'h').length;
-          say(ok ? `Saved “${name}” (${(text.length / 1048576).toFixed(1)} MB: ${plural((data.data['lib-items'] || []).length, 'frame')}, ${plural((data.data['shot-templates'] || []).length, 'template')}, ${plural((data.data.tasks || []).length, 'task')}).${onDisk ? ` ${onDisk} grabbed files are still only in folders — press 1 first to include them.` : ''} Open it on the other device with “Import a Library & Templates file”.`
-            : 'Not saved.');
-        } catch(err){ say('Couldn’t export: ' + (err.message || err)); }
-        return true;
-      }
-      if(e.target.closest('[data-libimport]')){
-        const text = await Transfer.pickFile('.json,application/json');
-        if(!text) return true;
-        say('Bringing it in…');
-        try {
-          const obj = JSON.parse(text);
-          const n = await Transfer.importAll(obj, 'merge');
-          const rep = Transfer.report() || {};
-          if(window.Data && Data.invalidate) Data.invalidate();
-          await MediaLib.rescan();
-          say(`Brought in ${plural(n || 0, 'record')}${rep.photos ? ` with ${plural(rep.photos, 'file')}` : ''}. Find them under Library and Templates.`);
-        } catch(err){ say('Couldn’t import: ' + (err.message || err)); }
-        return true;
-      }
-      return false;
-    }
+    /* v4: no "Phone ⇄ laptop" file any more — the phone gets the frames its
+       tasks and videos use through sync (taskframes.js), not the Library. */
 
     function grabCard(gr, s){
       /* pages grab with nothing installed; videos need yt-dlp and ffmpeg */

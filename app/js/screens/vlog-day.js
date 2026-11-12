@@ -114,6 +114,7 @@
                   </details>`
                   : `<p class="sc-none">No shots listed yet — open it to add them.</p>`}
                 <div class="sc-foot">
+                  ${b.taskId && sh.length ? `<button data-shootseq="${b.taskId}" style="color:var(--orange);font-weight:700">▶ Shoot it</button>` : ''}
                   <button data-moveto="${b.id}">Move to another day</button>
                   ${sh.length ? `<button data-keep="${b.id}">Save as a template</button>` : ''}
                 </div>
@@ -244,6 +245,9 @@
       }
 
       /* Picking the day from a list beats dragging a dozen cards around. */
+      /* v4: the one shoot mode — one shot at a time, full screen */
+      const ss = e.target.closest('[data-shootseq]');
+      if(ss){ Screens.push('shoot-run', { id:+ss.dataset.shootseq || ss.dataset.shootseq, onChange: async () => { await load(); render(); } }); return; }
       const mv = e.target.closest('[data-moveto]');
       if(mv){
         const b = (act.beats || []).find(x => x.id === mv.dataset.moveto);

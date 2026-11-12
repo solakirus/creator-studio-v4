@@ -20,6 +20,10 @@
       .shotline.done button.bx{color:#fff}
       .shotline.done button.bx{background:var(--green)}
       .shotline.tk-ps .mini{margin-top:2px}
+      .tk-th{width:46px;height:58px;flex:0 0 46px;padding:0;border:1px solid var(--line);border-radius:3px;background:var(--surface-2);overflow:hidden;cursor:pointer;margin-top:1px}
+      .tk-th img,.tk-th video{width:100%;height:100%;object-fit:cover;display:block}
+      .shotline.done .tk-th{opacity:.45}
+      .tkp-showpage{width:100%;justify-content:center;margin:4px 0 10px}
       .tkp-shoot{background:var(--orange)!important;border-color:var(--orange)!important;color:#151515!important;font-weight:700}
       .tkp-next[data-a]{cursor:pointer;position:relative;padding-right:34px}
       .tkp-next .tkp-go{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-style:normal;color:var(--orange)}
@@ -125,6 +129,9 @@
        frames, any page) linked to this task. The task keeps its own copy, so
        ticking shots here never changes the template. Each step can stand for
        one shot (picture spot) on the page: step.shot is that spot's index. */
+    /* v4: on a phone the shot page's drawing starts folded — the steps show the
+       shots with their frames, so it would be the same list twice */
+    let showPage = false;
     let pageChoices = [];   /* [{ key:'tid|sid', label, group, n }] */
     let pageMedia = null, pageMediaKey = '';
     async function loadPageChoices(){
@@ -234,7 +241,8 @@
           ${n ? `<span class="tkp-count">${doneN}/${n}</span>` : ''}
         </div>
         ${n ? `<div class="track tkp-track"><i class="ok" style="width:${Math.round(doneN / n * 100)}%"></i></div>` : ''}
-        <div class="tkp-cwrap"><canvas class="tkp-canvas" width="720" height="900" data-pagecanvas
+        ${onMain() && innerWidth < 900 && !showPage ? `<button class="btn-sm tkp-showpage" data-a="showpage">Show the page</button>` : ''}
+        <div class="tkp-cwrap"${onMain() && innerWidth < 900 && !showPage ? ' hidden' : ''}><canvas class="tkp-canvas" width="720" height="900" data-pagecanvas
           title="${onMain() ? 'Tap a picture to shoot it full screen' + (window.CS3Lib ? ' (right-click to change it)' : '') + ', words to type over them, a shot’s box to tick it' : 'Click words to type over them, a picture spot to pick a shot'}"></canvas>
           <div class="pe-edit" hidden></div></div>
         ${nx !== -1 && n ? `<div class="tkp-next"${onMain() ? ` data-a="shootnext" role="button" tabindex="0" title="Shoot it full screen"` : ''}><span>Next up</span><b>${esc(shotTitle(P, nx))}</b>${onMain() ? '<i class="tkp-go">▶</i>' : ''}</div>`
@@ -258,7 +266,7 @@
     async function drawPage(){
       const c = el.querySelector('[data-pagecanvas]');
       const P = curPage();
-      if(!c || !P) return;
+      if(!c || !P || c.closest('[hidden]')) return;   /* folded on a phone: nothing to draw */
       const key = P.id + ':' + (P.slots || []).map(sl => sl.item).join(',');
       if(key !== pageMediaKey){ pageMedia = await Notebook.prepare(P); pageMediaKey = key; }
       if(!c.isConnected) return;
@@ -349,6 +357,19 @@
       if(onMain() && (sl.item || !window.CS3Lib)) return openShoot(i);
       if(!window.CS3Lib){ if(sl.item && window.LibView) LibView.view(sl.item); return; }
       return pickInto(i);
+    }
+    /* each shot step's own frame: a GIF moves, a clip loops (muted) */
+    async function fillThumbs(){
+      const ths = [...el.querySelectorAll('.tk-th[data-item]')];
+      if(!ths.length || !window.MediaLib) return;
+      let lib = null;
+      try { lib = await MediaLib.load(); } catch(e){ return; }
+      for(const b of ths){
+        const it = MediaLib.find(lib, b.dataset.item);
+        const u = it ? await MediaLib.url(it).catch(() => null) : null;
+        if(!b.isConnected || !u) continue;
+        b.innerHTML = it.kind === 'video' ? `<video src="${esc(u)}" muted loop autoplay playsinline preload="metadata"></video>` : `<img src="${esc(u)}" alt="">`;
+      }
     }
     function openShoot(i){
       return Screens.push('shoot-run', { id:t.id, at:i == null ? undefined : i, onChange: async () => { await load(); render(); } });
@@ -703,6 +724,7 @@
             <div class="shotline tk-ps${dn ? ' done' : ''}${i === nx ? ' tk-next' : ''}" data-ps="${i}">
               <button class="bx" data-tick="${i}" aria-label="Tick shot ${i + 1}" aria-pressed="${dn}">${ICON.check}</button>
               <span class="sn">${i + 1}</span>
+              ${sl.item ? `<button class="tk-th" data-shootat="${i}" data-item="${esc(sl.item)}" aria-label="Shoot shot ${i + 1} full screen"></button>` : ''}
               <span class="tx">
                 <span class="tk-line">
                   ${isSteps ? `<select class="tk-rolesel${r ? '' : ' none'}" data-pf="role:${i}" aria-label="Shot ${i + 1} type">
@@ -937,6 +959,7 @@
       }
       const cv = el.querySelector('[data-pagecanvas]');
       if(cv) cv.addEventListener('contextmenu', ev => slotMenu(ev, cv));
+      fillThumbs();
       el.querySelectorAll('[data-pagepick]').forEach(sel => sel.addEventListener('change', () => {
         if(sel.value) linkPage(sel.value);
       }));
@@ -1344,6 +1367,8 @@
         /* open the clip on the tab for the job this task is */
         tab: { shoot:'shoot', edit:'edit', publish:'post' }[t.kind] });
       /* the page in the task works as in the page editor; only a shot's own box ticks it */
+      const th = e.target.closest('[data-shootat]');
+      if(th) return openShoot(+th.dataset.shootat);
       const pc2 = e.target.closest('[data-pagecanvas]');
       if(pc2 && t.page) return pageTap(e, pc2);
       const pg = e.target.closest('[data-pg]');
@@ -1485,6 +1510,7 @@
       if(!a) return;
 
       if(a.dataset.a === 'editkit') return editKit();
+      if(a.dataset.a === 'showpage'){ showPage = true; pageMediaKey = ''; return render(); }
       if(a.dataset.a === 'shootmode') return openShoot(null);
       if(a.dataset.a === 'shootnext') return openShoot(nextOn(curPage()));
       if(a.dataset.a === 'openpage') return Screens.push('task-page', { id:t.id, onChange: async () => { await load(); render(); } });

@@ -339,5 +339,4 @@
 
   /* 'notes' is the host with both sections; 'notes-list' is the list alone. */
   Screens.register('notes', mountHost);
-  Screens.register('notes-list', mount);
 })();

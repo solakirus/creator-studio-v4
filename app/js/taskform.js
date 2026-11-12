@@ -44,7 +44,9 @@
 
   /* opts.day   — program day to land on (what the callers have)
      opts.date  — a timestamp or yyyy-mm-dd, if that is what you have instead
-     opts.seed  — { title, at, kind, mins } to prefill
+     opts.seed  — { title, at, kind, mins, target } to prefill (target is
+                  "8 cups" from the task library)
+     The one add-task form: Today, Month, Week and the day sheet all open it.
      opts.onSaved(tasks) — called with what was written  */
   async function open(opts){
     const o = opts || {};
@@ -68,9 +70,15 @@
 
     let units = ['reps','min','hr','km','pages','L','g','words','clips'];
     try { if(global.TaskLib && TaskLib.UNITS) units = TaskLib.UNITS; } catch(e){}
+    /* from the task library: "8 cups" → 8 and "cups" */
+    const seedAmt = (String(seed.target || '').match(/[\d.]+/) || [''])[0];
+    const seedUnit = String(seed.target || '').replace(/[\d.\s]/g, '');
+    /* a workout routine makes it a workout task (was only on Today's own form) */
+    let routines = [];
+    try { if(global.Routines && Routines.all) routines = await Routines.all(); } catch(e){ routines = []; }
 
     App.sheet(`
-      <h2 style="margin:0 0 4px">Add a task</h2>
+      <h2 style="margin:0 0 4px">${seed.title ? esc(seed.title) : 'Add a task'}</h2>
       <p class="hintline" style="margin:0 0 14px">${esc(dateLabel)} · day ${day}</p>
 
       <input id="tf-title" class="pgname" type="text" value="${esc(seed.title || '')}"
@@ -91,7 +99,7 @@
       <h3 class="pgh">How long will it take?</h3>
       <select id="tf-mins" class="pgbar">
         <option value="0"${!seed.mins ? ' selected' : ''}>Not worth timing</option>
-        ${[5,10,15,20,30,45,60,90,120].map(n =>
+        ${[5,10,15,20,30,45,60,75,90,120,150].map(n =>
           `<option value="${n}"${+seed.mins === n ? ' selected' : ''}>${
             n < 60 ? n + ' min' : (n / 60) + ' hr'}</option>`).join('')}
       </select>
@@ -123,17 +131,25 @@
           `<option value="${k}"${(seed.kind || '') === k ? ' selected' : ''}>${
             k ? KINDS[k] + ' — coloured on the week board' : 'Plain — ordinary life'}</option>`).join('')}
       </select>
+      <p class="hintline" style="margin:8px 0 0">A Shoot task starts with the nine-shot sequence to film from; the rest stay plain.</p>
+      ${routines.length ? `
+      <h3 class="pgh">A workout?</h3>
+      <select id="tf-workout" class="pgbar">
+        <option value="">Not a workout</option>
+        ${routines.map(r => `<option value="${esc(r.id)}">${esc(r.name)}${r.type ? ` · ${esc(r.type)}` : ''}</option>`).join('')}
+      </select>
+      <p class="hintline">Picking one starts the workout, blocks the time and lists every lift as a step.</p>` : ''}
 
       <h3 class="pgh">Count something? <small style="font-weight:400;color:var(--muted)">optional</small></h3>
       <div class="pgstep">
         <button type="button" class="bump" data-tfstep="-1">&minus;</button>
-        <span class="val"><b id="tf-amt">0</b></span>
+        <span class="val"><b id="tf-amt">${seedAmt || 0}</b></span>
         <button type="button" class="bump" data-tfstep="1">+</button>
       </div>
       <select id="tf-unit" class="pgbar" style="margin:8px 0 0">
-        <option value="__none" selected>Just tick it — no amount</option>
-        <option value="">a number, no unit</option>
-        ${units.map(u => `<option value="${u}">${u}</option>`).join('')}
+        <option value="__none"${seedAmt ? '' : ' selected'}>Just tick it — no amount</option>
+        <option value=""${seedAmt && !seedUnit ? ' selected' : ''}>a number, no unit</option>
+        ${units.map(u => `<option value="${u}"${seedAmt && seedUnit === u ? ' selected' : ''}>${u}</option>`).join('')}
       </select>
 
       <h3 class="pgh">Steps <small style="font-weight:400;color:var(--muted)">one per line, optional</small></h3>
@@ -148,6 +164,19 @@
       const $ = s => sheetEl.querySelector(s);
       const title = $('#tf-title');
       if(title) setTimeout(() => title.focus(), 80);
+
+      /* choosing a workout fills in the name and the time, if still blank */
+      const wsel = $('#tf-workout');
+      if(wsel) wsel.addEventListener('change', () => {
+        const r = routines.find(x => x.id === wsel.value);
+        if(!r) return;
+        if(!title.value.trim()) title.value = r.name;
+        $('#tf-kind').value = 'workout';
+        const mins = $('#tf-mins');
+        const guess = Routines.estimateMinutes ? Routines.estimateMinutes(r) : 0;
+        const opts = [...mins.options].map(o => +o.value).filter(Boolean);
+        if(guess && opts.length) mins.value = String(opts.reduce((a, b) => Math.abs(b - guess) < Math.abs(a - guess) ? b : a, opts[0]));
+      });
 
       let repeat = [];
       const syncDow = () => {
@@ -215,7 +244,14 @@
           view: 'todo'
         };
         if(kind) base.kind = kind;
-        /* every new task starts with the task sequence shot page (taskpages.js) */
+        /* a linked workout brings its lifts along as steps and knows how to start */
+        const routine = wsel && wsel.value ? routines.find(x => x.id === wsel.value) : null;
+        if(routine){
+          base.kind = 'workout';
+          base.routineId = routine.id;
+          if(!steps.length) base.subs = (routine.items || []).map(i => ({ t:`${i.name} · ${i.sets}×${i.reps}`, done:false }));
+        }
+        /* a Shoot task starts with the task sequence shot page (taskpages.js) */
         if(window.TaskPages) await TaskPages.attachDefault(base);
 
         const written = [];
@@ -236,6 +272,7 @@
             if(!repeat.includes(dd.getDay())) continue;
             const copy = { ...base, id: U.taskId(), day: day + i,
               subs: (base.subs || []).map(x => ({ ...x, done:false })) };
+            if(base.page) copy.page = JSON.parse(JSON.stringify(base.page));
             await Store.put('tasks', copy);
             written.push(copy);
           }

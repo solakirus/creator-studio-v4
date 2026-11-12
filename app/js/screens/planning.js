@@ -181,5 +181,4 @@
   }
 
   Screens.register('planning', mountHost);
-  Screens.register('planning-quarters', mount);
 })();

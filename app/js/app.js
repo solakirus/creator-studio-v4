@@ -184,30 +184,18 @@
 
     /* Keyed by the tile's slug, which is what data-tool carries. Both the old
        and current names are listed so a renamed tile cannot orphan its screen. */
+    /* One key per tile in TOOLS: a tile's key is slug(name). The old aliases
+       went in v4 — nothing stores or pins a slug, so they could never fire.
+       Renaming a tile means changing its key here too. */
     const TOOL_ROUTES = {
       workout:'workout',
       nutrition:'nutrition-home',
       program:'program',
-      /* the swipe file lives in the Shots console now; the old key still opens it */
-      'swipe-file':'shots-console',
       shots:'shots-console',
-      'shot-list':'shots-console',
-      'reference-library':'shots-console',
-      calendar:'calendar',
       'quick-capture':'quick-capture',
-      'capture-mode':'quick-capture',
-      /* the tile is Planning now; the journal is a section of Notes, and the old
-         key still reaches it for anyone who had it pinned */
-      planning:'planning',
-      journal:'journal',
-      /* Episodes moved into the Content tab; the old key still opens it */
-      episodes:'vlog-builder',
-      videos:'videos',
-      insights:'insights',
       notes:'notes',
-      /* the calendar is the Month tab now; the old key still finds it */
-      calendar:'calendar',
-      'vlog-builder':'vlog-builder'
+      insights:'insights',
+      planning:'planning'
     };
     panelEl().addEventListener('click', e => {
       const t = e.target.closest('[data-tool]'); if(!t) return;

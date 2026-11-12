@@ -128,7 +128,7 @@
           <span class="lbl">App updates<small id="upLine">checking…</small></span>${chev}</button>
         ${row(D.down,'Import from CSV','Meals, clips, tasks or pantry items','data-go="csv"')}
         ${row(D.down,'Restore from backup','A Creator Studio JSON file','data-go="restore"')}
-        ${row(D.down,'Open a plan pack','From the laptop Planner or the Reference Library — safe to open twice','data-go="planpack"')}
+        ${row(D.down,'Open a plan pack','A plan file from the Reference Library app — safe to open twice','data-go="planpack"')}
         <!-- First in the group on purpose: the automatic one is the one that
              saves you, and it only works if you can see that it is working. -->
         <button class="row" data-go="autobackup"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${D.up}"/></svg>
