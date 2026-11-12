@@ -33,14 +33,26 @@ git remote get-url origin >/dev/null 2>&1 || git remote add origin https://githu
 git add -A && { git diff --cached --quiet || git commit -q -m "Changes made on this computer"; }
 OLD="$(git rev-parse HEAD)"
 
-# --- 1. the update
+# --- 1. the update: first whatever is new on GitHub (what Claude pushed), then a zip
+if git ls-remote --exit-code origin main >/dev/null 2>&1; then
+  if git pull -q --ff-only origin main 2>/dev/null; then
+    [ "$(git rev-parse HEAD)" != "$OLD" ] && echo " Got what was new on GitHub."
+  else
+    echo
+    echo " GitHub has changes this folder can't simply add on top of."
+    echo " Nothing was changed. Paste this window to Claude."
+    exit 1
+  fi
+else
+  echo " GitHub isn't set up yet (or no internet) - see PUT IT ON GITHUB.txt. Carrying on."
+fi
+
 ZIP="${1:-}"
 if [ -z "$ZIP" ]; then
   for f in $(ls -t "$HOME"/Downloads/cs4-update-*.zip 2>/dev/null); do
     grep -qxF "$(basename "$f")" .applied-updates.txt 2>/dev/null || { ZIP="$f"; break; }
   done
 fi
-
 if [ -n "$ZIP" ]; then
   echo " Using $(basename "$ZIP")"
   unzip -oq "$ZIP" -d . || { echo " Could not open the zip."; exit 1; }
@@ -48,17 +60,6 @@ if [ -n "$ZIP" ]; then
   chmod +x ./*.sh 2>/dev/null
   git add -A
   if git diff --cached --quiet; then echo " That zip had nothing new."; else git commit -q -m "Update: $(basename "$ZIP")"; fi
-else
-  echo " No new update zip in Downloads - looking on GitHub..."
-  if git pull -q --ff-only origin main 2>/dev/null; then
-    [ "$(git rev-parse HEAD)" != "$OLD" ] && echo " Got what was new on GitHub."
-  elif git ls-remote --exit-code origin >/dev/null 2>&1; then
-    echo
-    echo " GitHub has changes this folder can't simply add on top of."
-    echo " Nothing was changed. Paste this window to Claude."
-    exit 1
-  else echo " GitHub isn't set up yet - see PUT IT ON GITHUB.txt. Carrying on."
-  fi
 fi
 
 NEW="$(git rev-parse HEAD)"
@@ -68,7 +69,7 @@ SHELLCHANGE="$(git diff --name-only "$OLD" "$NEW" -- electron android native pac
 # --- 2. out to GitHub and nastime
 echo
 echo " Sending to GitHub..."
-if [ "$OLD" = "$NEW" ] && [ -z "$(git log origin/main..HEAD --oneline 2>/dev/null)" ] && git rev-parse -q --verify origin/main >/dev/null; then
+if git rev-parse -q --verify origin/main >/dev/null && [ -z "$(git log origin/main..HEAD --oneline)" ]; then
   echo " GitHub already has it."
 elif git push -q -u origin main 2>/dev/null; then
   echo " GitHub has it. Phone, laptop and nastime update from there in a few minutes."

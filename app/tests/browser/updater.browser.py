@@ -49,7 +49,7 @@ try:
     ctx=b.new_context(); ctx.add_init_script(FAKE); p=ctx.new_page()
     errs=[]; p.on('pageerror',lambda e: errs.append(str(e)))
     p.goto('http://127.0.0.1:18910/upd.html'); p.wait_for_timeout(500)
-    st=p.evaluate("JSON.parse(localStorage.getItem('cs3-updater'))")
+    st=p.evaluate("JSON.parse(localStorage.getItem('cs4-updater'))")
     ok(st.get('shipped')==current['build'] and st.get('nativeLevel')==1, 'it knows it is running the copy inside the APK', st)
     hits.clear()
     r=p.evaluate("Updater.check({quiet:true})")
@@ -63,22 +63,22 @@ try:
     p.reload(); p.wait_for_timeout(500)
     calls=p.evaluate("__calls")
     ok(['base',f"/data/user/0/cs3/files/web/{remote['build']}"] in calls and ['persist'] in calls, 'next launch switches to it, and keeps it', calls)
-    st=p.evaluate("JSON.parse(localStorage.getItem('cs3-updater'))")
+    st=p.evaluate("JSON.parse(localStorage.getItem('cs4-updater'))")
     ok(st['pending']['build']==remote['build'] and st['pending']['prev'] is None, 'and remembers the APK copy to fall back to', st['pending'])
 
     # it starts badly three times: pretend the new build is now running (serve remote as current)
     s1.shutdown(); s1.server_close(); s1=serve(rem,18910,Quiet); open(f'{rem}/upd.html','w').write('<!doctype html><script src="js/updater.js"></script>')
     for i in range(3):
         p.evaluate("sessionStorage.setItem('calls','[]')"); p.reload(); p.wait_for_timeout(400)
-    calls=p.evaluate("__calls"); st=p.evaluate("JSON.parse(localStorage.getItem('cs3-updater'))")
+    calls=p.evaluate("__calls"); st=p.evaluate("JSON.parse(localStorage.getItem('cs4-updater'))")
     ok(['asset','public'] in calls, 'after three failed starts it goes back to the APK copy', calls)
     ok(remote['build'] in st['bad'] and not st['pending'], 'and never tries that build again', st.get('bad'))
 
     # a good start clears the watch
     ctx2=b.new_context(); ctx2.add_init_script(FAKE); p2=ctx2.new_page(); p2.goto('http://127.0.0.1:18910/upd.html'); p2.wait_for_timeout(300)
-    p2.evaluate("localStorage.setItem('cs3-updater', JSON.stringify({bundles:{'"+remote['build']+"':'/x'}, pending:{build:'"+remote['build']+"',tries:1,prev:null}}))")
+    p2.evaluate("localStorage.setItem('cs4-updater', JSON.stringify({bundles:{'"+remote['build']+"':'/x'}, pending:{build:'"+remote['build']+"',tries:1,prev:null}}))")
     p2.evaluate("Updater.ok()"); p2.wait_for_timeout(200)
-    ok(p2.evaluate("JSON.parse(localStorage.getItem('cs3-updater')).pending")==None, 'reaching the first screen marks it good')
+    ok(p2.evaluate("JSON.parse(localStorage.getItem('cs4-updater')).pending")==None, 'reaching the first screen marks it good')
     ctx2.close()
 
     # a tampered file is refused
@@ -87,7 +87,7 @@ try:
     ctx3=b.new_context(); ctx3.add_init_script(FAKE); p3=ctx3.new_page(); p3.goto('http://127.0.0.1:18910/upd.html'); p3.wait_for_timeout(300)
     r=p3.evaluate("Updater.check({quiet:true})")
     ok(not r.get('ok') and 'fingerprint' in (r.get('reason') or ''), 'a file that does not match its fingerprint is refused', r)
-    ok(p3.evaluate("JSON.parse(localStorage.getItem('cs3-updater')).ready")==None and len(p3.evaluate("Object.keys(__disk)"))==0, 'and nothing half-downloaded is kept')
+    ok(p3.evaluate("JSON.parse(localStorage.getItem('cs4-updater')).ready")==None and len(p3.evaluate("Object.keys(__disk)"))==0, 'and nothing half-downloaded is kept')
     # needs a newer APK
     m=json.load(open(f'{rem}/update.json')); m['native']=2; json.dump(m,open(f'{rem}/update.json','w'))
     r=p3.evaluate("Updater.check({quiet:true})")

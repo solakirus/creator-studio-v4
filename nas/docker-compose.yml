@@ -5,8 +5,8 @@
 #   Caddyfile   from this folder (nas/Caddyfile)
 #   mirror.js   from this folder (nas/mirror.js)
 #
-# The whole folder is mounted (not just www/) so the mirror can build a new
-# version beside www/ and swap it in, and Caddy serves the new one at once.
+# Caddy serves www/ as before. The mirror gets the whole folder, so it can
+# gather a new version in www.next/ and copy it into www/ once it's complete.
 name: creator-studio-v4
 services:
   creator-studio-v4:
@@ -21,7 +21,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - /DATA/AppData/Projects/creator-studio-v4:/site:ro
+      - /DATA/AppData/Projects/creator-studio-v4/www:/srv:ro
       - /DATA/AppData/Projects/creator-studio-v4/Caddyfile:/etc/caddy/Caddyfile:ro
 
   # Looks at GitHub every 5 minutes; a newer version there is copied in.

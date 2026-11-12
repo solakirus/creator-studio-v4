@@ -1,0 +1,72 @@
+Creator Studio v4 - how updates reach your devices
+=================================================
+
+Every device updates ITSELF. The phone, the Windows laptop and the Linux
+computer look for a newer version when they open and every 30 minutes, in
+two places:
+
+   GitHub    https://solakirus.github.io/creator-studio-v4/
+   nastime   http://192.168.4.23:8795   (worked out from your Sync setting)
+
+Whichever has the newer version wins - never an older one. When it has
+downloaded, a bar says "A new version is ready - Restart now". The iPad opens
+the app from nastime, and nastime keeps itself current from GitHub (the
+mirror, every 5 minutes).
+
+Settings > App updates shows what each place has, which one you're running,
+and lets you change or turn off the nastime address on that device.
+
+
+THREE WAYS AN UPDATE GETS OUT
+-----------------------------
+
+1. Claude pushes it to GitHub  (nothing for you to do)
+     Connect GitHub to Claude once: claude.ai > Settings > Connectors >
+     GitHub, and give it the solakirus/creator-studio-v4 repository.
+     Then Claude sends each change straight there. GitHub rebuilds the site
+     in about a minute; nastime and every device pick it up on their own.
+
+2. One click on the laptop
+     Save Claude's zip to Downloads (it's called cs4-update-....zip) and
+     double-click update.bat (Linux: ./update.sh). Or drop the zip on it.
+     It takes what's new on GitHub, adds the zip, sends it all to GitHub,
+     copies it to nastime, and you're done.
+     With no zip waiting it just takes what's new on GitHub - which is also
+     how the laptop folder catches up after Claude pushed.
+
+3. nastime only (no GitHub)
+     update.bat does this part too: it copies to nastime whenever it can reach
+     it. At home, every device picks it up from there.
+
+
+WHEN YOU DO HAVE TO INSTALL
+---------------------------
+
+Only when an update changes the app itself (the desktop shell or the Android
+project - rare). Devices then keep running the version they have and Settings
+> App updates says "This update changes the app itself". update.bat sees it
+and rebuilds + installs the Windows app for you (update.sh: the Linux app).
+For the phone, run build.bat and answer Y to Android.
+
+
+ONE-TIME SETUP
+--------------
+
+a) This time only: extract this update into your creator-studio-v4 folder
+   (overwrite), then double-click update.bat. It rebuilds and installs the
+   Windows app, because this update teaches the app about nastime.
+   Linux: unzip it into the folder, then ./update.sh
+   Phone: build.bat, answer Y to Android, install the APK.
+   (After this, the scripts find new zips in Downloads by themselves.)
+
+b) nastime: in CasaOS, open the creator-studio-v4 app's settings and replace
+   its compose with nas/docker-compose.yml from this folder (or delete the
+   app - its files stay - and Custom Install > Import that file again).
+   That adds the mirror (keeps nastime current from GitHub) and picks up the
+   new Caddyfile, which lets the phone download updates from nastime.
+   update.bat copies mirror.js and the Caddyfile there (if it can't reach
+   nastime, run publish-nas.bat once). Until you do this, nastime still
+   serves the app exactly as now.
+
+c) GitHub (for 1 and for updates away from home): if the repo isn't up yet,
+   follow PUT IT ON GITHUB.txt once. update.bat sends to it from then on.

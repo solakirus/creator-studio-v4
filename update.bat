@@ -38,7 +38,21 @@ git diff --cached --quiet || git commit -q -m "Changes made on this computer"
 
 for /f %%H in ('git rev-parse HEAD') do set "OLD=%%H"
 
-rem --- 1. the update
+rem --- 1. the update: first whatever is new on GitHub (what Claude pushed), then a zip
+git ls-remote --exit-code origin main >nul 2>nul
+if errorlevel 1 (
+  echo  GitHub isn't set up yet, or no internet - see PUT IT ON GITHUB.txt. Carrying on.
+) else (
+  git pull -q --ff-only origin main 2>nul
+  if errorlevel 1 (
+    echo.
+    echo  GitHub has changes this folder can't simply add on top of.
+    echo  Nothing was changed. Paste this window to Claude.
+    goto :failed
+  )
+  call :pulled
+)
+
 set "ZIP=%~1"
 if not defined ZIP (
   for /f "delims=" %%F in ('dir /b /o-d "%USERPROFILE%\Downloads\cs4-update-*.zip" 2^>nul') do (
@@ -47,24 +61,17 @@ if not defined ZIP (
     )
   )
 )
-
 if defined ZIP (
   for %%Z in ("!ZIP!") do set "ZNAME=%%~nxZ"
   echo  Using !ZNAME!
-  powershell -NoProfile -Command "$ProgressPreference='SilentlyContinue'; Expand-Archive -LiteralPath '!ZIP!' -DestinationPath '.' -Force" || (echo  Could not open the zip. & goto :failed)
+  powershell -NoProfile -Command "$ProgressPreference='SilentlyContinue'; Expand-Archive -LiteralPath '!ZIP!' -DestinationPath '.' -Force"
+  if errorlevel 1 (
+    echo  Could not open the zip.
+    goto :failed
+  )
   >> .applied-updates.txt echo !ZNAME!
   git add -A
   git diff --cached --quiet && (echo  That zip had nothing new.) || git commit -q -m "Update: !ZNAME!"
-) else (
-  echo  No new update zip in Downloads - looking on GitHub...
-  git pull -q --ff-only origin main 2>nul && (call :pulled) || (
-    git ls-remote --exit-code origin >nul 2>nul && (
-      echo.
-      echo  GitHub has changes this folder can't simply add on top of.
-      echo  Nothing was changed. Paste this window to Claude.
-      goto :failed
-    ) || echo  GitHub isn't set up yet - see PUT IT ON GITHUB.txt. Carrying on.
-  )
 )
 
 for /f %%H in ('git rev-parse HEAD') do set "NEW=%%H"
@@ -80,9 +87,20 @@ for /f %%F in ('git diff --name-only %OLD% %NEW% -- electron android native pack
 rem --- 2. out to GitHub and nastime
 echo.
 echo  Sending to GitHub...
-git push -q -u origin main 2>nul && (echo  GitHub has it. Phone, laptop and nastime update from there in a few minutes.) || (
-  echo  Could not send to GitHub - not set up yet, or no internet. Carrying on;
-  echo  run this again later and it sends it then.
+set "AHEAD=1"
+git rev-parse -q --verify origin/main >nul 2>nul && (
+  for /f %%C in ('git rev-list --count origin/main..HEAD') do if "%%C"=="0" set "AHEAD="
+)
+if not defined AHEAD (
+  echo  GitHub already has it.
+) else (
+  git push -q -u origin main 2>nul
+  if errorlevel 1 (
+    echo  Could not send to GitHub - not set up yet, or no internet. Carrying on;
+    echo  run this again later and it sends it then.
+  ) else (
+    echo  GitHub has it. Phone, laptop and nastime update from there in a few minutes.
+  )
 )
 echo.
 echo  Copying to nastime...

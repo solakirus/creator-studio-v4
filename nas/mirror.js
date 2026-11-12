@@ -4,8 +4,11 @@
    Every few minutes it reads update.json from GitHub Pages; when GitHub has a
    NEWER version than the www/ folder here (update.json's `made`), it builds the
    new version beside it — unchanged files copied from what's here, the rest
-   downloaded and checked against their SHA-256 — then swaps the folders in one
-   step. So a push to GitHub (by Claude or by update.bat) reaches nastime, and
+   downloaded and checked against their SHA-256 — and only when every file is
+   whole does it copy the changed ones into www/ (update.json last, so nothing
+   reads a version before its files are there) and drop files the new version
+   no longer has. www/ itself stays the same folder, so Caddy's mount of it
+   keeps working. So a push to GitHub (by Claude or by update.bat) reaches nastime, and
    the iPad, without anyone copying files.
 
    A version published straight to nastime from the laptop (publish-nas /
@@ -24,7 +27,7 @@ const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const SOURCE = (process.env.SOURCE || 'https://solakirus.github.io/creator-studio-v4/').replace(/\/?$/, '/');
 const SITE = path.resolve(process.env.SITE || '/site/www');
 const EVERY = Math.max(1, +process.env.EVERY || 5) * 60 * 1000;
-const NEXT = SITE + '.next', OLD = SITE + '.old';
+const NEXT = SITE + '.next';
 /* files it writes can be replaced later from the laptop over the network share
    (publish-nas), whichever user that share writes as */
 process.umask(0);
@@ -55,28 +58,39 @@ async function look(){
   const have = new Map(((here && here.files) || []).map(f => [f[0], f[1]]));
   fs.rmSync(NEXT, { recursive: true, force: true });
   let fetched = 0;
+  const changed = [];
   try {
     for (const [p, hash] of remote.files) {
       const out = path.join(NEXT, p);
       if (!out.startsWith(NEXT + path.sep)) throw new Error('bad path ' + p);
       let buf = null;
       if (have.get(p) === hash) { try { buf = fs.readFileSync(path.join(SITE, p)); } catch (e) { buf = null; } }
-      if (!buf || sha(buf) !== hash) { buf = await get(SOURCE + p + '?b=' + remote.build); fetched++; }
+      if (buf && sha(buf) === hash) continue;          /* already here as it should be */
+      buf = await get(SOURCE + p + '?b=' + remote.build); fetched++;
       if (sha(buf) !== hash) throw new Error(p + ' did not match its fingerprint');
       fs.mkdirSync(path.dirname(out), { recursive: true });
       fs.writeFileSync(out, buf);
+      changed.push(p);
     }
-    fs.writeFileSync(path.join(NEXT, 'update.json'), JSON.stringify(remote));
   } catch (e) {
     fs.rmSync(NEXT, { recursive: true, force: true });
     log('update failed, nothing changed:', e.message);
     return 'failed';
   }
-  /* the swap: two renames, a moment apart */
-  fs.rmSync(OLD, { recursive: true, force: true });
-  if (fs.existsSync(SITE)) fs.renameSync(SITE, OLD);
-  fs.renameSync(NEXT, SITE);
-  fs.rmSync(OLD, { recursive: true, force: true });
+  /* everything arrived whole: copy it in, the list last */
+  for (const p of changed) {
+    const to = path.join(SITE, p);
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    fs.copyFileSync(path.join(NEXT, p), to);
+  }
+  const keep = new Set(remote.files.map(f => f[0]));
+  for (const [p] of ((here && here.files) || [])) {
+    if (keep.has(p)) continue;
+    const f = path.join(SITE, p);
+    if (f.startsWith(SITE + path.sep)) fs.rmSync(f, { force: true });
+  }
+  fs.writeFileSync(path.join(SITE, 'update.json'), JSON.stringify(remote));
+  fs.rmSync(NEXT, { recursive: true, force: true });
   log(`now serving ${remote.build} (${fetched} file${fetched === 1 ? '' : 's'} downloaded)`);
   return 'updated';
 }

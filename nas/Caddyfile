@@ -24,7 +24,7 @@
 	}
 
 	handle {
-		root * /site/www
+		root * /srv
 		# the page, the service worker and the build manifest are always asked
 		# for fresh, so a new publish reaches the iPad the next time it opens
 		@fresh path / /index.html /sw.js /update.json /manifest.webmanifest

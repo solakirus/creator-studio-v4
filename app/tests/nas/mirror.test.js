@@ -40,13 +40,17 @@ const ok = (c, l, x) => { console.log(`  ${c ? 'ok  ' : 'FAIL'}  ${l}${x !== und
   ok(here.build === v2.build && fs.readFileSync(path.join(site, 'js/a.js'), 'utf8') === 'a2' && fs.existsSync(path.join(site, 'js/c.js')), 'www now holds it');
   const files = hits.filter(h => h !== '/update.json').sort();
   ok(JSON.stringify(files) === '["/js/a.js","/js/c.js"]', 'only the changed and new files were downloaded', files.join(' '));
-  ok(!fs.existsSync(site + '.next') && !fs.existsSync(site + '.old'), 'no work folders left behind');
+  ok(!fs.existsSync(site + '.next'), 'no work folder left behind');
   ok(await look() === 'current', 'the next look finds nothing to do');
+  /* a file the new version dropped goes; www/ stays the same folder (Caddy's mount) */
+  const ino = fs.statSync(site).ino;
+  fs.rmSync(path.join(gh, 'js/b.js')); stamp(gh, '2026-11-12T11:10:00Z');
+  ok(await look() === 'updated' && !fs.existsSync(path.join(site, 'js/b.js')) && fs.statSync(site).ino === ino, 'a file the new version no longer has is removed, in the same www folder');
 
   /* the laptop publishes v3 straight to nastime; GitHub still has v2, then an older-dated build */
   put(site, 'js/a.js', 'a3'); stamp(site, '2026-11-12T12:00:00Z');
   ok(await look() === 'current' && fs.readFileSync(path.join(site, 'js/a.js'), 'utf8') === 'a3', 'what the laptop published is never replaced by an older GitHub version');
-  put(gh, 'js/b.js', 'b-old'); stamp(gh, '2026-11-12T11:30:00Z');
+  put(gh, 'js/b.js', 'b-old'); stamp(gh, '2026-11-12T11:30:00Z');  /* GitHub: newer than v2, older than the laptop's v3 */
   ok(await look() === 'current', 'even when GitHub has a different build, if it is older');
 
   /* GitHub catches up with something newer, but a file is damaged in transit */
