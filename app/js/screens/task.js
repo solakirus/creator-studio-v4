@@ -20,6 +20,9 @@
       .shotline.done button.bx{color:#fff}
       .shotline.done button.bx{background:var(--green)}
       .shotline.tk-ps .mini{margin-top:2px}
+      .tkp-shoot{background:var(--orange)!important;border-color:var(--orange)!important;color:#151515!important;font-weight:700}
+      .tkp-next[data-a]{cursor:pointer;position:relative;padding-right:34px}
+      .tkp-next .tkp-go{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-style:normal;color:var(--orange)}
       /* v4: on a phone the name field kept its own width and pushed the move
          buttons off the screen; the text column takes what is left instead */
       .shotline.tk-ps .tx{flex:1 1 auto;min-width:0}
@@ -232,11 +235,12 @@
         </div>
         ${n ? `<div class="track tkp-track"><i class="ok" style="width:${Math.round(doneN / n * 100)}%"></i></div>` : ''}
         <div class="tkp-cwrap"><canvas class="tkp-canvas" width="720" height="900" data-pagecanvas
-          title="Click words to type over them, a picture spot to pick a shot, a shot’s box to tick it"></canvas>
+          title="${onMain() ? 'Tap a picture to shoot it full screen' + (window.CS3Lib ? ' (right-click to change it)' : '') + ', words to type over them, a shot’s box to tick it' : 'Click words to type over them, a picture spot to pick a shot'}"></canvas>
           <div class="pe-edit" hidden></div></div>
-        ${nx !== -1 && n ? `<div class="tkp-next"><span>Next up</span><b>${esc(shotTitle(P, nx))}</b></div>`
+        ${nx !== -1 && n ? `<div class="tkp-next"${onMain() ? ` data-a="shootnext" role="button" tabindex="0" title="Shoot it full screen"` : ''}><span>Next up</span><b>${esc(shotTitle(P, nx))}</b>${onMain() ? '<i class="tkp-go">▶</i>' : ''}</div>`
           : n && doneN === n ? `<div class="tkp-next all"><span>All shot</span><b>Every shot on this page is done</b></div>` : ''}
         <div class="tkp-acts">
+          ${onMain() && n ? `<button class="btn-sm tkp-shoot" data-a="shootmode">▶ Shoot mode</button>` : ''}
           <button class="btn-sm" data-a="openpage">${total > 1 ? `Open all ${total} pages` : 'Open the page'}</button>
           <details class="tkp-menu"><summary class="btn-sm" aria-label="More for this page">More ▾</summary><div>
             ${from ? `<p class="tkp-from">from ${from}</p>` : ''}
@@ -260,7 +264,28 @@
       if(!c.isConnected) return;
       const ctx = c.getContext('2d');
       if(onMain()) syncPage();
-      Notebook.draw(ctx, P, { scale:1, media:pageMedia, linesOnly:false });
+      paintPage(ctx, P, 0);
+      animatePage(c, P);
+    }
+    /* v4: GIFs move and clips play on the page, as they do in the page editor.
+       About 12 frames a second, and only while the page is on screen. */
+    let pageRaf = 0;
+    function animatePage(c, P){
+      cancelAnimationFrame(pageRaf);
+      const ms = Object.values(pageMedia || {}).filter(Boolean);
+      if(!ms.some(m => m.kind === 'anim' || m.kind === 'video')) return;
+      ms.forEach(m => { if(m.kind === 'video' && m.el){ m.el.muted = true; m.el.loop = true; m.el.play().catch(() => {}); } });
+      const t0 = performance.now();
+      let last = 0;
+      const tick = now => {
+        if(!c.isConnected || curPage() !== P) return;
+        if(now - last > 80 && document.visibilityState !== 'hidden'){ last = now; paintPage(c.getContext('2d'), P, (now - t0) / 1000); }
+        pageRaf = requestAnimationFrame(tick);
+      };
+      pageRaf = requestAnimationFrame(tick);
+    }
+    function paintPage(ctx, P, tsec){
+      Notebook.draw(ctx, P, { scale:1, media:pageMedia, linesOnly:false, t:tsec });
       const slots = P.slots || [];
       const rects = Notebook.slotRects(P.layout, slots.length);
       const nx = nextOn(P);
@@ -316,7 +341,17 @@
         return typeOver(sp, c);
       }
       const i = Notebook.slotRects(P.layout, (P.slots || []).length).findIndex(r => inRect(p, r));
-      if(i >= 0) return pickInto(i);
+      if(i < 0) return;
+      /* v4: on the shot page a picture opens shoot mode on that shot; changing
+         it is right-click → Pick a shot (laptop). The phone has no Library to
+         pick from, so a spot there always opens shoot mode. */
+      const sl = (P.slots || [])[i] || {};
+      if(onMain() && (sl.item || !window.CS3Lib)) return openShoot(i);
+      if(!window.CS3Lib){ if(sl.item && window.LibView) LibView.view(sl.item); return; }
+      return pickInto(i);
+    }
+    function openShoot(i){
+      return Screens.push('shoot-run', { id:t.id, at:i == null ? undefined : i, onChange: async () => { await load(); render(); } });
     }
     function typeOver(spot, c){
       const P = curPage();
@@ -1450,6 +1485,8 @@
       if(!a) return;
 
       if(a.dataset.a === 'editkit') return editKit();
+      if(a.dataset.a === 'shootmode') return openShoot(null);
+      if(a.dataset.a === 'shootnext') return openShoot(nextOn(curPage()));
       if(a.dataset.a === 'openpage') return Screens.push('task-page', { id:t.id, onChange: async () => { await load(); render(); } });
       if(a.dataset.a === 'addpage') return Screens.push('task-page', { id:t.id, addPage:true, onChange: async () => { await load(); render(); } });
       if(a.dataset.a === 'psadd') return shotAdd();

@@ -267,8 +267,11 @@
             ${t.prog ? `<span class="sep">|</span><span>${t.prog}</span>` : ''}
             ${st ? `<span class="sep">|</span><span class="steps">${st.d} / ${st.n} steps<span class="chev">${ICON.chevD}</span></span>` : ''}
             ${t.swipeId ? `<span class="sep">|</span><span class="steps" data-swipe="${t.swipeId}" style="color:var(--amber);opacity:1">↗ swipe</span>` : ''}
-            ${pageCount(t) ? `<span class="sep">|</span><span class="tpages" data-pages="${t.id}" role="button" tabindex="0" title="Open this task's ${pageCount(t) === 1 ? 'page' : 'pages'}">${PAGE_ICON}${
-              pageCount(t) === 1 ? 'page' : pageCount(t) + ' pages'}${t.page && t.page.slots ? ` <i>${t.page.slots.filter(s => s.done).length}/${t.page.slots.length}</i>` : ''}</span>` : ''}
+            ${t.page && (t.page.slots || []).length
+              /* v4: a shot page's count is the steps' count, so one chip, and it starts shoot mode */
+              ? `<span class="sep">|</span><span class="tpages tshoot" data-shoot="${t.id}" role="button" tabindex="0" title="Shoot mode: one shot at a time, full screen">▶ shoot <i>${t.page.slots.filter(s => s.done).length}/${t.page.slots.length}</i></span>`
+              : pageCount(t) ? `<span class="sep">|</span><span class="tpages" data-pages="${t.id}" role="button" tabindex="0" title="Open this task's ${pageCount(t) === 1 ? 'page' : 'pages'}">${PAGE_ICON}${
+              pageCount(t) === 1 ? 'page' : pageCount(t) + ' pages'}</span>` : ''}
           </div>
         </div>
         <button class="check" aria-label="Mark done">${ICON.check}</button>
@@ -1072,6 +1075,14 @@
         return;
       }
 
+      const sh = e.target.closest('[data-shoot]');
+      if(sh){
+        Screens.push('shoot-run', { id:+sh.dataset.shoot, onChange:async () => {
+          tasks = Object.values(await Store.allMap('tasks'));
+          await loadChips(); render();
+        }});
+        return;
+      }
       const pg = e.target.closest('[data-pages]');
       if(pg){
         Screens.push('task-page', { id:+pg.dataset.pages, onChange:async () => {

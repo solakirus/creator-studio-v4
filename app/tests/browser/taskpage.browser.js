@@ -17,6 +17,12 @@ const exe = process.env.CHROME || ['C:/Program Files (x86)/Microsoft/Edge/Applic
   fs.mkdirSync(out, { recursive: true });
   const b = await chromium.launch({ executablePath: exe, headless: true, args: ['--allow-file-access-from-files'] });
   const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
+  /* v4: the laptop (window.CS3Lib, the Electron bridge) — where an empty
+     picture spot still picks from the Library */
+  await p.addInitScript(() => { if(!window.CS3Lib) window.CS3Lib = { home: async () => '/x', scan: async () => ({ items: [], pages: [], roots: [], errors: [] }),
+    pickFolder: async () => null, open: async () => {}, trash: async () => ({}), boardFolder: async () => ({}), shotline: async () => null,
+    grabFind: async () => ({ root: 'built in', setUp: true, node: true, builtin: true, ytdlp: true, ffmpeg: true, out: '/x' }),
+    grabRun: async () => ({}), grabStop: async () => {}, onGrab: () => () => {} }; });
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   p.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text()); });
   await p.goto('file:///' + path.resolve(__dirname, '../../index.html').replace(/\\/g, '/'));
@@ -76,7 +82,7 @@ const exe = process.env.CHROME || ['C:/Program Files (x86)/Microsoft/Edge/Applic
   await clickPage(pic);
   await p.waitForTimeout(900);
   t = await task();
-  ok(!t.subs[1].done && !!(await p.$('.lv-picker')), 'clicking a picture spot on the page picks a shot from the Library (no tick)');
+  ok(!t.subs[1].done && !!(await p.$('.lv-picker')), 'on the laptop, clicking an empty picture spot picks a shot from the Library (no tick)');
   if (await p.$('.lv-picker [data-close]')) { await p.click('.lv-picker [data-close]'); await p.waitForTimeout(400); }
   await clickPage(await spotXY('step:4'));
   await p.waitForTimeout(500);
@@ -195,11 +201,19 @@ const exe = process.env.CHROME || ['C:/Program Files (x86)/Microsoft/Edge/Applic
   /* Today: the task card opens its pages */
   await p.goto('file:///' + path.resolve(__dirname, '../../index.html').replace(/\\/g, '/'));
   await p.waitForTimeout(1800);
-  const chip = await p.$('.mediacard[data-id="9901"] .tpages');
-  ok(!!chip && /2 pages/.test(await chip.textContent()), 'Today card shows its 2 pages');
+  /* v4: a task with a shot page gets one chip — shoot mode — and its pages
+     are under its steps ("Open the full 2 pages") */
+  const chip = await p.$('.mediacard[data-id="9901"] .tshoot');
+  ok(!!chip && /shoot/.test(await chip.textContent()), 'Today card has the shoot chip for its shot page');
   await shot('taskpage-5-today');
-  if (chip) { await chip.click(); await p.waitForTimeout(1500); }
-  ok(await p.evaluate(() => document.querySelectorAll('.pe-thumb').length === 2), 'tapping it opens the full pages');
+  if (chip) { await chip.click(); await p.waitForTimeout(1200); }
+  ok(!!(await p.$('.sr-screen .sr')), 'tapping it opens shoot mode');
+  await p.evaluate(() => Screens.pop()); await p.waitForTimeout(600);
+  await p.click('.mediacard[data-id="9901"] .steps'); await p.waitForTimeout(500);
+  const full = await p.$('.subs-page[data-pages="9901"]');
+  ok(!!full && /2 pages/.test(await full.textContent()), 'its steps open to "Open the full 2 pages"');
+  if (full) { await full.click(); await p.waitForTimeout(1500); }
+  ok(await p.evaluate(() => document.querySelectorAll('.pe-thumb').length === 2), 'which opens the full pages');
   await shot('taskpage-6-frommenu');
 
   ok(!errs.length, 'no page errors' + (errs.length ? ': ' + errs.join(' | ') : ''));

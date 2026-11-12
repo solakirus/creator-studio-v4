@@ -80,6 +80,13 @@
       if(key === 'shoot'){
         const found = await todaysDay();
         if(found){ Screens.push('vlog-day', found); return true; }
+        /* v4: no episode day today — today's task with a shot page, in shoot mode */
+        try {
+          const day = await Data.todayDay();
+          const ts = (await Data.tasks()).filter(x => x.day === day && x.view === 'todo' && x.page && (x.page.slots || []).length);
+          const pick = ts.find(x => x.kind === 'shoot') || ts[0];
+          if(pick && Screens.push('shoot-run', { id:pick.id })) return true;
+        } catch(e){}
         /* nothing scheduled for today — the episode list is the honest fallback */
       }
 
