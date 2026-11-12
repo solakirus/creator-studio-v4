@@ -24,7 +24,7 @@ services:
     volumes:
       - /DATA/AppData/Projects/creator-studio-v4/www:/srv:ro
       - /DATA/AppData/Projects/creator-studio-v4/Caddyfile:/etc/caddy/Caddyfile:ro
-      - /DATA/AppData/Projects/shot-library:/lib:ro
+      - /DATA/AppData/Projects/shot-library:/shotlib:ro
 
   # Keeps www/ current from GitHub (every 5 minutes; never replaces a newer
   # version the laptop published) and lists the Shot Library for the iPad.
@@ -38,10 +38,10 @@ services:
       SOURCE: https://solakirus.github.io/creator-studio-v4/
       SITE: /site/www
       EVERY: "5"
-      LIB: /lib
+      LIB: /shotlib
     volumes:
       - /DATA/AppData/Projects/creator-studio-v4:/site
-      - /DATA/AppData/Projects/shot-library:/lib:ro
+      - /DATA/AppData/Projects/shot-library:/shotlib:ro
 x-casaos:
   architectures: [amd64, arm64]
   main: creator-studio-v4

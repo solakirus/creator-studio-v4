@@ -36,7 +36,7 @@ const head = s => console.log(`\n— ${s} —`);
   /* the built app, the Caddyfile pointed at these folders */
   cp.execFileSync('node', [path.join(ROOT, 'scripts/copy-web.js')], { stdio: 'ignore' });
   const cf = fs.readFileSync(path.join(ROOT, 'nas/Caddyfile'), 'utf8')
-    .replace(':80 {', ':18961 {').replace('root * /srv', `root * ${path.join(ROOT, 'www')}`).replace('root * /lib', `root * ${lib}`);
+    .replace(':80 {', ':18961 {').replace('root * /srv', `root * ${path.join(ROOT, 'www')}`).replace('root * /shotlib', `root * ${lib}`);
   fs.writeFileSync(path.join(T, 'Caddyfile'), cf);
   const helper = cp.spawn(process.execPath, [path.join(ROOT, 'nas/helper.js')], { env: { ...process.env, LIB: lib, PORT: '18962', SITE: path.join(T, 'nowww'), SOURCE: 'http://127.0.0.1:9/' }, stdio: 'ignore' });
   const caddy = cp.spawn(CADDY, ['run', '--config', path.join(T, 'Caddyfile'), '--adapter', 'caddyfile'], { env: { ...process.env, HELPER: '127.0.0.1:18962', SYNC_HUB: '127.0.0.1:9' }, stdio: 'ignore' });

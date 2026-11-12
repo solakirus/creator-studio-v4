@@ -7,7 +7,7 @@
       does — nothing is copied.
 
    Environment:
-     LIB     the Shot Library inside the container   (default /lib)
+     LIB     the Shot Library inside the container   (default /shotlib)
      PORT    where the index is served               (default 8080)
      plus mirror.js's SOURCE, SITE, EVERY
 
@@ -17,7 +17,7 @@
 'use strict';
 const http = require('http'), path = require('path'), fs = require('fs');
 
-const LIB = path.resolve(process.env.LIB || '/lib');
+const LIB = path.resolve(process.env.LIB || '/shotlib');   /* never /lib: that is where Alpine keeps its system libraries */
 const PORT = +process.env.PORT || 8080;
 const FRESH = 20 * 1000;
 const log = (...a) => console.log(new Date().toISOString().slice(0, 19).replace('T', ' '), ...a);
