@@ -2,8 +2,9 @@
   "name": "creator-studio-v4",
   "productName": "Creator Studio v4",
   "version": "4.0.0",
-  "description": "Creator Studio with the storyboard canvas built in. One codebase: Android (Capacitor) and Windows (Electron).",
+  "description": "Creator Studio with the storyboard canvas built in. One codebase: Android (Capacitor), Windows and Linux (Electron).",
   "author": "Kris Catten",
+  "homepage": "https://github.com/solakirus/creator-studio-v4",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
@@ -15,7 +16,8 @@
     "android:sync": "node scripts/copy-web.js && npx cap sync android && node scripts/android-setup.js --patch-only",
     "android:open": "npx cap open android",
     "test": "node scripts/run-tests.js",
-    "site": "node scripts/build-sw.js app && node scripts/stage-site.js && node scripts/build-sw.js _site && node scripts/check-site.js _site"
+    "site": "node scripts/build-sw.js app && node scripts/stage-site.js && node scripts/build-sw.js _site && node scripts/check-site.js _site",
+    "dist:linux": "node scripts/copy-web.js && electron-builder --linux AppImage deb --x64"
   },
   "build": {
     "appId": "com.solakirus.creatorstudio4",
@@ -52,7 +54,27 @@
     },
     "portable": {
       "artifactName": "CreatorStudio3-portable-${version}.exe"
-    }
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "AudioVideo",
+      "synopsis": "Plan, shoot and track your videos",
+      "executableName": "creator-studio-v4",
+      "artifactName": "CreatorStudio4-${version}.${ext}",
+      "desktop": {
+        "entry": {
+          "StartupWMClass": "Creator Studio v4"
+        }
+      }
+    },
+    "deb": {
+      "maintainer": "Kris Catten <solakirus@gmail.com>"
+    },
+    "publish": null
   },
   "dependencies": {
     "@capacitor/android": "^7.0.0",

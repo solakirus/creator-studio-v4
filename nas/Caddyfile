@@ -4,7 +4,7 @@
 # calls through to Sync Hub, so the app and its sync share one address: the
 # iPad's Safari never has to reach a second server (or plain http from https).
 #
-#   http://192.168.4.23:8790                       at home, no Tailscale
+#   http://192.168.4.23:8795                       at home, no Tailscale
 #   https://nastime.<your-tailnet>.ts.net          anywhere, via `tailscale serve`
 #
 # SYNC_HUB is where Sync Hub listens, seen from inside this container.

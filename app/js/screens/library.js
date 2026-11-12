@@ -406,7 +406,7 @@
       body.querySelectorAll('[data-some]').forEach(x => { x.indeterminate = true; });
       body.addEventListener('click', async e => {
         const o = e.target.closest('[data-open]');
-        if(o && d) return d.open(o.dataset.open.replace(/\//g, '\\'));
+        if(o && d) return d.open(/Win/i.test(navigator.platform || navigator.userAgent) ? o.dataset.open.replace(/\//g, '\\') : o.dataset.open);   /* Windows wants backslashes; Linux and Mac don't */
         if(e.target.closest('[data-addroot]')){
           const p = await d.pickFolder();
           if(p && !(s.roots || []).includes(p)){ await MediaLib.setSettings({ roots:[...(s.roots || []), p] }); await MediaLib.rescan(); render(); }

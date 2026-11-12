@@ -63,7 +63,8 @@ function inWinget(exe) {
 function findTool(name, setting) {
   if (setting && fs.existsSync(setting)) return setting;
   const exe = process.platform === 'win32' ? name + '.exe' : name;
-  const extra = process.platform === 'win32' ? [] : ['/opt/homebrew/bin/' + name, '/usr/local/bin/' + name, '/usr/bin/' + name];
+  /* a desktop launcher (Linux) often runs without ~/.local/bin on PATH, where pipx and the yt-dlp download go */
+  const extra = process.platform === 'win32' ? [] : [path.join(os.homedir(), '.local', 'bin', name), '/opt/homebrew/bin/' + name, '/usr/local/bin/' + name, '/usr/bin/' + name];
   return onPath(exe) || (process.platform === 'win32' ? inWinget(exe) : null) || extra.find(p => fs.existsSync(p)) || null;
 }
 function tools(s) {
@@ -444,6 +445,7 @@ async function scan(job, t, url, max, link) {
 
 /* install yt-dlp (winget brings ffmpeg with it) */
 async function setup(job, t) {
+  if (process.platform === 'linux') { job.emit('On Linux Mint: open a terminal and run   sudo apt install ffmpeg pipx && pipx install yt-dlp   then press Check again.'); return 1; }
   if (process.platform !== 'win32') { job.emit('Install yt-dlp and ffmpeg with your package manager (brew install yt-dlp ffmpeg), then press Check again.'); return 1; }
   if (!t.winget) { job.emit('winget (App Installer) isn\'t on this PC. Install “App Installer” from the Microsoft Store, or get yt-dlp from github.com/yt-dlp/yt-dlp and ffmpeg from ffmpeg.org.'); return 1; }
   const steps = [];

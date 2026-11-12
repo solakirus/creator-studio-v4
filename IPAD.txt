@@ -18,7 +18,7 @@ ONE-TIME SETUP ON THE NAS (about 15 minutes)
 
 3. Start the server.  CasaOS > App Store > Custom Install > Import, and paste
    the contents of  nas\docker-compose.yml . Install.
-   Test it on the laptop:  http://192.168.4.23:8790   - the app opens.
+   Test it on the laptop:  http://192.168.4.23:8795   - the app opens.
 
 4. HTTPS, so the iPad can install it properly.  Safari only lets a web app
    work offline and stay installed from an https address. Tailscale gives you
@@ -27,7 +27,7 @@ ONE-TIME SETUP ON THE NAS (about 15 minutes)
      - On nastime (CasaOS terminal or SSH):
          curl -fsSL https://tailscale.com/install.sh | sh      (if not installed)
          sudo tailscale up
-         sudo tailscale serve --bg 8790
+         sudo tailscale serve --bg 8795
      - It prints the address, like  https://nastime.tail1234.ts.net
 
 ON THE IPAD
@@ -47,7 +47,7 @@ AFTER THAT
    To update the iPad: run publish-nas.bat on the laptop. The iPad picks it
    up the next time it opens with the NAS in reach.
 
-   Use ONE address on the iPad. http://192.168.4.23:8790 and the https one are
+   Use ONE address on the iPad. http://192.168.4.23:8795 and the https one are
    two different apps to Safari, each with its own data. (The http one works
    at home for a quick look, but can't work offline.)
 

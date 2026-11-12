@@ -9,7 +9,7 @@ services:
     container_name: creator-studio-v4
     restart: unless-stopped
     ports:
-      - "8790:80"
+      - "8795:80"
     environment:
       # Sync Hub, reached from inside the container (the host's port 8787)
       SYNC_HUB: host.docker.internal:8787
@@ -26,6 +26,6 @@ x-casaos:
   description:
     en_us: Creator Studio v4 for the iPad and any browser, with Sync Hub on the same address.
   category: Productivity
-  port_map: "8790"
+  port_map: "8795"
   scheme: http
   index: /

@@ -1,0 +1,29 @@
+Creator Studio v4 on Linux (Mint)
+=================================
+
+It is the same desktop app as on Windows: Library, Templates, the grabber,
+the NAS Shot Library copy, sync with nastime.
+
+INSTALL
+   In the folder with the download, open a terminal and run:
+      sudo apt install ./CreatorStudio4-4.0.0.deb
+   It shows up in the Mint menu as "Creator Studio v4".
+   (The AppImage works too, no install: chmod +x it and double-click.)
+
+SYNC
+   Settings > Data > Sync with your server:  http://192.168.4.23:8787
+   and your SYNC_TOKEN. Pick "Use the server's" so this computer starts with
+   what the others have.
+
+THE GRABBER (yt-dlp + ffmpeg)
+   In a terminal:   sudo apt install ffmpeg pipx && pipx install yt-dlp
+   then Library > Add & grab > Check again.
+
+THE SHOT LIBRARY ON THE NAS
+   Mount the NAS share (Files > Other Locations > smb://192.168.4.23), then
+   Library > Folders > Choose a folder... and pick it. "Keep a copy..." works
+   the same as on Windows.
+
+NEW VERSIONS
+   Run  ./build-linux.sh  in the project folder, then the same apt install line
+   with the new .deb. Your data stays: it lives in ~/.config, not in the app.
