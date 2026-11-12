@@ -94,6 +94,32 @@ const kindOfUrl = u => {
   if (['jpg', 'jpeg', 'png', 'webp', 'avif', 'jfif'].includes(e)) return 'image';
   return null;
 };
+/* v4: on a social profile, only these are worth grabbing — the posts and
+   reels themselves, never the page's own links (Log In, Sign Up, followers,
+   Explore). Returns { url, kind } with the url tidied, or null. */
+const POST_RULES = [
+  [/(^|\.)instagram\.com$/i, /^\/(?:[\w.]+\/)?(p|reel|reels|tv)\/([\w-]+)/i,
+    m => ({ url:`https://www.instagram.com/${m[1] === 'reels' ? 'reel' : m[1]}/${m[2]}/`, kind:m[1] === 'p' ? 'post' : 'video' })],
+  [/(^|\.)tiktok\.com$/i, /^\/(@[\w.-]+)\/(video|photo)\/(\d+)/i,
+    m => ({ url:`https://www.tiktok.com/${m[1]}/${m[2]}/${m[3]}`, kind:m[2] === 'photo' ? 'post' : 'video' })],
+  [/(^|\.)(x|twitter)\.com$/i, /^\/(\w+)\/status\/(\d+)/i,
+    m => ({ url:`https://x.com/${m[1]}/status/${m[2]}`, kind:'post' })],
+  [/(^|\.)facebook\.com$/i, /^\/(?:[\w.]+\/)?(reel|videos|watch)\b/i, null],
+  [/(^|\.)threads\.net$/i, /^\/@[\w.]+\/post\/[\w-]+/i, null]
+];
+const isSocial = u => POST_RULES.some(([h]) => h.test(siteOf(u)));
+function postLink(u){
+  let x; try { x = new URL(u); } catch (e) { return null; }
+  const host = x.hostname.replace(/^www\.|^m\./, '');
+  for (const [h, path, tidy] of POST_RULES){
+    if (!h.test(host)) continue;
+    const m = path.exec(x.pathname);
+    if (!m) return null;
+    return tidy ? tidy(m) : { url:x.origin + x.pathname + x.search, kind:'video' };
+  }
+  return null;
+}
+
 const pad = n => String(n).padStart(3, '0');
 const stamp = s => { const m = Math.floor(s / 60), r = s - m * 60; return `${m}:${r.toFixed(1).padStart(4, '0')}`; };
 
@@ -162,6 +188,11 @@ async function grabVideo(job, t, url, outRoot, o) {
     '-o', path.join(tmp, 'video.%(ext)s'),
     '--print', 'before_dl:@@T %(title)s', '--print', 'after_move:@@F %(filepath)s', '--no-simulate'];
   if (o.cookies && o.cookies !== 'none') args.push('--cookies-from-browser', o.cookies);
+  else if (isSocial(url)) {
+    /* v4: the sign-in made in the app's own window (grab-browser.js) */
+    const jar = await Browser.cookieFile(url, tmp).catch(() => null);
+    if (jar) args.push('--cookies', jar);
+  }
   args.push(url);
   let title = '', file = '', last = 0;
   const r = await job.run(t.ytdlp, args, l => {
@@ -178,7 +209,13 @@ async function grabVideo(job, t, url, outRoot, o) {
   if (r.code !== 0 || !file) {
     const why = (r.err.match(/ERROR:.*$/m) || [''])[0];
     job.emit(`  ✗ Couldn't download it${why ? ': ' + why.replace(/^ERROR:\s*/, '') : ''}`);
-    if (/sign in|login|cookies|rate.?limit|private/i.test(r.err)) job.emit('  Tip: this site wants you signed in. Under settings, pick the browser you\'re signed in with (close that browser first).');
+    if (/no video|there is no video/i.test(r.err) && isSocial(url) && Browser.available()) {
+      /* a photo post or carousel: take its pictures the way a page is taken */
+      job.emit('  a photo post — taking its pictures instead');
+      const g = await Browser.grabPage(job, url, outRoot, o, { safeName, siteOf, pad, writeManifest }).catch(() => null);
+      return g ? g.n : 0;
+    }
+    if (/sign in|login|cookies|rate.?limit|private/i.test(r.err)) job.emit('  Tip: this site wants you signed in. Scan the profile once with Find links and sign in in the window that opens — or pick a browser under settings.');
     return 0;
   }
   const page = safeName(title) || safeName(new URL(url).pathname.split('/').filter(Boolean).pop()) || 'video';
@@ -350,6 +387,17 @@ async function grab(job, t, links, outRoot, o) {
 
 async function scan(job, t, url, max, link) {
   job.emit(`Looking for links on ${url}…`);
+  /* v4: a profile on Instagram, TikTok, X… — yt-dlp can't list those, and a
+     plain look at the page signed out sees only its login wall. Open it in
+     the app's window (signing in once if asked), scroll, keep posts and reels. */
+  if (isSocial(url) && !postLink(url) && Browser.available()) {
+    const list = await Browser.postLinks(job, url, postLink, max);
+    if (!list) { job.emit('✗ The page couldn’t be opened'); return 1; }
+    for (const l of list) link({ url: l.url, title: l.title || l.url.replace(/^https:\/\/(www\.)?/, ''), kind: l.kind });
+    job.emit(list.length ? `${list.length} post${list.length === 1 ? '' : 's'} and reel${list.length === 1 ? '' : 's'} found`
+      : 'No posts found — is the profile private, or did the sign-in not finish?');
+    return list.length ? 0 : 1;
+  }
   if (isVideoLink(url) && t.ytdlp) {
     let n = 0;
     await job.run(t.ytdlp, ['--flat-playlist', '--playlist-end', String(max), '--print', '@@L %(url)s\t%(title)s', url], l => {
@@ -373,7 +421,10 @@ async function scan(job, t, url, max, link) {
     for (const l of p.links) {
       const u = l.url.split('#')[0];
       if (n >= max || seen.has(u) || !(siteOf(u) === host || isVideoLink(u))) continue;
-      seen.add(u); n++; link({ url: u, title: l.title || u, kind: isVideoLink(u) ? 'video' : 'page' });
+      /* on a social site, its own links (Log In, Sign Up, Explore) aren't videos */
+      const post = isSocial(u) ? postLink(u) : null;
+      if (isSocial(u) && !post) continue;
+      seen.add(u); n++; link({ url: post ? post.url : u, title: l.title || u, kind: post ? post.kind : (isVideoLink(u) ? 'video' : 'page') });
     }
     job.emit(`${n} link${n === 1 ? '' : 's'} found`);
     return 0;
@@ -409,4 +460,4 @@ async function setup(job, t) {
   return code;
 }
 
-module.exports = { tools, grab, scan, setup, makeJob, isVideoLink, mediaOn, cutTimes, SCENE, GIF_FPS, GIF_W, MIN_SHOT };
+module.exports = { tools, grab, scan, setup, makeJob, isVideoLink, isSocial, postLink, mediaOn, cutTimes, SCENE, GIF_FPS, GIF_W, MIN_SHOT };

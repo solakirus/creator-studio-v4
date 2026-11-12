@@ -36,7 +36,24 @@ const BIG_MAX = 400;              /* most popups opened per page */
 const MAX_FILES = 600, MAX_BYTES = 200 * 1024 * 1024;
 const EXTRA_MIN_BYTES = 20 * 1024;  /* smaller "extra" GIFs are blur-up placeholders */
 
+const SIGNIN_WAIT_MS = 300000;   /* how long the person has to sign in */
+
 const wait = ms => new Promise(r => setTimeout(r, ms));
+/* v4: sites that only show their posts to someone signed in. Signed out,
+   Instagram shows a login wall whose links (Log In, Sign Up, followers) are
+   all the page has — the person signs in once in the app's own window, and
+   the saved profile (PARTITION) remembers it for scans and downloads. */
+const SIGNIN_SITES = /(^|\.)(instagram\.com|tiktok\.com|facebook\.com|x\.com|twitter\.com|threads\.net)$/i;
+const hostOf = u => { try { return new URL(u).hostname.replace(/^www\.|^m\./, ''); } catch (e) { return ''; } };
+const siteName = u => ({ 'instagram.com':'Instagram', 'tiktok.com':'TikTok', 'facebook.com':'Facebook', 'x.com':'X', 'twitter.com':'X', 'threads.net':'Threads' })[hostOf(u)] || hostOf(u);
+/* true while the page is a sign-in wall: a login address, a password box, or
+   a sign-in dialog over the page */
+const WALLED = `(() => {
+  if (/\\/(accounts\\/login|login|signin|i\\/flow\\/login)/i.test(location.pathname)) return true;
+  const vis = el => el && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden';
+  if ([...document.querySelectorAll('input[type=password]')].some(vis)) return true;
+  return [...document.querySelectorAll('[role=dialog]')].some(d => vis(d) && /(log ?in|sign ?in|sign up)/i.test(d.textContent || '') && d.querySelector('a[href*="login"],button,input'));
+})()`;
 const challenged = t => /just a moment|attention required|verify you are human|checking your browser/i.test(t || '');
 const kindOf = u => {
   const e = ((/\.([a-z0-9]{2,5})(?:$|[?#])/i.exec(String(u).split('#')[0]) || [])[1] || '').toLowerCase();
@@ -88,7 +105,84 @@ async function open(win, url, job) {
     job.emit('  ✓ check passed — the app remembers it for next time');
   }
   await wait(1500);
+  if (SIGNIN_SITES.test(hostOf(url)) && await signIn(win, url, job) === false) return false;
   return true;
+}
+
+const isWalled = async win => { try { return !!(await win.webContents.executeJavaScript(WALLED)); } catch (e) { return false; } };
+
+/* A sign-in wall: show the window so the person can sign in, wait, then go
+   back to the page they asked for. Once is enough — the profile keeps it. */
+async function signIn(win, url, job) {
+  await wait(1200);
+  if (!(await isWalled(win))) return true;
+  const name = siteName(url);
+  job.emit(`  ${name} wants you signed in. Sign in once in the window that just opened — the app remembers it after that.`);
+  try { win.setTitle(`Sign in to ${name} — then this closes by itself`); } catch (e) {}
+  win.show(); win.focus();
+  const t0 = Date.now();
+  let left = 0;
+  while (Date.now() - t0 < SIGNIN_WAIT_MS && !job.stopped) {
+    await wait(1500);
+    if (!(await isWalled(win))) { if (++left >= 2) break; } else left = 0;
+  }
+  if (await isWalled(win)) { win.hide(); job.emit(`  ✗ Not signed in to ${name}, so its posts can't be seen.`); return false; }
+  job.emit(`  ✓ signed in to ${name} — the app remembers it`);
+  try { await win.loadURL(url); } catch (e) {}
+  win.hide();
+  await wait(2500);
+  return true;
+}
+
+/* the post and reel links on a profile, gathered while scrolling: these grids
+   drop rows as they scroll, so one look at the end would miss most of them */
+const POSTS = `(() => [...document.querySelectorAll('a[href]')].map(a => {
+  let u = ''; try { u = new URL(a.getAttribute('href'), location.href).href; } catch (e) {}
+  const im = a.querySelector('img');
+  return { url: u, title: ((im && im.getAttribute('alt')) || a.getAttribute('aria-label') || a.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 120) };
+}).filter(l => /^https?:/.test(l.url)))()`;
+async function postLinks(job, url, keep, max) {
+  const ses = session();
+  const win = makeWindow(ses);
+  try {
+    if (!(await open(win, url, job))) return null;
+    const found = new Map();
+    let last = 0, same = 0;
+    for (let i = 0; i < SCROLL_MAX * 2 && !job.stopped && found.size < max; i++) {
+      let links = [];
+      try { links = await win.webContents.executeJavaScript(POSTS); } catch (e) { break; }
+      for (const l of links) { const k = keep(l.url); if (k && !found.has(k.url)) found.set(k.url, { ...k, title: k.title || l.title }); }
+      if (i % 5 === 4) job.emit(`  ${found.size} found so far…`);
+      let h = 0;
+      try { h = await win.webContents.executeJavaScript('window.scrollBy(0, Math.round(innerHeight * 0.9)); Math.round(scrollY + innerHeight) + "/" + document.documentElement.scrollHeight'); } catch (e) { break; }
+      await wait(SCROLL_PAUSE_MS);
+      const [at, total] = String(h).split('/').map(Number);
+      const n = found.size;
+      if (at >= total - 4 && n === last) { if (++same >= 3) break; } else same = 0;
+      last = n;
+    }
+    return [...found.values()].slice(0, max);
+  } catch (e) { return null; } finally { try { win.destroy(); } catch (e) {} }
+}
+
+/* the app window's own sign-in for a site, as a cookies.txt yt-dlp can read,
+   so a reel the person can see signed in also downloads. null when there are none. */
+async function cookieFile(url, dir) {
+  if (!available()) return null;
+  const host = hostOf(url);
+  if (!host) return null;
+  let list = [];
+  try { list = await session().cookies.get({ domain: host }); } catch (e) { return null; }
+  if (!list.length) return null;
+  const lines = ['# Netscape HTTP Cookie File'];
+  for (const c of list) {
+    const dom = c.domain.startsWith('.') || !c.hostOnly ? (c.domain.startsWith('.') ? c.domain : '.' + c.domain) : c.domain;
+    lines.push([dom, dom.startsWith('.') ? 'TRUE' : 'FALSE', c.path || '/', c.secure ? 'TRUE' : 'FALSE',
+      Math.floor(c.expirationDate || 0), c.name, c.value].join('\t'));
+  }
+  const file = path.join(dir, 'cookies.txt');
+  fs.writeFileSync(file, lines.join('\n') + '\n');
+  return file;
 }
 
 const COLLECT = `(() => {
@@ -343,4 +437,5 @@ async function pageLinks(job, url) {
   } catch (e) { return null; } finally { try { win.destroy(); } catch (e) {} }
 }
 
-module.exports = { available, grabPage, pageLinks, mediaIn, rank, kindOf, challenged, CHECK_WAIT_MS, SCROLL_MAX, MIN_SIDE, BIG_MAX };
+module.exports = { available, grabPage, pageLinks, postLinks, cookieFile, mediaIn, rank, kindOf, challenged,
+  SIGNIN_SITES, WALLED, POSTS, CHECK_WAIT_MS, SCROLL_MAX, MIN_SIDE, BIG_MAX };

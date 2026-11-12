@@ -1,0 +1,123 @@
+/* The Library's "Find links" on a social profile, end to end against a mock
+   Instagram, with the real electron/grab-builtin.js and grab-browser.js.
+
+   Electron isn't needed: a stand-in 'electron' module gives grab-browser.js a
+   BrowserWindow that drives a real Chromium page (Playwright), and a session
+   whose cookies are that browser's. The mock site:
+     - signed out, the profile is a login wall: a sign-in dialog with a
+       password box, and only the page's own links (Log In, Sign Up,
+       followers, Explore) — what the old scanner listed as "videos";
+     - signed in, a grid of 48 posts and reels that keeps only the rows near
+       the screen, like Instagram's, so one look at the end misses most.
+   "Signing in" happens when the window is shown, as the person would.
+
+     node app/tests/electron/grab-social.e2e.js */
+const http = require('http'), path = require('path'), fs = require('fs'), Module = require('module'), os = require('os');
+let pw;
+try { pw = require('playwright-core'); } catch(e){ try { pw = require('playwright'); } catch(e2){ pw = require('/opt/npm-tools/node_modules/playwright'); } }
+const exe = process.env.CHROME || ['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+  'C:/Program Files/Google/Chrome/Application/chrome.exe', '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome', '/usr/bin/google-chrome'].find(p => fs.existsSync(p));
+
+let pass = 0, fail = 0;
+const ok = (c, l, x) => { console.log(`  ${c ? 'ok  ' : 'FAIL'}  ${l}${x !== undefined ? '   ' + x : ''}`); c ? pass++ : fail++; };
+
+/* ---- the mock site (all hosts resolve here; see --host-resolver-rules) */
+const POSTS = Array.from({ length: 48 }, (_, i) => i % 3 === 2 ? { k: 'reel', id: 'RL' + i } : { k: 'p', id: 'PO' + i });
+const page = body => `<!doctype html><html><head><meta charset="utf-8"><title>Instagram</title>
+  <style>body{margin:0;font:14px sans-serif}nav a{margin:6px}.grid{position:relative}.row{position:absolute;left:0;right:0;height:300px;display:flex;gap:4px}
+  .row a{flex:1;background:#ccc;display:block}.row img{width:100%;height:100%;object-fit:cover}</style></head><body>${body}</body></html>`;
+const NAV = `<nav><a href="/">Instagram</a><a href="/accounts/login/">Log In</a><a href="/accounts/emailsignup/">Sign Up</a>
+  <a href="/bryanhynes/followers/">392K followers</a><a href="/explore/">Explore</a><a href="/bryanhynes/reels/">Reels</a></nav>`;
+const server = http.createServer((req, res) => {
+  const signed = /sessionid=ok/.test(req.headers.cookie || '');
+  const send = (h, code) => { res.writeHead(code || 200, { 'Content-Type': 'text/html' }); res.end(h); };
+  if (req.url.startsWith('/bryanhynes')) {
+    if (!signed) return send(page(NAV + `<h1>bryanhynes</h1><div role="dialog"><h2>Log in to Instagram</h2>
+      <input name="username"><input type="password" name="password"><a href="/accounts/login/">Log in</a></div>`));
+    /* signed in: rows of 3, only those within a screen of the view are in the page */
+    return send(page(NAV + `<h1>bryanhynes</h1><div class="grid" id="g" style="height:${Math.ceil(POSTS.length / 3) * 304}px"></div>
+      <script>const P=${JSON.stringify(POSTS)};const g=document.getElementById('g');
+      function draw(){const top=scrollY-innerHeight,bot=scrollY+2*innerHeight;g.innerHTML='';
+        for(let r=0;r*3<P.length;r++){const y=r*304;if(y<top||y>bot)continue;
+          g.insertAdjacentHTML('beforeend','<div class="row" style="top:'+y+'px">'+P.slice(r*3,r*3+3).map(p=>
+            '<a href="/bryanhynes/'+p.k+'/'+p.id+'/"><img alt="Post '+p.id+'" src="data:image/gif;base64,R0lGODlhAQABAAAAACw="></a>').join('')+'</div>');}}
+      addEventListener('scroll',draw);draw();</script>`));
+  }
+  send(page(NAV + '<p>elsewhere</p>'));
+});
+
+/* ---- a stand-in electron, backed by one Chromium */
+let browser, ctx;
+const shows = [];
+class BrowserWindow {
+  constructor(o){ this.o = o; this.p = null; this.webContents = {
+    executeJavaScript: async js => { await this.ready(); return this.p.evaluate(js); },
+    getTitle: () => this.title || ''
+  }; }
+  async ready(){ if(!this.p) this.p = await ctx.newPage(); return this.p; }
+  async loadURL(u){ await this.ready(); await this.p.goto(u, { waitUntil: 'domcontentloaded' }); this.title = await this.p.title(); }
+  show(){ shows.push(Date.now());
+    /* the person signs in: the site sets its cookie and sends them back */
+    setTimeout(async () => { await ctx.addCookies([{ name: 'sessionid', value: 'ok', domain: 'www.instagram.com', path: '/', expires: Math.floor(Date.now() / 1000) + 86400 * 90, secure: true }]);
+      await this.p.goto('https://www.instagram.com/', { waitUntil: 'domcontentloaded' }); }, 800); }
+  hide(){} focus(){} setTitle(t){ this.title = t; } destroy(){ if(this.p) this.p.close().catch(() => {}); }
+}
+const fakeElectron = {
+  BrowserWindow,
+  app: { isReady: () => true },
+  session: { fromPartition: () => ({ getUserAgent: () => 'Mozilla/5.0 Chrome/131 Electron/30', setUserAgent(){},
+    cookies: { get: async ({ domain }) => (await ctx.cookies()).filter(c => c.domain.replace(/^\./, '').endsWith(domain))
+      .map(c => ({ ...c, expirationDate: c.expires > 0 ? c.expires : undefined, hostOnly: !c.domain.startsWith('.') })) } }) }
+};
+const resolve = Module._resolveFilename;
+Module._resolveFilename = function(req, ...a){ return req === 'electron' ? 'electron' : resolve.call(this, req, ...a); };
+require.cache.electron = { id: 'electron', filename: 'electron', loaded: true, exports: fakeElectron };
+
+(async () => {
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  const port = server.address().port;
+  browser = await pw.chromium.launch({ executablePath: exe, headless: true,
+    args: [`--host-resolver-rules=MAP * 127.0.0.1:${port}`, '--ignore-certificate-errors'] });
+  /* https on a plain http server: rewrite every request to http on the port */
+  ctx = await browser.newContext();
+  await ctx.route('**/*', async route => {
+    const u = new URL(route.request().url());
+    const r = await fetch(`http://127.0.0.1:${port}${u.pathname}${u.search}`, { headers: { cookie: (await ctx.cookies(u.origin)).map(c => c.name + '=' + c.value).join('; ') } });
+    route.fulfill({ status: r.status, headers: { 'content-type': r.headers.get('content-type') || 'text/html' }, body: await r.text() });
+  });
+
+  const Builtin = require('../../../electron/grab-builtin.js');
+  const job = () => { const lines = []; return { lines, stopped: false, emit: l => lines.push(l), run: async () => ({ code: 1, err: '' }) }; };
+
+  console.log('\n— a profile, signed out —');
+  const j1 = job(), found = [];
+  const code = await Builtin.scan(j1, { ytdlp: '/no/yt-dlp', ffmpeg: null }, 'https://www.instagram.com/bryanhynes/', 200, l => found.push(l));
+  ok(code === 0, 'the scan finishes', j1.lines[j1.lines.length - 1]);
+  ok(shows.length === 1, 'the login wall opens the window to sign in, once');
+  ok(j1.lines.some(l => /Instagram wants you signed in/.test(l)) && j1.lines.some(l => /signed in to Instagram/.test(l)), 'and says so, then that it worked');
+  ok(found.length === POSTS.length, 'every post and reel on the profile is found, though the grid only shows a few rows at a time', `${found.length} of ${POSTS.length}`);
+  const junk = found.filter(l => /login|signup|followers|explore|\/reels\/$|instagram\.com\/$/i.test(l.url));
+  ok(!junk.length, 'none of the page\'s own links (Log In, Sign Up, followers, Explore)', junk.map(l => l.url).join(' '));
+  ok(found.filter(l => l.kind === 'video').length === 16 && found.filter(l => l.kind === 'post').length === 32, 'reels say video, posts say post');
+  ok(found.every(l => /^https:\/\/www\.instagram\.com\/(p|reel)\/[A-Z]{2}\d+\/$/.test(l.url)), 'links are tidied to the post itself', found[0] && found[0].url);
+  ok(found.every(l => /^Post /.test(l.title)), 'titled from the picture\'s own text', found[0] && found[0].title);
+
+  console.log('\n— the same profile again —');
+  const j2 = job(), again = [];
+  await Builtin.scan(j2, { ytdlp: null }, 'https://www.instagram.com/bryanhynes/', 10, l => again.push(l));
+  ok(shows.length === 1, 'already signed in: no window this time');
+  ok(again.length === 10, 'and the limit is kept', again.length);
+
+  console.log('\n— downloads use that sign-in —');
+  const Browser = require('../../../electron/grab-browser.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jar-'));
+  const jar = await Browser.cookieFile('https://www.instagram.com/reel/RL2/', dir);
+  const txt = jar ? fs.readFileSync(jar, 'utf8') : '';
+  ok(!!jar && /^# Netscape HTTP Cookie File/.test(txt), 'a cookies.txt yt-dlp can read is written');
+  ok(/www\.instagram\.com\tFALSE\t\/\tTRUE\t\d+\tsessionid\tok/.test(txt), 'holding the Instagram sign-in', txt.split('\n')[1]);
+  ok(await Browser.cookieFile('https://www.tiktok.com/@x/video/1', dir) === null, 'and nothing for a site never signed in to');
+
+  await browser.close(); server.close();
+  console.log(`\nsocial profiles  (${pass} ok, ${fail} failed)`);
+  process.exit(fail ? 1 : 0);
+})().catch(e => { console.error(e); process.exit(1); });
