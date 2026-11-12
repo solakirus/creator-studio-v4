@@ -43,6 +43,12 @@
   async function setDone(id, i, v){
     const t = await Store.get('tasks', id);
     if(!t) return null;
+    applyDone(t, i, v);
+    await Store.put('tasks', t);
+    if(global.Data && Data.invalidate) Data.invalidate('tasks');
+    return t;
+  }
+  function applyDone(t, i, v){
     if(t.page && Array.isArray(t.page.slots) && t.page.slots.length){
       if(global.TaskPages) TaskPages.match(t);
       (t.subs || []).forEach(s2 => { if(s2.shot === i) s2.done = v; });
@@ -50,8 +56,6 @@
     } else if(t.subs && t.subs[i]) t.subs[i].done = v;
     if((t.subs || []).length && t.subs.every(x => x.done)) t.view = 'done';
     else if(t.view === 'done') t.view = 'todo';
-    await Store.put('tasks', t);
-    if(global.Data && Data.invalidate) Data.invalidate('tasks');
     return t;
   }
 
@@ -98,25 +102,28 @@
   async function setFrame(id, i, uid){
     const t = await Store.get('tasks', id);
     if(!t) return null;
-    if(t.page && Array.isArray(t.page.slots) && t.page.slots[i]) t.page.slots[i].item = uid || '';
-    else if(t.subs && t.subs[i]) t.subs[i].frame = uid || '';
+    applyFrame(t, i, uid);
     await Store.put('tasks', t);
     if(global.Data && Data.invalidate) Data.invalidate('tasks');
+    return t;
+  }
+  function applyFrame(t, i, uid){
+    if(t.page && Array.isArray(t.page.slots) && t.page.slots[i]) t.page.slots[i].item = uid || '';
+    else if(t.subs && t.subs[i]) t.subs[i].frame = uid || '';
     return t;
   }
 
   async function mount(el, params){
     if(!document.getElementById('sr-css')){ const st = document.createElement('style'); st.id = 'sr-css'; st.textContent = CSS; document.head.appendChild(st); }
     el.classList.add('sr-screen');
-    /* v4: any shot list can be shot — an episode's sequence, a clip, a series
-       video (shotlist.js passes params.list: { title, shots(), setDone(i, v),
-       setFrame(i, uid), swapNote }); otherwise it's a task (params.id) */
-    const L = params.list || null;
+    /* v4: a task (params.id), or a sequence, clip or series video lending its
+       Steps + Shot page (params.host, shotlist.js) */
+    const HO = params.host || null;
     const id = params.id;
-    let t = L ? { title:L.title || 'Shots' } : await Store.get('tasks', id);
+    let t = HO ? await HO.load() : await Store.get('tasks', id);
     if(!t){ el.innerHTML = '<div class="sr"><div class="sr-pic"><div class="sr-none"><b>Gone</b>This task isn’t here any more.</div></div></div>'; return; }
-    let shots = L ? await L.shots() : shotsOf(t);
-    if(!shots.length){ el.innerHTML = `<div class="sr"><div class="sr-top"><button class="sr-x" data-x>✕</button></div><div class="sr-pic"><div class="sr-none"><b>No shots</b>${L ? 'Add a shot to the list first.' : 'Add steps or a shot page to this task first.'}</div></div></div>`;
+    let shots = shotsOf(t);
+    if(!shots.length){ el.innerHTML = `<div class="sr"><div class="sr-top"><button class="sr-x" data-x>✕</button></div><div class="sr-pic"><div class="sr-none"><b>No shots</b>Add steps or a shot page first.</div></div></div>`;
       el.querySelector('[data-x]').onclick = () => Screens.pop(); return; }
     const firstOpen = () => { const k = shots.findIndex(s => !s.done); return k < 0 ? 0 : k; };
     let at = params.at != null && shots[params.at] ? params.at : firstOpen();
@@ -182,7 +189,7 @@
       if(pic && global.StarPick) U.onHold(pic, () => {
         const s2 = shots[at];
         StarPick.open({ title:`Shot ${at + 1} — swap its frame for today`, clear:!!s2.item, onPick: async uid => {
-          if(L){ await L.setFrame(s2.i, uid); shots = await L.shots(); await render(); if(L.swapNote && uid) U.toast(L.swapNote); return; }
+          if(HO){ applyFrame(t, s2.i, uid); await HO.save(t); t = await HO.load(); shots = shotsOf(t); return render(); }
           const fresh = await setFrame(id, s2.i, uid);
           if(fresh){ t = fresh; shots = shotsOf(t); }
           await render();
@@ -195,7 +202,7 @@
     async function got(){
       const s = shots[at];
       const v = !s.done;
-      if(L){ await L.setDone(s.i, v); shots = await L.shots(); }
+      if(HO){ applyDone(t, s.i, v); await HO.save(t); t = await HO.load(); shots = shotsOf(t); }
       else {
         const fresh = await setDone(id, s.i, v);
         if(fresh){ t = fresh; shots = shotsOf(t); }
@@ -245,5 +252,5 @@
   }
 
   Screens.register('shoot-run', mount);
-  global.ShootRun = { shotsOf, setDone, setFrame, open: (id, at) => Screens.push('shoot-run', { id, at }) };
+  global.ShootRun = { shotsOf, setDone, setFrame, applyDone, applyFrame, open: (id, at) => Screens.push('shoot-run', { id, at }) };
 })(window);

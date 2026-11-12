@@ -64,7 +64,6 @@
                 <span class="st">${v.tags.map(t => '#' + esc(t)).join(' ')}</span>` : ''}
               ${(v.shotList || v.shots || []).length ? `<span class="sep">|</span><span class="st">${(v.shotList || v.shots).length} shots</span>` : ''}
             </div>
-            ${window.ShotList ? ShotList.stripHTML(v.shotList, 7) : ''}
           </div>
           <div class="progress"><i style="width:${pct}%"></i></div>
         </div></article>`;
@@ -318,7 +317,8 @@
       const v = e.target.closest('[data-video]');
       if(v){
         const rec = vids.find(x => x.id === v.dataset.video);
-        if(rec) return VideoSheet.open(rec, { seriesId: params.id, onDone: refresh });
+        /* v4: a video opens as its own page, with its Steps + Shot page */
+        if(rec) return Screens.push('video-page', { id:rec.id, onChange: refresh });
         return;
       }
 

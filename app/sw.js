@@ -198,6 +198,7 @@ const FILES = [
   "./js/shottemplates.js",
   "./js/taskframes.js",
   "./js/shotlist.js",
+  "./js/screens/video-page.js",
   "./js/screens/library.js",
   "./js/screens/shot-templates.js",
   "./js/habits.js",

@@ -87,7 +87,7 @@
     /* v4: an episode's sequences — while their day is in the window (or unset) */
     for(const v of await all('vlogs'))
       for(const a of (v.acts || [])) for(const b of (a.beats || []))
-        if(await taskLive({ day:b.day }, cutoff)) collect(b.shots, want);
+        if(await taskLive({ day:b.day }, cutoff)) collect([b.shots, b.page, b.morePages], want);
     for(const t of await all('tasks')) if(await taskLive(t, cutoff)) collect(t, want);
     for(const v of await all('videos')){
       /* a video published before v4 stamped the date: stamp it now, so the

@@ -104,7 +104,25 @@
     let refsOpen = null;
     let angQ = '';         /* search inside that strip */
 
+    /* v4: a host lends this screen its Steps + Shot page — an episode's
+       sequence, a clip, a series video (shotlist.js ShotList.host*). It hands
+       over a task-shaped record ({ title, page, subs, pageFrom, morePages })
+       and takes it back on save; only the Steps block is shown, and with
+       params.embedded no title bar, so it sits inside another screen. */
+    const H = params.host || null;
+
     async function load(){
+      if(H){
+        t = await H.load();
+        allTasks = t ? [t] : [];
+        try { startDate = (await Data.program()).start; } catch(e){ startDate = null; }
+        try { kit = Coverage.kitFor(t, await Coverage.kit()); } catch(e){ kit = []; }
+        try { lib = await ShotLib.all(); } catch(e){ lib = []; }
+        clipRec = null; planRec = null;
+        await loadPageChoices();
+        if(t && t.page && window.TaskPages && TaskPages.match(t)){ syncPage(); await H.save(t); }
+        return;
+      }
       const map = await Store.allMap('tasks');
       allTasks = Object.values(map);
       t = allTasks.find(x => x.id === +params.id);
@@ -388,6 +406,7 @@
       } });
     }
     function openShoot(i){
+      if(H) return Screens.push('shoot-run', { host:H, at:i == null ? undefined : i, onChange: async () => { await load(); render(); } });
       return Screens.push('shoot-run', { id:t.id, at:i == null ? undefined : i, onChange: async () => { await load(); render(); } });
     }
     function typeOver(spot, c){
@@ -550,6 +569,7 @@
     async function save(){
       if(t && t.page && window.TaskPages) TaskPages.match(t);
       syncPage();
+      if(H){ await H.save(t); params.onChange && params.onChange(); return; }
       await Store.put('tasks', t);
       Data.invalidate('tasks');
       Notify.update();
@@ -802,7 +822,7 @@
     }
 
     function render(){
-      if(!t){ Screens.pop(); return; }
+      if(!t){ if(H){ el.innerHTML = '<p class="hintline">This one is gone.</p>'; return; } Screens.pop(); return; }
       /* pull in any thumbnails we do not have yet, then repaint just the strips */
       loadRefThumbs(t).then(() => {
         el.querySelectorAll('.refchip img').forEach(img => {
@@ -818,7 +838,8 @@
       const done = steps.filter(s => s.done).length;
       const pct = steps.length ? Math.round(done / steps.length * 100) : 0;
 
-      el.innerHTML = Screens.bar({ kicker:'Today', title:t.title,
+      el.innerHTML = H ? (params.embedded ? '' : Screens.bar({ kicker:H.kicker || '', title:t.title })) +
+        `<div class="tk-host${params.embedded ? ' embedded' : ''}">${stepsBlock()}</div>` : Screens.bar({ kicker:'Today', title:t.title,
         actions:`<button class="btn-sm" data-a="rename">Rename</button>` }) + `
       <div class="view">
         ${t.series ? `<div style="display:flex;align-items:center;gap:10px;padding:12px 13px;
@@ -1535,8 +1556,8 @@
       if(a.dataset.a === 'showpage'){ showPage = true; pageMediaKey = ''; return render(); }
       if(a.dataset.a === 'shootmode') return openShoot(null);
       if(a.dataset.a === 'shootnext') return openShoot(nextOn(curPage()));
-      if(a.dataset.a === 'openpage') return Screens.push('task-page', { id:t.id, onChange: async () => { await load(); render(); } });
-      if(a.dataset.a === 'addpage') return Screens.push('task-page', { id:t.id, addPage:true, onChange: async () => { await load(); render(); } });
+      if(a.dataset.a === 'openpage') return Screens.push('task-page', { id:t.id, host:H, onChange: async () => { await load(); render(); } });
+      if(a.dataset.a === 'addpage') return Screens.push('task-page', { id:t.id, host:H, addPage:true, onChange: async () => { await load(); render(); } });
       if(a.dataset.a === 'psadd') return shotAdd();
       if(a.dataset.a === 'unmore'){
         const P = curPage();
@@ -1692,9 +1713,9 @@
 
     await load();
     /* a task with no shot page gets the task sequence straight away, unless
-       its page was removed on purpose */
-    if(t && window.TaskPages && await TaskPages.attachDefault(t)) await save();
-    await loadShots();
+       its page was removed on purpose (a host decides its own start) */
+    if(!H && t && window.TaskPages && await TaskPages.attachDefault(t)) await save();
+    if(!H) await loadShots();
     SwipeRefs.wire(el, {
       getOwn: () => ownRefs().concat(clipRefs(), planRefs()),
       add: async sid => {
@@ -1719,7 +1740,11 @@
      frames into its spots, type over its words, tick its shots. Ticks made
      here carry back to the steps that stand for those shots. */
   Screens.register('task-page', async (el, params) => {
-    const t = await Store.get('tasks', +params.id);
+    /* v4: a host (shotlist.js) stands in for the tasks store */
+    const H = params.host || null;
+    const getT = async () => H ? await H.load() : await Store.get('tasks', +params.id);
+    const putT = async x => { if(H) await H.save(x); else { await Store.put('tasks', x); Data.invalidate('tasks'); } };
+    const t = await getT();
     const extra = t && Array.isArray(t.morePages) ? t.morePages : [];
     if(!t || (!t.page && !extra.length && !params.addPage)){
       el.innerHTML = Screens.bar({ title:'Shot page' }) + '<div class="view"><div class="empty"><b>Gone</b>This task has no shot page any more.</div></div>';
@@ -1733,13 +1758,13 @@
     el.innerHTML = Screens.bar({ kicker:t.title, title }) + '<div class="view tp-root"><div id="tkpHost"></div></div>';
     const host = el.querySelector('#tkpHost');
     PagesEditor.mount(host, { sheets, tasks:[t.title], noTarget:true, lockId:shotId, lockNote:'The shot page — its ticks are the task’s steps. Remove it from the task’s Steps.', save: async () => {
-      const fresh = await Store.get('tasks', t.id);
+      const fresh = await getT();
       if(!fresh) return;
       const before = fresh.page ? fresh.page.slots.map(sl => !!sl.done) : [];
       fresh.morePages = sheets.filter(s => s.id !== shotId);
       if(!fresh.morePages.length) delete fresh.morePages;
       const sp = shotId && sheets.find(s => s.id === shotId);
-      if(!sp){ await Store.put('tasks', fresh); Data.invalidate('tasks'); params.onChange && params.onChange(); return; }
+      if(!sp){ await putT(fresh); params.onChange && params.onChange(); return; }
       fresh.page = sp;
       /* a box ticked on the page ticks the steps for that shot */
       fresh.page.slots.forEach((sl, i) => {
@@ -1752,8 +1777,7 @@
         if(fresh.subs.every(x => x.done)) fresh.view = 'done';
         else if(fresh.view === 'done') fresh.view = 'todo';
       }
-      await Store.put('tasks', fresh);
-      Data.invalidate('tasks');
+      await putT(fresh);
       params.onChange && params.onChange();
     } });
     /* came from "Add another page": open the page designs straight away */

@@ -66,8 +66,9 @@
           t.day = day;
           t.title = 'Shoot — ' + v.title;
           t.subs = (v.shots || []).map(s => ({ t:s, done:false }));
-          /* v4: its shot list goes on as the task's shot page, frames and all */
-          if((v.shotList || []).length && global.ShotList){ t.subs = []; ShotList.toTask(t, v.shotList, v.title); }
+          /* v4: its Steps + Shot page go on the task as they are (or its shot list) */
+          if(v.page && global.ShotList){ t.subs = []; ShotList.copyPage(t, v); }
+          else if((v.shotList || v.shots || []).length && global.ShotList){ t.subs = []; ShotList.toTask(t, v.shotList || v.shots, v.title); }
           else if(v.page && global.Notebook){ t.page = Notebook.copyNew(v.page); t.page.slots.forEach(sl => { sl.done = false; });
                       t.pageFrom = v.pageFrom || null; delete t.pageOff; if(global.TaskPages) TaskPages.match(t); }
           await Store.put('tasks', t);
@@ -84,11 +85,11 @@
       note: v.hook || v.notes || '',
       source: v.channel || '',
       subs: (v.shots || []).map(s => ({ t:s, done:false })),
-      page: (v.shotList || []).length ? null : (v.page || null), pageFrom: v.pageFrom || null
+      page: null, pageFrom: v.pageFrom || null
     });
-    if((v.shotList || []).length && global.ShotList){
+    if(global.ShotList && (v.page || (v.shotList || v.shots || []).length)){
       task.subs = [];
-      ShotList.toTask(task, v.shotList, v.title);
+      if(v.page) ShotList.copyPage(task, v); else ShotList.toTask(task, v.shotList || v.shots, v.title);
       await Store.put('tasks', task);
     }
     return save({ ...v, taskId: task.id, stage: v.stage === 'idea' ? 'planned' : v.stage });

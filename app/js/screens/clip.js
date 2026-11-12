@@ -34,6 +34,9 @@
     const st = document.createElement('style');
     st.id = 'v-css';
     st.textContent = `
+    .cp-steps{margin:0 0 14px}
+    .cp-stepsk{font-family:var(--display),sans-serif;font-weight:900;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--cream);margin:4px 0 10px}
+    .cp-stepsk .n{color:var(--muted);margin-left:8px}
     .vt-pick{display:block;width:100%;text-align:left;padding:11px 12px;margin:0 0 7px;cursor:pointer;
       border:1px solid #2B2822;border-radius:var(--r);background:var(--surface-2);color:var(--cream)}
     .vt-pick b{display:block;font-size:15px}
@@ -363,11 +366,10 @@
 `;
       /* v4: the shot list — frames, shoot mode, templates (shotlist.js) */
       const nShots = shotList().length;
+      /* the task's own Steps + Shot page (shotlist.js host), first on Shoot */
       S.shots = `
-        <details class="cp-sec" open>
-          <summary>Shot list<span class="n">${nShots || 'none yet'}</span>${CHEV}</summary>
-          <div class="cp-body"><div id="clipShots"></div></div>
-        </details>
+        <div class="cp-steps"><p class="cp-stepsk">Steps <span class="n" data-clipn>${nShots ? nShots + ' shots' : ''}</span></p>
+          <div id="clipShots"></div></div>
 `;
       S.cuts = `
         <details class="cp-sec">
@@ -436,10 +438,14 @@
       const refsSec = el.querySelector('#sec-refs');
       if(refsSec) refsSec.addEventListener('toggle', () => { refsOpen = refsSec.open; });
       const cs = el.querySelector('#clipShots');
-      if(cs) ShotList.mount(cs, { title:clip.title || 'Clip', empty:'No shots yet — add them, or take a template\'s.',
-        get:shotList, save:async list => { clip.shotList = list; clip.shots = ShotList.texts(list); await Data.saveClip(clip);
-          const n = el.querySelector('#clipShots')?.closest('details')?.querySelector('summary .n'); if(n) n.textContent = list.length || 'none yet'; },
-        onShootClose:async () => { await load(); render(); } });
+      if(cs) ShotList.embed(cs, ShotList.hostClip(clip.id), async () => {
+        /* take the steps back into this screen's copy, so its own saves keep them */
+        const fresh = await Store.get('clips', clip.id);
+        if(fresh) ['page', 'subs', 'pageFrom', 'morePages', 'hideDone', 'pageOff', 'shotList', 'shots', 'shotsSig'].forEach(k => {
+          if(k in fresh) clip[k] = fresh[k]; else delete clip[k]; });
+        const n = el.querySelector('[data-clipn]');
+        if(n) n.textContent = (clip.shotList || []).length ? clip.shotList.length + ' shots' : '';
+      });
       SwipeRefs.fill(el.querySelector('#swr-slot'), { own: p.swipeIds,
         empty:'Link the videos this clip is borrowing from. Its shoot and edit tasks will show them too.' });
     }
@@ -1017,6 +1023,7 @@
 
       if(a.dataset.a === 'toshoot'){
         const t = await ShotList.daySheet({ taskId:clip.shootTaskId, title:clip.title || 'Clip', shots:shotList(),
+          page:clip.page || null, subs:clip.subs || [], pageFrom:clip.pageFrom || null, morePages:clip.morePages,
           note:clip.plan.hook || '', extra:{ clipId:clip.id, channel:clip.channel || null } });
         if(t === undefined) return;
         clip.shootTaskId = t ? t.id : null;

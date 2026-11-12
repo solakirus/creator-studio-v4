@@ -28,7 +28,7 @@ const { chromium } = require('playwright-core');
   await p.click('[data-add]'); await p.waitForTimeout(800);
   let shots = await p.evaluate(async () => (await Store.get('vlogs', 'v1')).acts[0].beats[0].shots.map(s => [s.text, s.framing, s.movement, s.location]));
   ok(shots.length === 3 && shots[1][0] === 'Bag on the grass' && shots[2][1] === 'Close', 'kept shots added, framing matched', shots);
-  ok(await p.evaluate(() => document.querySelector('#screens').innerText.includes('Poles snap together')), 'the screen shows them');
+  ok(await p.evaluate(() => document.querySelector('#screens').innerText.includes('Poles snap together') || [...document.querySelectorAll('#screens .tk-name')].some(i => i.value.includes('Poles snap together'))), 'the screen shows them');
   await p.screenshot({ path: out + '/suggest-added.png' });
   await p.evaluate(() => App.goBack()); await p.waitForTimeout(300);
 

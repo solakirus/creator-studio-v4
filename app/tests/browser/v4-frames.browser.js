@@ -162,9 +162,10 @@ const head = s => console.log(`\n— ${s} —`);
   await phone.evaluate(async id => Screens.push('clip', { id, tab:'shoot' }), plan.videoId);
   await phone.waitForTimeout(1500);
   await phone.waitForTimeout(800);
-  const strip = await phone.evaluate(() => ({ cells: document.querySelectorAll('#clipShots .sl-row').length,
-    pics: document.querySelectorAll('#clipShots .sl-th img, #clipShots .sl-th video').length, missing: [...document.querySelectorAll('#clipShots .sl-th i')].length }));
-  ok(strip.cells === 4 && strip.pics === 4 && !strip.missing, 'the clip\'s Shot list shows the four frames', JSON.stringify(strip));
+  await phone.waitForTimeout(1200);
+  const strip = await phone.evaluate(() => ({ cells: document.querySelectorAll('#clipShots .tk-ps').length,
+    pics: document.querySelectorAll('#clipShots .tk-th img, #clipShots .tk-th video').length, missing: 0 }));
+  ok(strip.cells === 4 && strip.pics === 4 && !strip.missing, 'the clip\'s Steps show the four frames', JSON.stringify(strip));
   const sheet = await phone.$('#clipShots');
   if(sheet) await sheet.scrollIntoViewIfNeeded();
   await phone.waitForTimeout(400);

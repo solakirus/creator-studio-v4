@@ -1971,9 +1971,9 @@
         <!-- v4: the shots first — what you film, each with its frame, the same
              list as a task's (shotlist.js). The rest is the thinking behind it. -->
         <div class="block">
-          <h4>Shots</h4>
+          <h4>Steps</h4>
           <div id="beatShots"></div>
-          <button class="addbeat" data-a="suggestshots" style="width:100%;margin-top:8px">✦ Suggest shots</button>
+          <button class="addbeat" data-a="suggestshots" style="width:100%;margin-top:10px">✦ Suggest shots</button>
         </div>
 
         <div class="block">
@@ -2034,13 +2034,11 @@
 
         <button class="btn-ghost" data-a="delete" style="width:100%;color:var(--red);border-color:rgba(226,86,74,.4)">Delete sequence</button>
       </div>`;
-      /* the shots: frames, shoot mode, templates (shotlist.js) */
-      ShotList.mount(el.querySelector('#beatShots'), {
-        title:b.title,
-        empty:'No shots yet. Add the setups this sequence needs — with a frame each, so you know the look.',
-        get:() => b.shots || [],
-        save:async list => { b.shots = list; await save(); },
-        onShootClose:async () => { await load(); render(); }
+      /* the shots: the task's own Steps + Shot page (shotlist.js host) */
+      ShotList.embed(el.querySelector('#beatShots'), ShotList.hostBeat(v.id, b.id), async () => {
+        const fresh = migrate(await Store.get('vlogs', v.id));
+        for(const a2 of fresh.acts){ const f = a2.beats.find(x => x.id === b.id); if(f){ v = fresh; act = a2; b = f; break; } }
+        params.onChange && params.onChange();
       });
     }
 

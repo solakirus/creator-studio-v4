@@ -43,6 +43,29 @@
         background:${st.c}14">${st.label}</span>`;
     }
 
+    /* which sequences are open: the first one not finished, until you choose */
+    let opened = null;
+    const DOWN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M6 9l6 6 6-6"/></svg>';
+    function isOpen(b){
+      if(!opened){
+        const seqs = (act && act.beats) || [];
+        const first = seqs.find(x => !(x.shots || []).length || (x.shots || []).some(s => !s.done)) || seqs[0];
+        opened = new Set(first ? [first.id] : []);
+      }
+      return opened.has(b.id);
+    }
+    function countLine(b){
+      const sh = b.shots || [], done = sh.filter(s => s.done).length, fr = sh.filter(s => s.item).length;
+      return [sh.length ? `${done} of ${sh.length} shots${fr ? ` · ${fr} with frames` : ''}` : 'no shots yet',
+        b.day ? dayLabel(b.day) : 'no day yet', b.taskId ? 'on your days' : ''].filter(Boolean).join(' · ');
+    }
+    const SEQ_CSS = `
+      .seqcard .sc-row{display:flex;align-items:center;gap:8px}
+      .seqcard .sc-row .sc-head{flex:1;min-width:0}
+      .seqcard .sc-cv{display:inline-flex;width:18px;color:var(--dim);flex:0 0 18px}
+      .seqcard .sc-shoot{flex:0 0 auto;height:40px;padding:0 14px;margin-right:10px;border:0;border-radius:var(--r);background:var(--orange);color:#151515;font-family:var(--display),sans-serif;font-weight:900;font-size:13.5px;cursor:pointer}
+      .seqcard .sc-host{padding:4px 12px 8px;border-top:1px solid var(--line)}`;
+
     function render(){
       if(!act){
         el.innerHTML = Screens.bar({ title:'Day' }) +
@@ -81,41 +104,27 @@
           ${seqs.map(b => {
             const sh = b.shots || [];
             const done = sh.filter(s => s.done).length;
+            const fr = sh.filter(s => s.item).length;
             const all = sh.length > 0 && done === sh.length;
+            const open = isOpen(b);
+            /* v4: each sequence opens right here into the task's Steps + Shot
+               page, so the day's shots are planned inside the day; the others
+               stay folded to one line */
             return `
-              <article class="seqcard${all ? ' all' : ''}">
-                <button class="sc-head" data-seq="${b.id}">
-                  <span class="dot" style="background:${b.day != null ? 'var(--orange)' : 'var(--dim)'}"></span>
-                  <span class="t">
-                    <b>${esc(b.title)}</b>
-                    ${setupTag(b)}
-                    <small>${[
-                      b.day ? dayLabel(b.day) : 'no day yet',
-                      b.script ? 'scripted' : ''
-                    ].filter(Boolean).join(' · ')}</small>
-                    ${ShotList.stripHTML(sh, 8)}</span>
-                  ${ICON.chevR}
-                </button>
-
-                ${sh.length ? `
-                  <details class="seqshots"${done && !all ? ' open' : ''}>
-                    <summary>
-                      <span class="sq-n">${done}/${sh.length} shots</span>
-                      <span class="sq-go">${ICON.chevR}</span>
-                    </summary>
-                    <div class="sq-list">
-                      ${sh.map(s => `<div class="shotline${s.done ? ' done' : ''}"
-                        data-shot="${b.id}:${s.id}">
-                        <span class="bx">${ICON.check}</span>
-                        ${ShotList.thumbHTML(s)}
-                        <span class="tx">${esc(s.text)}</span>
-                        ${s.framing ? `<span class="tag">${esc(s.framing)}</span>` : ''}
-                      </div>`).join('')}
-                    </div>
-                  </details>`
-                  : `<p class="sc-none">No shots listed yet — open it to add them.</p>`}
+              <article class="seqcard${all ? ' all' : ''}${open ? ' open' : ''}">
+                <div class="sc-row">
+                  <button class="sc-head" data-fold="${b.id}" aria-expanded="${open}">
+                    <span class="sc-cv">${open ? DOWN : ICON.chevR}</span>
+                    <span class="t">
+                      <b>${esc(b.title)}</b>
+                      ${setupTag(b)}
+                      <small data-count="${b.id}">${countLine(b)}</small></span>
+                  </button>
+                  ${sh.length ? `<button class="sc-shoot" data-shootseq="${b.id}">▶ Shoot it</button>` : ''}
+                </div>
+                ${open ? `<div class="sc-host" data-host="${b.id}" data-selectable="1"></div>` : ''}
                 <div class="sc-foot">
-                  ${sh.length ? `<button data-shootseq="${b.id}" style="color:var(--orange);font-weight:700">▶ Shoot it</button>` : ''}
+                  <button data-seq="${b.id}">Open the sequence</button>
                   <button data-moveto="${b.id}">Move to another day</button>
                   ${sh.length ? `<button data-keep="${b.id}">Save as a template</button>` : ''}
                 </div>
@@ -144,6 +153,17 @@
             not for the day it sits on.</p>
         </div>`;
       ShotList.fillPics(el);
+      if(!document.getElementById('seq-css')){ const st = document.createElement('style'); st.id = 'seq-css'; st.textContent = SEQ_CSS; document.head.appendChild(st); }
+      el.querySelectorAll('[data-host]').forEach(c => {
+        const id = c.dataset.host;
+        ShotList.embed(c, ShotList.hostBeat(v.id, id), async () => {
+          /* keep this screen's copy fresh, so its own saves don't undo the steps */
+          await load();
+          const b = ((act && act.beats) || []).find(x => x.id === id);
+          const line = b && el.querySelector(`[data-count="${id}"]`);
+          if(line) line.textContent = countLine(b);
+        });
+      });
     }
 
     /* A template is a named sequence with its shots already in it — the same
@@ -282,7 +302,7 @@
         const after = async () => { await load(); render(); };
         const task = b.taskId ? await Store.get('tasks', b.taskId).catch(() => null) : null;
         if(task) return Screens.push('shoot-run', { id:task.id, onChange:after });
-        return ShotList.shoot({ title:b.title, get:() => b.shots || [], save:async list => { b.shots = list; await save(); }, onShootClose:after });
+        return Screens.push('shoot-run', { host:ShotList.hostBeat(v.id, b.id), onChange:after });
       }
       const mv = e.target.closest('[data-moveto]');
       if(mv){
@@ -322,6 +342,14 @@
           });
         });
         return;
+      }
+
+      const fo = e.target.closest('[data-fold]');
+      if(fo){
+        isOpen({ id:'' });
+        const id = fo.dataset.fold;
+        if(opened.has(id)) opened.delete(id); else opened.add(id);
+        return render();
       }
 
       const open = e.target.closest('[data-seq]');

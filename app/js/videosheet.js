@@ -56,7 +56,7 @@
 
       <h3 class="pgh">Shot list</h3>
       <div id="vd-shots"></div>
-      <button type="button" class="btn-ghost" data-shots style="width:100%;margin:8px 0 0">Shots &amp; frames →</button>
+      <button type="button" class="btn-ghost" data-shots style="width:100%;margin:8px 0 0">Open its page — Steps &amp; shot page →</button>
       <p class="hintline">Each shot with its frame. They become the task's steps and shot page when you give it a day.</p>
 
       <h3 class="pgh">Tags</h3>
@@ -198,11 +198,10 @@
         if(e.target.closest('[data-shots]')){
           pull();
           if(!r.title){ $('#vd-err').hidden = false; return; }
-          let cur = await Videos.save(r);
+          const cur = await Videos.save(r);
           App.closeSheet();
-          return Screens.push('shots-edit', { kicker:'Video', title:cur.title, get:() => cur.shotList || [],
-            save:async l => { cur = await Videos.save({ ...cur, shotList:l, shots:ShotList.texts(l) }); },
-            onClose:() => setTimeout(() => open(cur, o), 50) });
+          await done();
+          return Screens.push('video-page', { id:cur.id, onChange:done });
         }
 
         if(e.target.closest('[data-del]')){
