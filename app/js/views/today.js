@@ -279,7 +279,8 @@
       </article>
       ${expanded.has(t.id) ? `<div class="subs">${t.subs.map((x,i) => `
         <div class="sub${x.done?' done':''}" data-sub="${i}">
-          <span class="box">${ICON.check}</span><span>${x.t}</span>
+          <button class="box" data-subtick="${i}" aria-label="Tick step ${i + 1}" aria-pressed="${!!x.done}">${ICON.check}</button>
+          <input class="subname" data-subname="${i}" value="${U.esc(x.t || '')}" aria-label="Step ${i + 1}" enterkeyhint="done">
         </div>`).join('')}${pageCount(t) ? `<button class="subs-page" data-pages="${t.id}">${PAGE_ICON}Open the full ${
           pageCount(t) === 1 ? 'page' : pageCount(t) + ' pages'}</button>` : ''}</div>` : ''}
     </div>`;
@@ -768,6 +769,26 @@
       onDone: () => render()
     });
 
+    /* renaming a step from the drop-down: saved when you leave it or press Enter */
+    root.addEventListener('keydown', e => {
+      const f = e.target.closest && e.target.closest('[data-subname]');
+      if(!f) return;
+      if(e.key === 'Enter'){ e.preventDefault(); f.blur(); }
+      if(e.key === 'Escape'){ e.stopPropagation(); f.value = f.defaultValue; f.blur(); }
+    });
+    root.addEventListener('change', e => {
+      const f = e.target.closest && e.target.closest('[data-subname]');
+      if(!f) return;
+      const t = tasks.find(x => x.id === +f.closest('.mediacard').dataset.id);
+      const s2 = t && t.subs[+f.dataset.subname];
+      const v = f.value.trim();
+      if(!s2 || !v || v === s2.t){ if(!v) f.value = s2 ? s2.t : ''; return; }
+      s2.t = v;
+      /* a step standing for a shot is named after it (taskpages.js), so the shot is renamed too */
+      if(t.page && s2.shot != null && t.page.slots && t.page.slots[s2.shot]) t.page.slots[s2.shot].text = v;
+      f.defaultValue = v;
+      persist(t);
+    });
     root.addEventListener('click', async e => {
       const act = e.target.closest('[data-act]');
       if(act){
@@ -881,13 +902,21 @@
         }});
         return;
       }
-      const sub = e.target.closest('.sub');
-      if(sub){
-        const t = tasks.find(x => x.id === +sub.closest('.mediacard').dataset.id);
-        t.subs[+sub.dataset.sub].done = !t.subs[+sub.dataset.sub].done;
+      /* v4: in the steps drop-down the box ticks a step (crossing it out) and
+         its words can be edited right there — tapping the words no longer ticks */
+      const tick = e.target.closest('[data-subtick]');
+      if(tick){
+        const t = tasks.find(x => x.id === +tick.closest('.mediacard').dataset.id);
+        const s2 = t && t.subs[+tick.dataset.subtick];
+        if(!s2) return;
+        s2.done = !s2.done;
+        /* a step standing for a shot on the page ticks that spot too */
+        if(t.page && s2.shot != null && t.page.slots && t.page.slots[s2.shot])
+          t.page.slots[s2.shot].done = t.subs.filter(x => x.shot === s2.shot).every(x => x.done);
         t.view = t.subs.every(x => x.done) ? 'done' : (t.view === 'done' ? 'todo' : t.view);
         persist(t); render(); return;
       }
+      if(e.target.closest('.sub')) return;
       const chk = e.target.closest('.check');
       if(chk){
         const t = tasks.find(x => x.id === +chk.closest('.mediacard').dataset.id);

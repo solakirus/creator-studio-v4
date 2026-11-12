@@ -227,10 +227,17 @@ button{font-family:inherit}
 .mediacard.open .chev{transform:rotate(180deg)}
 .chev svg{width:13px;height:13px}
 .subs{border-top:1px solid #332F28;padding:4px 0 6px}
-.sub{display:flex;align-items:center;gap:11px;padding:9px 13px;cursor:pointer}
+.sub{display:flex;align-items:center;gap:11px;padding:6px 13px}
 .sub + .sub{border-top:1px solid #221F1A}
 .sub .box{width:19px;height:19px;flex:0 0 19px;border-radius:2px;border:1px solid #45403A;
-  display:flex;align-items:center;justify-content:center;color:transparent}
+  display:flex;align-items:center;justify-content:center;color:transparent;background:none;padding:0;cursor:pointer;
+  box-sizing:content-box;outline-offset:3px;position:relative}
+.sub .box::before{content:"";position:absolute;inset:-12px}
+.sub .subname{flex:1;min-width:0;background:transparent;border:0;border-bottom:1px dashed transparent;color:var(--cream);
+  font:inherit;font-size:14.5px;line-height:1.35;padding:6px 0;outline:none;border-radius:0}
+.sub .subname:hover{border-bottom-color:#45403A}
+.sub .subname:focus{border-bottom-color:var(--orange)}
+.sub.done .subname{color:var(--muted);text-decoration:line-through;text-decoration-thickness:1.5px}
 .sub .box svg{width:13px;height:13px}
 .sub.done .box{background:rgba(242,194,48,.55);border-color:transparent;color:#1A1405}
 .sub span{font-size:14.5px;line-height:1.35}
