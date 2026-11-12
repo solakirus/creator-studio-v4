@@ -272,9 +272,28 @@
       if(global.Updater) Updater.ok();
       if(global.CS3Update){
         CS3Update.ok();
-        CS3Update.onReady(() => U.toast('App update downloaded — it loads next time you open the app'));
+        CS3Update.onReady(() => updateBar(() => CS3Update.restart()));
       }
+      if(global.Updater && Updater.isAndroid) Updater.onReady(() => updateBar(() => Updater.applyNow()));
+      /* Windows/Linux download in main.js: tell it this device's nastime too */
+      if(global.Updater) Updater.pushSources().catch(() => {});
     }, 3000);
+  }
+
+  /* v4: an update has downloaded — offer it now, or it loads next time */
+  function updateBar(apply){
+    if(document.querySelector('.upd-bar')) return;
+    const bar = document.createElement('div');
+    bar.className = 'upd-bar';
+    bar.setAttribute('role', 'status');
+    bar.innerHTML = `<span>A new version is ready</span>
+      <button class="upd-go" type="button">Restart now</button><button class="upd-later" type="button" aria-label="Later">Later</button>`;
+    document.body.appendChild(bar);
+    bar.querySelector('.upd-go').addEventListener('click', async () => {
+      bar.querySelector('.upd-go').textContent = 'Restarting…';
+      try { await apply(); } catch(e){ U.toast('Could not restart — it loads next time you open the app'); bar.remove(); }
+    });
+    bar.querySelector('.upd-later').addEventListener('click', () => { bar.remove(); U.toast('It loads next time you open the app'); });
   }
 
   /* ---- going back ----
@@ -446,6 +465,6 @@
     else setTimeout(run, 6000);
   }
 
-  global.App = { go, goBack, refreshTab, sheet, closeSheet, pickImage, reloadToolIcons, TOOLS, PRESETS };
+  global.App = { go, goBack, refreshTab, sheet, closeSheet, pickImage, reloadToolIcons, updateBar, TOOLS, PRESETS };
   document.addEventListener('DOMContentLoaded', () => { init(); backupWhenIdle(); });
 })(window);

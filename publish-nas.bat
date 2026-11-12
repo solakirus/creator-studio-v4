@@ -2,6 +2,9 @@
 setlocal EnableExtensions
 title Creator Studio v4 - publish to nastime
 cd /d "%~dp0"
+rem  publish-nas.bat /quiet  — from update.bat: no questions, no pause
+set "QUIET="
+if /i "%~1"=="/quiet" set "QUIET=1"
 
 echo.
 echo  ===== Creator Studio v4 on nastime =====
@@ -20,6 +23,10 @@ if errorlevel 1 (
 rem --- where the NAS folder is, asked once and kept in nas-target.txt
 set "DEST="
 if exist nas-target.txt set /p DEST=<nas-target.txt
+if not defined DEST if defined QUIET (
+  echo  nastime: not set up on this computer yet - run publish-nas.bat once.
+  goto :end
+)
 if not defined DEST (
   echo  Where is the creator-studio-v4 folder on the NAS?
   echo  In CasaOS Files, share /DATA/AppData/Projects/creator-studio-v4 over the
@@ -49,6 +56,8 @@ robocopy www "%DEST%\www" /MIR /NFL /NDL /NJH /NJS /NP /R:1 /W:1
 if errorlevel 8 goto :failed
 copy /y nas\Caddyfile "%DEST%\Caddyfile" >nul
 if errorlevel 1 goto :failed
+copy /y nas\mirror.js "%DEST%\mirror.js" >nul
+if errorlevel 1 goto :failed
 
 echo.
 echo  Done. Open Creator Studio on the iPad - it picks up the new version on
@@ -62,4 +71,7 @@ echo  messages above if it keeps happening.
 
 :done
 echo.
+if defined QUIET goto :end
 pause
+:end
+endlocal & exit /b 0

@@ -1,7 +1,12 @@
 # Creator Studio v4 web app on nastime (CasaOS: App Store › Custom Install ›
 # Import, paste this). Files live in /DATA/AppData/Projects/creator-studio-v4:
-#   www/        the web app — publish-nas.bat copies it there
+#   www/        the web app — update.bat / publish-nas copies it there, and the
+#               mirror below keeps it current from GitHub on its own
 #   Caddyfile   from this folder (nas/Caddyfile)
+#   mirror.js   from this folder (nas/mirror.js)
+#
+# The whole folder is mounted (not just www/) so the mirror can build a new
+# version beside www/ and swap it in, and Caddy serves the new one at once.
 name: creator-studio-v4
 services:
   creator-studio-v4:
@@ -16,15 +21,30 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - /DATA/AppData/Projects/creator-studio-v4/www:/srv:ro
+      - /DATA/AppData/Projects/creator-studio-v4:/site:ro
       - /DATA/AppData/Projects/creator-studio-v4/Caddyfile:/etc/caddy/Caddyfile:ro
+
+  # Looks at GitHub every 5 minutes; a newer version there is copied in.
+  # A newer one published from the laptop is never replaced by an older one.
+  creator-studio-v4-mirror:
+    image: node:20-alpine
+    container_name: creator-studio-v4-mirror
+    restart: unless-stopped
+    working_dir: /site
+    command: ["node", "/site/mirror.js"]
+    environment:
+      SOURCE: https://solakirus.github.io/creator-studio-v4/
+      SITE: /site/www
+      EVERY: "5"
+    volumes:
+      - /DATA/AppData/Projects/creator-studio-v4:/site
 x-casaos:
   architectures: [amd64, arm64]
   main: creator-studio-v4
   title:
     en_us: Creator Studio v4
   description:
-    en_us: Creator Studio v4 for the iPad and any browser, with Sync Hub on the same address.
+    en_us: Creator Studio v4 for the iPad and any browser, with Sync Hub on the same address. Keeps itself current from GitHub.
   category: Productivity
   port_map: "8795"
   scheme: http

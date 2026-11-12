@@ -1,6 +1,7 @@
 # Creator Studio v4 on nastime — the web app for the iPad (and any browser).
 #
-# Serves the built web app (www/, made by publish-nas.bat) and passes Sync
+# Serves the built web app (www/, from update.bat / publish-nas, or pulled
+# from GitHub by the mirror) and passes Sync
 # calls through to Sync Hub, so the app and its sync share one address: the
 # iPad's Safari never has to reach a second server (or plain http from https).
 #
@@ -23,13 +24,14 @@
 	}
 
 	handle {
-		root * /srv
+		root * /site/www
 		# the page, the service worker and the build manifest are always asked
 		# for fresh, so a new publish reaches the iPad the next time it opens
 		@fresh path / /index.html /sw.js /update.json /manifest.webmanifest
 		header @fresh Cache-Control "no-cache"
-		# the phone and laptop apps may read update.json from here too
-		header /update.json Access-Control-Allow-Origin "*"
+		# the phone app downloads updates from here too (from its own
+		# https://localhost page), so every file may be read across origins
+		header Access-Control-Allow-Origin "*"
 		file_server
 	}
 }

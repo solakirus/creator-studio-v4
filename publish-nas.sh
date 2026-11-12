@@ -14,6 +14,7 @@
 #   or SSH            e.g.  kris@192.168.4.23:/DATA/AppData/Projects/creator-studio-v4
 set -u
 cd "$(dirname "$0")"
+QUIET=0; [ "${1:-}" = "--quiet" ] && QUIET=1   # from update.sh: no questions
 
 echo
 echo " ===== Creator Studio v4 on nastime ====="
@@ -25,6 +26,9 @@ DEST=""
 [ -f nas-target.txt ] && DEST="$(tr -d '\r' < nas-target.txt | head -n1)"
 # a Windows path from publish-nas.bat is no use here
 case "$DEST" in \\\\*|[A-Za-z]:\\*) DEST="";; esac
+if [ -z "$DEST" ] && [ "$QUIET" = 1 ]; then
+  echo " nastime: not set up on this computer yet - run ./publish-nas.sh once."; exit 0
+fi
 if [ -z "$DEST" ]; then
   echo " Where is the creator-studio-v4 folder on the NAS?"
   echo
@@ -60,15 +64,15 @@ echo
 echo " Copying to $DEST/www ..."
 if [ "$SSH" = 1 ]; then
   command -v rsync >/dev/null || { echo " Needs rsync:  sudo apt install rsync  (and rsync on the NAS)"; exit 1; }
-  rsync -rz --delete --checksum www/ "$DEST/www/" && rsync -z nas/Caddyfile "$DEST/Caddyfile" \
+  rsync -rz --delete --checksum www/ "$DEST/www/" && rsync -z nas/Caddyfile nas/mirror.js "$DEST/" \
     || { echo " Copy failed — check the SSH login and the path."; exit 1; }
 elif command -v rsync >/dev/null; then
   # a Samba share can refuse file times, so compare by content, not time
   rsync -r --delete --checksum --no-times --no-perms --no-owner --no-group www/ "$DEST/www/" \
-    && cp -f nas/Caddyfile "$DEST/Caddyfile" || { echo " Copy failed — scroll up."; exit 1; }
+    && cp -f nas/Caddyfile nas/mirror.js "$DEST/" || { echo " Copy failed — scroll up."; exit 1; }
 else
   mkdir -p "$DEST/www" && rm -rf "$DEST/www/"* && cp -r www/. "$DEST/www/" \
-    && cp -f nas/Caddyfile "$DEST/Caddyfile" || { echo " Copy failed — scroll up."; exit 1; }
+    && cp -f nas/Caddyfile nas/mirror.js "$DEST/" || { echo " Copy failed — scroll up."; exit 1; }
 fi
 
 echo

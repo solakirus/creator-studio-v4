@@ -297,7 +297,7 @@
       if(go.dataset.go === 'planpack')  return openPlanPack();
       if(go.dataset.go === 'ai')        return ShotAI.openSettings();
       if(go.dataset.go === 'sync')      return openSync(() => mount(el));
-      if(go.dataset.go === 'appupdate') return checkAppUpdate(() => mount(el));
+      if(go.dataset.go === 'appupdate') return openUpdates(() => mount(el));
       if(go.dataset.go === 'autobackup') return openAutoBackup(() => mount(el));
       if(go.dataset.go === 'backup')    return doBackup();
       if(go.dataset.go === 'csvout')    return doSheets();
@@ -362,7 +362,62 @@
     if(s.state === 'downloading') return `Downloading an update… ${s.done || 0} of ${s.total || '?'}`;
     if(s.state === 'ready') return v + ' · update downloaded, loads next time you open the app';
     if(s.state === 'error' && s.needsApk) return v + ' · ' + s.reason;
-    return v + ' · updates itself from GitHub';
+    return v + ' · updates itself from GitHub and nastime';
+  }
+
+  /* v4: where updates come from, what each place has, and this device's
+     nastime address (worked out from Sync unless set here). */
+  async function openUpdates(after){
+    const i = await appUpdateInfo();
+    const esc = x => U.esc(x);
+    const p = 'margin:0 0 12px;color:var(--muted);font-size:14.5px;line-height:1.55';
+    const when = m => { const t = m && Date.parse(m.made); return t ? new Date(t).toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : ''; };
+    let own = ''; try { own = localStorage.getItem('cs4-update-nas') || ''; } catch(e){}
+    const auto = own ? '' : await (async () => { try { return await Updater.nasAddress(); } catch(e){ return ''; } })();
+    App.sheet(`
+      <h2>App updates</h2>
+      <p style="${p}">${i.kind === 'web'
+        ? 'This is the website itself — it is current whenever it opens with the server in reach.'
+        : 'This app checks GitHub and nastime when it opens and every 30 minutes, takes whichever has the newer version, and offers <b>Restart now</b> when it has downloaded it. Only a change to the app itself needs update.bat on the laptop.'}</p>
+      <div class="block" style="margin:0 0 14px">
+        <div class="metaline" style="margin:0 0 6px"><span class="tg count">Running · ${esc(i.build ? i.build.slice(0, 7) : '—')}${i.made ? ' · ' + esc(when(i)) : ''}</span></div>
+        <div data-srcs class="hintline" style="margin:0">Looking…</div>
+      </div>
+      ${i.kind === 'web' ? '' : `<div class="field"><label for="upNas">nastime address for updates</label>
+        <input id="upNas" placeholder="${esc(auto || 'http://192.168.4.23:8795')}" value="${esc(own === 'off' ? '' : own)}" autocomplete="off" spellcheck="false">
+        <p class="hintline" style="margin:6px 0 0">${own === 'off' ? 'Turned off on this device.' : own ? 'Set on this device.' : auto ? 'Worked out from your Sync server. Type another to change it.' : 'Set up Sync, or type the address the iPad opens.'}</p></div>
+      <div class="up-off" style="display:flex;gap:8px;align-items:center;margin:-4px 0 14px;font-size:14px;color:var(--muted)">
+        <input type="checkbox" id="upNasOff" style="width:18px;height:18px;margin:0" ${own === 'off' ? 'checked' : ''}><span>Don’t use nastime on this device</span></div>`}
+      <div class="sheetcta">
+        ${i.kind === 'web' ? '' : '<button class="btn-primary" data-upnow>Check now</button>'}
+        <button class="btn-ghost" data-upclose>Done</button>
+      </div>`);
+    const sh = document.getElementById('sheet') || document;
+    /* what each place has right now */
+    (async () => {
+      const box = sh.querySelector('[data-srcs]');
+      try {
+        const list = await Updater.sources();
+        const seen = await Promise.all(list.map(async src => {
+          try { const r = await fetch(src.base + 'update.json?t=' + Date.now(), { cache:'no-store' }); return { ...src, m: r.ok ? await r.json() : null }; }
+          catch(e){ return { ...src, m:null }; }
+        }));
+        if(box.isConnected) box.innerHTML = seen.map(x => `<div>${esc(x.name)} · ${x.m ? esc(x.m.build.slice(0, 7)) + ' · ' + esc(when(x.m)) +
+          (i.build === x.m.build ? ' · <b>this one</b>' : '') : '<span style="color:var(--muted)">can’t reach it</span>'}</div>`).join('');
+      } catch(e){ if(box.isConnected) box.textContent = 'Could not look'; }
+    })();
+    const save = () => {
+      const off = sh.querySelector('#upNasOff'), inp = sh.querySelector('#upNas');
+      if(!inp) return;
+      const v = inp.value.trim();
+      if(v && !/^https?:\/\//i.test(v)){ U.toast('Start the address with http:// or https://'); return false; }
+      Updater.setNasAddress(off && off.checked ? 'off' : v);
+      return true;
+    };
+    sh.addEventListener('click', async e => {
+      if(e.target.closest('[data-upclose]')){ if(save() !== false){ App.closeSheet(); after && after(); } return; }
+      if(e.target.closest('[data-upnow]')){ if(save() === false) return; App.closeSheet(); return checkAppUpdate(after); }
+    });
   }
   async function checkAppUpdate(after){
     const i = await appUpdateInfo();
@@ -371,8 +426,8 @@
     const r = i.kind === 'windows' ? await CS3Update.check() : await Updater.check({ quiet:true });
     const ready = r.ready || r.state === 'ready';
     const current = r.upToDate || r.state === 'current';
-    U.toast(ready ? 'Update downloaded — close and reopen the app to use it'
-          : current ? 'Already up to date'
+    if(ready){ App.updateBar(() => i.kind === 'windows' ? CS3Update.restart() : Updater.applyNow()); U.toast('Update downloaded'); after && after(); return; }
+    U.toast(current ? 'Already up to date'
           : 'Could not update: ' + (r.reason || 'unknown problem'));
     after && after();
   }

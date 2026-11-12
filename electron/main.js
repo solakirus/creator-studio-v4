@@ -117,6 +117,8 @@ app.whenReady().then(() => {
   open();
   /* look for a newer version once the window is up; it loads next launch */
   setTimeout(() => WebUpdate.check().catch(err => console.warn('update check', err)), 8000);
+  /* and again every 30 minutes while it's open, so a push reaches a laptop left running */
+  setInterval(() => WebUpdate.check().catch(() => {}), 30 * 60 * 1000);
 });
 app.on('window-all-closed', () => app.quit());
 
@@ -226,22 +228,44 @@ const WebUpdate = (() => {
     } catch (e) {}
   }
 
-  async function check(){
+  /* v4: GitHub Pages and nastime (the page tells us its address — see
+     setSources) are both asked; the newest update.json (`made`) wins, and
+     nothing older than what is running is ever taken. */
+  const madeAt = m => (m && Date.parse(m.made)) || 0;
+  function setSources(list){
+    const s = load();
+    s.sources = (Array.isArray(list) ? list : []).filter(u => typeof u === 'string' && /^https?:\/\//i.test(u)).slice(0, 3)
+      .map(u => u.endsWith('/') ? u : u + '/');
+    save(s);
+    return s.sources;
+  }
+  async function readRemote(base){
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 8000);
+    try {
+      const r = await net.fetch(base + 'update.json?t=' + Date.now(), { cache: 'no-store', signal: ctl.signal });
+      const m = r.ok ? await r.json() : null;
+      return m && m.format === 'cs3-web' && Array.isArray(m.files) ? m : null;
+    } catch (e) { return null; } finally { clearTimeout(t); }
+  }
+  let checking = null;
+  function check(){ return checking || (checking = run().finally(() => { checking = null; })); }
+  async function run(){
     const cur = manifestOf(active);
     if (!cur) return (status = { state: 'error', reason: 'This copy has no update.json' });
     status = { state: 'checking' };
-    let remote;
-    try {
-      const r = await net.fetch(REMOTE + 'update.json?t=' + Date.now(), { cache: 'no-store' });
-      remote = await r.json();
-    } catch (e) { return (status = { state: 'error', reason: 'Could not reach GitHub' }); }
     const s = load();
     const ship = manifestOf(shipped);
-    if (!remote || remote.format !== 'cs3-web') return (status = { state: 'error', reason: 'No update information online' });
-    if (remote.build === cur.build || (s.bad || []).includes(remote.build)) return (status = { state: 'current', build: cur.build });
+    const bases = [REMOTE, ...(s.sources || []).filter(b => b !== REMOTE)];
+    const seen = await Promise.all(bases.map(async base => ({ base, m: await readRemote(base) })));
+    if (!seen.some(x => x.m)) return (status = { state: 'error', reason: 'Could not reach GitHub or nastime' });
+    const good = seen.filter(x => x.m && !(s.bad || []).includes(x.m.build)).sort((a, b) => madeAt(b.m) - madeAt(a.m));
+    const best = good[0];
+    if (!best || best.m.build === cur.build || madeAt(best.m) <= madeAt(cur)) return (status = { state: 'current', build: cur.build });
+    const remote = best.m, BASE = best.base;
+    const from = BASE === REMOTE ? 'GitHub' : 'nastime';
     if (remote.native > ((ship && ship.native) || 1))
-      return (status = { state: 'error', needsApk: true, reason: 'This update needs a new Windows build — run build.bat' });
-    if (s.ready === remote.build) return (status = { state: 'ready', build: remote.build });
+      return (status = { state: 'error', needsApk: true, reason: 'This update changes the app itself — run update.bat (or build-linux.sh)' });
+    if (s.ready === remote.build) return (status = { state: 'ready', build: remote.build, from });
 
     const have = new Map(cur.files.map(f => [f[0], f[1]]));
     const tmp = path.join(base(), remote.build + '.part'), dest = path.join(base(), remote.build);
@@ -252,7 +276,7 @@ const WebUpdate = (() => {
         let buf;
         if (have.get(p) === hash) buf = fs.readFileSync(path.join(active, p));
         else {
-          const r = await net.fetch(REMOTE + p + '?b=' + remote.build, { cache: 'no-store' });
+          const r = await net.fetch(BASE + p + '?b=' + remote.build, { cache: 'no-store' });
           if (!r.ok) throw new Error(p + ': ' + r.status);
           buf = Buffer.from(await r.arrayBuffer());
         }
@@ -267,7 +291,7 @@ const WebUpdate = (() => {
       fs.rmSync(dest, { recursive: true, force: true });
       fs.renameSync(tmp, dest);
       const s2 = load(); s2.ready = remote.build; save(s2);
-      status = { state: 'ready', build: remote.build };
+      status = { state: 'ready', build: remote.build, from };
       if (win) win.webContents.send('cs3:update-ready', remote.build);
     } catch (e) {
       fs.rmSync(tmp, { recursive: true, force: true });
@@ -276,14 +300,17 @@ const WebUpdate = (() => {
     return status;
   }
 
-  return { choose, ok, check, status: () => status, current: () => manifestOf(active) };
+  return { choose, ok, check, setSources, status: () => status, current: () => manifestOf(active), sources: () => load().sources || [] };
 })();
 
 ipcMain.on('cs3:web-ok', () => WebUpdate.ok());
 ipcMain.handle('cs3:web-check', () => WebUpdate.check());
+ipcMain.handle('cs3:web-sources', (e, list) => WebUpdate.setSources(list));
+/* "Restart now" after an update has downloaded: open again on the new version */
+ipcMain.on('cs3:web-restart', () => { app.relaunch(); app.exit(0); });
 ipcMain.handle('cs3:web-info', () => {
   const m = WebUpdate.current();
-  return { available: true, build: m && m.build, made: m && m.made, status: WebUpdate.status() };
+  return { available: true, build: m && m.build, made: m && m.made, status: WebUpdate.status(), sources: WebUpdate.sources() };
 });
 
 /* ---------------------------------------------------------- bridge: App */

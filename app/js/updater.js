@@ -28,6 +28,8 @@
                        C.getPlatform && C.getPlatform() === 'android');
   const REMOTE = global.CS_UPDATE_REMOTE || 'https://solakirus.github.io/creator-studio-v4/';   /* tests point it elsewhere */
   const KEY = 'cs4-updater';
+  const NAS_KEY = 'cs4-update-nas';   /* this device's nastime address for updates: '' = work it out, 'off' = don't use */
+  const EVERY = 30 * 60 * 1000;       /* look again this often while the app is open */
   const MAX_TRIES = 3;
 
   const plugin = name => {
@@ -46,6 +48,59 @@
     try { current = await (await fetch('update.json', { cache: 'no-store' })).json(); }
     catch(e){ current = null; }
     return current;
+  }
+
+  /* ---------------------------------------------------------- where from
+     v4: two places can have a newer version — GitHub Pages (what Claude or
+     update.bat pushes) and nastime (what update.bat / publish-nas copies
+     there, or what nastime pulled from GitHub). Each is asked; the newest
+     (update.json's `made`) wins, and never anything older than what runs. */
+  const slash = u => u ? (u.endsWith('/') ? u : u + '/') : '';
+  async function nasAddress(){
+    let own = '';
+    try { own = localStorage.getItem(NAS_KEY) || ''; } catch(e){}
+    if(own === 'off') return '';
+    if(own) return slash(own);
+    /* worked out from Sync: Sync Hub on :8787 → the app on :8795 of the same
+       box; a sync address that is the app's own (the iPad's) is used as is */
+    try {
+      const srv = global.Sync && (await Sync.status()).server;
+      if(!srv) return '';
+      const u = new URL(srv);
+      if(u.port === '8787') u.port = '8795';
+      return slash(u.origin);
+    } catch(e){ return ''; }
+  }
+  function setNasAddress(v){
+    try { v ? localStorage.setItem(NAS_KEY, v) : localStorage.removeItem(NAS_KEY); } catch(e){}
+    pushSources();
+  }
+  async function sources(){
+    const nas = await nasAddress();
+    return [{ name:'GitHub', base:REMOTE }, ...(nas && nas !== REMOTE ? [{ name:'nastime', base:nas }] : [])];
+  }
+  /* Windows/Linux: main.js does its own downloading; tell it about nastime */
+  async function pushSources(){
+    if(global.CS3Update && CS3Update.setSources) CS3Update.setSources((await sources()).slice(1).map(x => x.base));
+  }
+  const madeAt = m => (m && Date.parse(m.made)) || 0;
+  async function readRemote(src){
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 8000);
+    try {
+      const r = await fetch(src.base + 'update.json?t=' + Date.now(), { cache:'no-store', signal:ctl.signal });
+      const m = r.ok ? await r.json() : null;
+      return m && m.format === 'cs3-web' && Array.isArray(m.files) ? m : null;
+    } catch(e){ return null; } finally { clearTimeout(t); }
+  }
+  /* every source's update.json, and the one to take (or null) */
+  async function newest(cur, bad, nativeLevel){
+    const list = await sources();
+    const seen = await Promise.all(list.map(async src => ({ ...src, m: await readRemote(src) })));
+    const ok = seen.filter(x => x.m && !(bad || []).includes(x.m.build));
+    ok.sort((a, b) => madeAt(b.m) - madeAt(a.m));
+    const best = ok[0] || null;
+    const take = best && best.m.build !== cur.build && madeAt(best.m) > madeAt(cur) ? best : null;
+    return { seen, best, take, needsShell: !!(take && take.m.native > (nativeLevel || 1)) };
   }
 
   /* ---------------------------------------------------------- on start */
@@ -88,6 +143,26 @@
     }
     save(s);
     setTimeout(() => check().catch(e => console.warn('update check failed', e)), 8000);
+    setInterval(() => check({ quiet:true }).catch(() => {}), EVERY);
+    let lastLook = Date.now();
+    document.addEventListener('visibilitychange', () => {
+      if(document.visibilityState !== 'visible' || Date.now() - lastLook < 10 * 60 * 1000) return;
+      lastLook = Date.now(); check({ quiet:true }).catch(() => {});
+    });
+  }
+
+  /* "Load it now": the same switch boot() makes, without waiting for the
+     next time the app opens. The page reloads into the new version. */
+  async function applyNow(){
+    if(!isAndroid) return false;
+    const WV = plugin('WebView'), cur = await readCurrent(), s = load();
+    if(!WV || !cur || !s.ready || s.ready.build === cur.build) return false;
+    const next = s.ready;
+    s.pending = { build: next.build, tries: 0, prev: (s.bundles || {})[cur.build] ? cur.build : null };
+    s.ready = null; save(s);
+    await WV.setServerBasePath({ path: next.path });
+    await WV.persistServerBasePath();
+    return true;
   }
 
   /* The app reached its first screen: whatever is running works. */
@@ -117,16 +192,14 @@
       const cur = await readCurrent();
       if(!FS || !cur || !global.crypto || !crypto.subtle) return done({ ok:false, reason:'Updates are not available on this device' });
       status = { state:'checking' };
-      let remote;
-      try { remote = await (await fetch(REMOTE + 'update.json?t=' + Date.now(), { cache: 'no-store' })).json(); }
-      catch(e){ return done({ ok:false, reason:'Could not reach GitHub' }); }
       const s = load();
-      if(!remote || remote.format !== 'cs3-web') return done({ ok:false, reason:'No update information online' });
-      if(remote.build === cur.build) return done({ ok:true, upToDate:true });
-      if((s.bad || []).includes(remote.build)) return done({ ok:true, upToDate:true, skipped:true });
-      if(remote.native > (s.nativeLevel || 1))
-        return done({ ok:false, needsApk:true, reason:'This update needs a new APK — rebuild it on the laptop' });
-      if(s.ready && s.ready.build === remote.build) return done({ ok:true, ready:true });
+      const n = await newest(cur, s.bad, s.nativeLevel);
+      if(!n.seen.some(x => x.m)) return done({ ok:false, reason:'Could not reach GitHub or nastime' });
+      if(!n.take) return done({ ok:true, upToDate:true, from: n.best && n.best.name });
+      const remote = n.take.m, BASE = n.take.base;
+      if(n.needsShell)
+        return done({ ok:false, needsApk:true, reason:'This update needs a new APK — run update.bat on the laptop' });
+      if(s.ready && s.ready.build === remote.build) return done({ ok:true, ready:true, from:n.take.name });
 
       const have = new Map(cur.files.map(f => [f[0], f[1]]));
       const dir = 'web/' + remote.build;
@@ -135,7 +208,7 @@
         try { await FS.rmdir({ path: dir, directory: 'DATA', recursive: true }); } catch(e){}
         for(const [p, hash] of remote.files){
           /* unchanged files come from what is running, which is instant */
-          const url = have.get(p) === hash ? p : REMOTE + p + '?b=' + remote.build;
+          const url = have.get(p) === hash ? p : BASE + p + '?b=' + remote.build;
           const r = await fetch(url, { cache: 'no-store' });
           if(!r.ok) throw new Error(p + ': ' + r.status);
           const buf = await r.arrayBuffer();
@@ -152,8 +225,8 @@
         s2.bundles = s2.bundles || {}; s2.bundles[remote.build] = abs;
         s2.ready = { build: remote.build, path: abs };
         save(s2);
-        if(global.U && U.toast && !(opts && opts.quiet)) U.toast('App update downloaded — it loads next time you open the app');
-        return done({ ok:true, ready:true, build: remote.build });
+        readyListeners.forEach(f => { try { f(remote.build); } catch(e){} });
+        return done({ ok:true, ready:true, build: remote.build, from:n.take.name });
       } catch(e){
         try { await FS.rmdir({ path: dir, directory: 'DATA', recursive: true }); } catch(err){}
         return done({ ok:false, reason: e.message || String(e) });
@@ -187,6 +260,9 @@
              shipped: load().shipped || null, status };
   }
 
-  global.Updater = { boot, ok, check, info, REMOTE };
+  const readyListeners = new Set();
+  const onReady = f => { if(typeof f === 'function') readyListeners.add(f); };
+
+  global.Updater = { boot, ok, check, info, applyNow, onReady, sources, nasAddress, setNasAddress, pushSources, newest, REMOTE, isAndroid };
   boot().catch(e => console.warn('updater', e));
 })(window);

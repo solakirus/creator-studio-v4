@@ -3,7 +3,8 @@ const { spawnSync } = require('child_process'), fs = require('fs'), path = requi
 const dir = path.join(__dirname, '..', 'app', 'tests');
 let failed = 0;
 const files = fs.readdirSync(dir).filter(f => f.endsWith('.test.js')).sort()
-  .concat(fs.readdirSync(path.join(dir, 'electron')).filter(f => f.endsWith('.test.js')).sort().map(f => 'electron/' + f));
+  .concat(fs.readdirSync(path.join(dir, 'electron')).filter(f => f.endsWith('.test.js')).sort().map(f => 'electron/' + f))
+  .concat(fs.readdirSync(path.join(dir, 'nas')).filter(f => f.endsWith('.test.js')).sort().map(f => 'nas/' + f));
 for (const f of files) {
   const r = spawnSync(process.execPath, [path.join(dir, f)], { encoding: 'utf8' });
   const out = (r.stdout || '') + (r.stderr || '');

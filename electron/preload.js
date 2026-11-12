@@ -97,7 +97,9 @@ contextBridge.exposeInMainWorld('CS3Update', {
   ok: () => ipcRenderer.send('cs3:web-ok'),
   check: () => ipcRenderer.invoke('cs3:web-check'),
   info: () => ipcRenderer.invoke('cs3:web-info'),
-  onReady: cb => { if (typeof cb === 'function') updateListeners.add(cb); }
+  onReady: cb => { if (typeof cb === 'function') updateListeners.add(cb); },
+  setSources: list => ipcRenderer.invoke('cs3:web-sources', list),
+  restart: () => ipcRenderer.send('cs3:web-restart')
 });
 
 contextBridge.exposeInMainWorld('Capacitor', {

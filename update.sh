@@ -1,52 +1,93 @@
 #!/usr/bin/env bash
-# Publish to GitHub — the Linux twin of update.bat.
+# Creator Studio v4 — one command for every update (the Linux twin of update.bat).
 #
-#   ./update.sh                 asks what changed
-#   ./update.sh "what changed"  says it up front
+#   ./update.sh                    the newest cs4-update-*.zip in ~/Downloads not
+#                                  used yet, else whatever is new on GitHub
+#   ./update.sh path/to/update.zip that zip
 #
-# Commits everything in this folder and pushes it. GitHub Pages rebuilds the
-# web app, and the iPad picks it up next time it has signal. It does NOT build
-# the phone APK or the Windows app.
+# Sends it to GitHub (phone, laptop and nastime pick it up from there), copies it
+# to nastime straight away if this computer can reach it, and rebuilds +
+# reinstalls the Linux app ONLY when the update changed the app itself
+# (electron/, android/, package.json). Most updates don't — every device
+# downloads them on its own and offers "Restart now".
 set -u
 cd "$(dirname "$0")"
 
 echo
-echo " ===== Publish to GitHub ====="
+echo " ===== Creator Studio v4 - update ====="
 echo
 
 command -v git >/dev/null || { echo " Git is not installed:  sudo apt install git"; exit 1; }
-[ -d .git ] || { echo " This folder is not a git repository. Extract the zip OVER your"
-                 echo " existing creator-studio-v4 folder so its .git folder is kept."; exit 1; }
+command -v node >/dev/null || { echo " Node.js is not installed:  sudo apt install nodejs npm"; exit 1; }
+command -v unzip >/dev/null || { echo " unzip is not installed:  sudo apt install unzip"; exit 1; }
 
-# a zip extracted over the folder can take the remote with it — put it back
-git remote get-url origin >/dev/null 2>&1 || {
-  echo " Setting the GitHub address, which this folder had lost..."
-  git remote add origin https://github.com/solakirus/creator-studio-v4.git
-}
+if [ ! -d .git ]; then
+  echo " First run: starting this folder's history..."
+  git init -q -b main && git add -A && git -c user.name="Kris Catten" -c user.email="solakirus@gmail.com" commit -q -m "Creator Studio v4"
+fi
+git config user.name >/dev/null || git config user.name "Kris Catten"
+git config user.email >/dev/null || git config user.email "solakirus@gmail.com"
+git remote get-url origin >/dev/null 2>&1 || git remote add origin https://github.com/solakirus/creator-studio-v4.git
 
-if [ -z "$(git status --porcelain)" ]; then
-  echo " Nothing has changed since the last publish."
-  read -r -p " Push anyway, in case the last one did not finish? [y/N] " a
-  [[ "$a" =~ ^[Yy] ]] || exit 0
-else
-  echo " $(git status --porcelain | wc -l) file(s) changed."
-  msg="${1:-}"
-  [ -n "$msg" ] || read -r -p " What changed? (Enter for 'Update') " msg
-  git add -A && git commit -q -m "${msg:-Update}" || { echo " Commit failed — scroll up."; exit 1; }
+# anything changed by hand here is kept as its own step first
+git add -A && { git diff --cached --quiet || git commit -q -m "Changes made on this computer"; }
+OLD="$(git rev-parse HEAD)"
+
+# --- 1. the update
+ZIP="${1:-}"
+if [ -z "$ZIP" ]; then
+  for f in $(ls -t "$HOME"/Downloads/cs4-update-*.zip 2>/dev/null); do
+    grep -qxF "$(basename "$f")" .applied-updates.txt 2>/dev/null || { ZIP="$f"; break; }
+  done
 fi
 
+if [ -n "$ZIP" ]; then
+  echo " Using $(basename "$ZIP")"
+  unzip -oq "$ZIP" -d . || { echo " Could not open the zip."; exit 1; }
+  basename "$ZIP" >> .applied-updates.txt
+  chmod +x ./*.sh 2>/dev/null
+  git add -A
+  if git diff --cached --quiet; then echo " That zip had nothing new."; else git commit -q -m "Update: $(basename "$ZIP")"; fi
+else
+  echo " No new update zip in Downloads - looking on GitHub..."
+  if git pull -q --ff-only origin main 2>/dev/null; then echo " Got what was new on GitHub."
+  elif git ls-remote --exit-code origin >/dev/null 2>&1; then
+    echo
+    echo " GitHub has changes this folder can't simply add on top of."
+    echo " Nothing was changed. Paste this window to Claude."
+    exit 1
+  else echo " GitHub isn't set up yet - see PUT IT ON GITHUB.txt. Carrying on."
+  fi
+fi
+
+NEW="$(git rev-parse HEAD)"
+[ "$OLD" = "$NEW" ] && { echo; echo " Already up to date - nothing new to send."; }
+SHELLCHANGE="$(git diff --name-only "$OLD" "$NEW" -- electron android native package.json)"
+
+# --- 2. out to GitHub and nastime
 echo
 echo " Sending to GitHub..."
-if ! git push -u origin main; then
-  echo
-  echo " Push failed. If it says the remote has work you do not have, something"
-  echo " changed on GitHub that this computer has not seen. Do NOT force past it —"
-  echo " paste the message to Claude."
-  exit 1
+if git push -q -u origin main 2>/dev/null; then
+  echo " GitHub has it. Phone, laptop and nastime update from there in a few minutes."
+else
+  echo " Could not send to GitHub - not set up yet, or no internet. Carrying on;"
+  echo " run this again later and it sends it then."
 fi
-
 echo
-echo " Done. GitHub is building it now — about a minute."
-echo "   Watch it:  https://github.com/solakirus/creator-studio-v4/actions"
-echo "   The app:   https://solakirus.github.io/creator-studio-v4/"
+echo " Copying to nastime..."
+./publish-nas.sh --quiet
+
+# --- 3. only when the app itself changed
+if [ -n "$SHELLCHANGE" ]; then
+  echo
+  echo " This update changes the app itself, so the Linux app is being rebuilt."
+  npm install --no-audit --no-fund && npm run dist:linux || { echo " The build failed - paste this window to Claude."; exit 1; }
+  DEB="$(ls -t dist/*.deb | head -n1)"
+  echo " Installing $DEB (asks for your password)..."
+  sudo apt install -y "./$DEB"
+else
+  echo
+  echo " Nothing to install. Every device downloads this on its own within 30"
+  echo " minutes and offers Restart now - or Settings > App updates > Check now."
+fi
 echo
