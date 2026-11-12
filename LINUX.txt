@@ -25,5 +25,16 @@ THE SHOT LIBRARY ON THE NAS
    the same as on Windows.
 
 NEW VERSIONS
-   Run  ./build-linux.sh  in the project folder, then the same apt install line
-   with the new .deb. Your data stays: it lives in ~/.config, not in the app.
+   Unzip the update over the project folder, then run  ./build-linux.sh  in it.
+   It builds the app, offers to install it (asks your password), then offers
+   to update the web app on nastime too. Your data stays: it lives in
+   ~/.config, not in the app.
+
+THE WEB APP ON NASTIME (the iPad, any browser)
+   ./publish-nas.sh  builds it and copies it to the NAS. The first time it asks
+   where the NAS folder is - either the share opened in Files
+   (Other Locations > Connect to Server > smb://192.168.4.23/creator-studio-v4,
+   then drag that folder into the terminal), or over SSH:
+      you@192.168.4.23:/DATA/AppData/Projects/creator-studio-v4
+   After that it remembers. Browsers on the NAS address pick the new version up
+   the next time they open.

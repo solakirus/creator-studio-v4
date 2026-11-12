@@ -10,7 +10,8 @@ ONE-TIME SETUP ON THE NAS (about 15 minutes)
    called creator-studio-v4. Turn on sharing for it (the share icon), so
    Windows can reach it as  \\192.168.4.23\creator-studio-v4
 
-2. Put the app in it.  On the laptop, run  publish-nas.bat  in this folder.
+2. Put the app in it.  On the Windows laptop, run  publish-nas.bat  in this
+   folder (on the Linux desktop:  ./publish-nas.sh  — see LINUX.txt).
    The first time it asks for the folder - type the address from step 1.
    It builds the app and copies www\ and the Caddyfile across.
    (No share? Upload creator-studio-v4-web.zip with CasaOS Files instead and
@@ -44,7 +45,8 @@ ON THE IPAD
 
 AFTER THAT
 
-   To update the iPad: run publish-nas.bat on the laptop. The iPad picks it
+   To update the iPad: run publish-nas.bat on the laptop (or ./publish-nas.sh,
+   or say yes at the end of ./build-linux.sh on the desktop). The iPad picks it
    up the next time it opens with the NAS in reach.
 
    Use ONE address on the iPad. http://192.168.4.23:8795 and the https one are
