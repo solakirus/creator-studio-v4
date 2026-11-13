@@ -224,17 +224,60 @@
   /* Pick the file, show exactly what would be created and skipped, and only
      write after you say so. The file picker takes any file: Android labels JSON
      several ways and greys out whatever a filter doesn't match. */
-  async function importPlan(after){
-    const text = await Transfer.pickFile('');
-    if(!text) return;
+  /* v4: paste the plan Claude wrote in chat (or pick a file), and copy the
+     plan as it stands to paste back into chat for refining */
+  function importPlan(after){
+    App.sheet(`
+      <h2>Import a plan</h2>
+      <p style="margin:0 0 10px;color:var(--muted);font-size:14px;line-height:1.5">Paste the plan Claude wrote in chat — the whole code block is fine.
+        New videos are added; ones already here are updated, and you see every change before anything is written.</p>
+      <div class="field"><textarea id="pi-text" rows="9" placeholder="Paste the plan here" spellcheck="false" autocomplete="off"
+        style="width:100%;font-family:ui-monospace,monospace;font-size:12.5px"></textarea></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:-4px 0 12px">
+        <button class="btn-sm" data-pi-file>Choose a file…</button>
+        <button class="btn-sm" data-pi-copy title="The series and videos not out yet, to paste into chat and refine">Copy my plan for Claude</button>
+      </div>
+      <div class="sheetcta"><button class="btn-primary" data-pi-next>Preview</button><button class="btn-ghost" data-pi-cancel>Cancel</button></div>`, sh => {
+      const ta = sh.querySelector('#pi-text');
+      setTimeout(() => ta.focus(), 50);
+      sh.addEventListener('click', async e => {
+        if(e.target.closest('[data-pi-cancel]')) return App.closeSheet();
+        if(e.target.closest('[data-pi-file]')){
+          const text = await Transfer.pickFile('');
+          if(text) return previewPlan(text, after);
+          return;
+        }
+        if(e.target.closest('[data-pi-copy]')){
+          const plan = await PlanImport.exportPlan();
+          const text = JSON.stringify(plan, null, 2);
+          try { await navigator.clipboard.writeText(text); U.toast(`Copied ${plan.videos.length} video${plan.videos.length === 1 ? '' : 's'} — paste it into chat`); }
+          catch(err){ ta.value = text; ta.select(); U.toast('Select-all and copy it from the box'); }
+          return;
+        }
+        if(e.target.closest('[data-pi-next]')){
+          if(!ta.value.trim()) return U.toast('Paste the plan first');
+          return previewPlan(ta.value, after);
+        }
+      });
+    });
+  }
+
+  async function previewPlan(text, after){
     let pv;
     try { pv = await PlanImport.preview(PlanImport.parseAny(text)); }
     catch(err){ return U.toast(err.message || "Couldn't read that plan"); }
 
     const mC = pv.months.filter(x => x.action === 'create'), mS = pv.months.filter(x => x.action === 'skip');
     const eC = pv.episodes.filter(x => x.action === 'create'), eS = pv.episodes.filter(x => x.action === 'skip');
-    const sC = (pv.series || []).filter(x => x.action === 'create'), sS = (pv.series || []).filter(x => x.action === 'skip');
+    const sC = (pv.series || []).filter(x => x.action === 'create');
+    /* a series already here, once each (several videos can name it) */
+    const sS = (pv.series || []).filter(x => x.action === 'skip')
+      .filter((x, i, a) => a.findIndex(y => (y.rec.title + '|' + y.rec.channel).toLowerCase() === (x.rec.title + '|' + x.rec.channel).toLowerCase()) === i);
     const iC = (pv.ideas || []).filter(x => x.action === 'create'), iS = (pv.ideas || []).filter(x => x.action === 'skip');
+    const iU = (pv.ideas || []).filter(x => x.action === 'update');
+    /* updates go ahead unless you've changed that video here since it came in */
+    iU.forEach(x => { x.apply = !x.edited; });
+    const LBL = { title:'title', hook:'hook', notes:'idea', tags:'tags', stage:'stage', plat:'platform', day:'shoot day', shotList:'shots' };
     const hasSeries = (pv.series || []).length || (pv.ideas || []).length;
     /* the series by channel, for a readable summary */
     const byChan = {};
@@ -245,14 +288,14 @@
 
     const planish = pv.months.length || pv.episodes.length;
     App.sheet(`
-      <h2>${planish ? 'Import plan' : 'Import series'}</h2>
-      <p style="margin:0 0 12px;color:var(--muted);font-size:14px;line-height:1.5">${esc(pv.obj.project || '')}${
-        pv.obj.phase ? ` · Phase ${esc(pv.obj.phase)}` : ''} — nothing is written until you tap Import.</p>
+      <h2>${planish || (pv.ideas || []).length ? 'Import plan' : 'Import series'}</h2>
+      <p style="margin:0 0 12px;color:var(--muted);font-size:14px;line-height:1.5">${[esc(pv.obj.project || pv.obj.plan || ''),
+        pv.obj.phase ? `Phase ${esc(pv.obj.phase)}` : ''].filter(Boolean).join(' · ')}${pv.obj.project || pv.obj.plan || pv.obj.phase ? ' — ' : ''}nothing is written until you tap Import.</p>
       <div class="mo-facts" style="margin:0 0 12px">
         ${planish ? `<div><small>Months</small><b>${mC.length} new · ${mS.length} skipped</b></div>
         <div><small>Vlogs</small><b>${eC.length} new · ${eS.length} skipped</b></div>` : ''}
-        ${hasSeries ? `<div><small>Channel series</small><b>${sC.length} new · ${sS.length} skipped</b></div>
-        <div><small>Series video ideas</small><b>${iC.length} new · ${iS.length} skipped</b></div>` : ''}
+        ${hasSeries ? `<div><small>Channel series</small><b>${sC.length} new · ${sS.length} already here</b></div>
+        <div><small>Videos</small><b>${iC.length} new · ${iU.length} to update · ${iS.length} unchanged</b></div>` : ''}
       </div>
       ${hasSeries ? `<label style="display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:14.5px;cursor:pointer">
         <input type="checkbox" id="pi-series" checked style="width:20px;height:20px">
@@ -271,7 +314,14 @@
         <p class="note" style="text-align:left;margin:8px 0 0">Series come in as drafts in the Series tab; each idea is a
           video at the Idea stage inside its series, in the plan's order.</p></div>` : ''}
       ${sS.length ? `<p style="margin:12px 0 0;font-weight:800;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
-        color:var(--muted)">Skipped series</p>${list(sS, x => `<li>${esc(x.rec.title)} — ${esc(x.reason)}</li>`)}` : ''}
+        color:var(--muted)">Series already here</p>${list(sS, x => `<li>${esc(x.rec.title)}${x.rec.channel ? ' · ' + esc(x.rec.channel) : ''} — new videos go into yours</li>`)}` : ''}
+      ${iC.length ? `<p style="margin:12px 0 0;font-weight:800;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+        color:var(--muted)">New videos</p>${list(iC, x => `<li>${esc(x.rec.title)}${(x.rec.shotList || []).length ? ` · ${x.rec.shotList.length} shot${x.rec.shotList.length === 1 ? '' : 's'}` : ''}</li>`)}` : ''}
+      ${iU.length ? `<div id="pi-ulist"><p style="margin:12px 0 0;font-weight:800;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+        color:var(--muted)">Updates</p>${iU.map((x, i) => `<label class="pi-up" style="display:flex;gap:10px;align-items:flex-start;margin:8px 0 0;font-size:14px;cursor:pointer">
+          <input type="checkbox" data-pi-up="${i}" ${x.apply ? 'checked' : ''} style="width:18px;height:18px;margin:2px 0 0;flex:none">
+          <span><b style="color:var(--cream)">${esc(x.rec.title)}</b> — ${x.changes.map(k => LBL[k] || k).join(', ')}${
+            x.edited ? `<br><small style="color:var(--orange)">You’ve changed this one in the app — tick to replace yours with the plan’s</small>` : ''}</span></label>`).join('')}</div>` : ''}
       <div class="sheetcta">
         <button class="btn-primary" data-go></button>
         <button class="btn-ghost" data-cancel>Cancel</button>
@@ -285,12 +335,16 @@
         if(mC.length) bits.push(`${mC.length} month${mC.length === 1 ? '' : 's'}`);
         if(eC.length) bits.push(`${eC.length} vlog${eC.length === 1 ? '' : 's'}`);
         if(withSeries() && sC.length) bits.push(`${sC.length} series`);
-        if(withSeries() && iC.length) bits.push(`${iC.length} idea${iC.length === 1 ? '' : 's'}`);
+        if(withSeries() && iC.length) bits.push(`${iC.length} video${iC.length === 1 ? '' : 's'}`);
+        const up = iU.filter(x => x.apply).length;
+        if(withSeries() && up) bits.push(`update ${up}`);
         goBtn.disabled = !bits.length;
         goBtn.textContent = bits.length ? `Import ${bits.join(', ')}` : 'Nothing new to import';
+        const ul = sheetEl.querySelector('#pi-ulist'); if(ul) ul.style.opacity = withSeries() ? '1' : '.4';
         const sl = sheetEl.querySelector('#pi-slist'); if(sl) sl.style.opacity = withSeries() ? '1' : '.4';
       }
       if(cb) cb.addEventListener('change', label);
+      sheetEl.addEventListener('change', e => { const u = e.target.closest('[data-pi-up]'); if(u){ iU[+u.dataset.piUp].apply = u.checked; label(); } });
       label();
       sheetEl.addEventListener('click', async e => {
         if(e.target.closest('[data-cancel]')) return App.closeSheet();
@@ -304,7 +358,8 @@
           const skipped = mS.length + eS.length + (pv.includeSeries ? sS.length + iS.length : 0);
           const n = (k, one, many) => made[k] ? `${made[k]} ${made[k] === 1 ? one : many}` : '';
           const got = [n('months','month','months'), n('episodes','vlog','vlogs'),
-                       pv.includeSeries ? n('series','series','series') : '', pv.includeSeries ? n('ideas','idea','ideas') : '']
+                       pv.includeSeries ? n('series','series','series') : '', pv.includeSeries ? n('ideas','video','videos') : '',
+                       pv.includeSeries && made.updated ? `updated ${made.updated}` : '']
             .filter(Boolean);
           U.toast(`${got.length ? 'Created ' + got.join(', ') : 'Nothing new created'}${skipped ? ` · skipped ${skipped}` : ''}`);
           after && after();

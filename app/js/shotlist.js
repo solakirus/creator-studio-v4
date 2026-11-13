@@ -256,7 +256,27 @@
   const listHost = (key, kicker, get, put, beats) => host({ key, kicker, get, put, beats,
     title: r => r.title || 'Untitled',
     shots: r => Array.isArray(r.shotList) ? r.shotList : (r.shots || []),
-    mirror: (r, list) => { r.shotList = list; r.shots = list.map(s => s.text || 'Shot'); }
+    /* v4: the page only holds a shot's words and frame, so what else a shot
+       carries (framing, movement, the lines said over it) is kept from the
+       shot of the same words — saving the steps doesn't strip a plan's detail */
+    mirror: (r, list) => {
+      const old = norm(Array.isArray(r.shotList) ? r.shotList : r.shots);
+      r.shotList = list.map(s => {
+        const t = String(s.text || '').toLowerCase();
+        /* the page writes a shot as "Grinder — Close-up — Push in" (lineOf) */
+        const o = old.find(x => x.text && x.text.toLowerCase() === t) || old.find(x => x.text && lineOf(x).toLowerCase() === t);
+        if(!o) return s;
+        const m = { ...s };
+        if(lineOf(o).toLowerCase() === t && o.text.toLowerCase() !== t){ m.text = o.text; m.framing = o.framing; m.movement = o.movement; }
+        if(o.id && !m.id) m.id = o.id;
+        ['framing', 'movement', 'editNote'].forEach(k => { if(!m[k] && o[k]) m[k] = o[k]; });
+        if(!(m.lines && m.lines.length) && o.lines && o.lines.length) m.lines = o.lines;
+        if(m.beat == null && o.beat != null) m.beat = o.beat;
+        if(!m.note && o.note) m.note = o.note;
+        return m;
+      });
+      r.shots = r.shotList.map(s => s.text || 'Shot');
+    }
   });
   /* a clip */
   const hostClip = id => listHost('clip:' + id, 'Clip', () => Store.get('clips', id).catch(() => null), r => Data.saveClip(r),

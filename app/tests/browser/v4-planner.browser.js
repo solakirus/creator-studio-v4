@@ -26,7 +26,7 @@ const ok = (c, l, x) => { console.log(`  ${c ? 'ok  ' : 'FAIL'}  ${l}${x !== und
 
   const P = await page('?planner');
   const tabs = await P.$$eval('.tabbar .tab', x => x.map(b => b.getAttribute('aria-label')));
-  ok(JSON.stringify(tabs) === '["Plan","Content","Settings","Send to phone"]', 'the Planner\'s sidebar: Plan, Content, Settings, Send to phone', JSON.stringify(tabs));
+  ok(JSON.stringify(tabs) === '["Plan","Content","Settings","Import plan","Send to phone"]', 'the Planner\'s sidebar: Plan, Content, Settings, Import plan, Send to phone', JSON.stringify(tabs));
   ok(await P.title() === 'Creator Studio Planner', 'its own name');
   ok(!!(await P.$('.wb, [class*="wb-"], .weekboard, #mnWrap')) && /Week/.test(await P.textContent('#view')), 'it opens on the week board');
   await P.screenshot({ path: path.join(out, 'planner-week.png') });

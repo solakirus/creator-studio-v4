@@ -204,6 +204,9 @@
       <button class="tab" data-tab="${t.id}" aria-label="${t.label}">
         <svg viewBox="0 0 24 24" fill="currentColor">${t.icon}</svg>
       </button>`).join('') + (PLANNER ? `
+      <button class="tab tab-import" data-import aria-label="Import plan" title="Paste a plan from Claude, or copy yours to refine in chat">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M6 2h8l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm0 2v16h11V8h-4V4zm5.2 4h1.6v5.6l1.9-1.9 1.1 1.1-3.8 3.8-3.8-3.8 1.1-1.1 1.9 1.9z"/></svg>
+      </button>
       <button class="tab tab-send" data-send aria-label="Send to phone" title="Send the plan to the phone and the iPad">
         <svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm0 3v13h8V5zm2.5 15h3v-1h-3zM12 6.5l3.2 3.2-1.1 1.1-1.3-1.3V15h-1.6V9.5l-1.3 1.3-1.1-1.1z"/></svg>
       </button>` : '');
@@ -213,6 +216,9 @@
     document.getElementById('tabbar').addEventListener('click', e => {
       const b = e.target.closest('.tab'); if(!b) return;
       if(b.dataset.send !== undefined) return sendToPhone(b);
+      if(b.dataset.import !== undefined){
+        return global.PlanImportUI ? PlanImportUI.fromFile(() => refreshTab && refreshTab()) : U.toast('Import is not available');
+      }
       /* On a wide screen the tabs stay visible beside pushed screens (the
          sidebar), so a tab has to close them — otherwise it changes the tab
          underneath and nothing seems to happen. On a phone screens cover the

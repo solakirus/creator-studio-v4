@@ -4064,6 +4064,8 @@ html{-webkit-text-size-adjust:100%}
 .planner .tab-send.busy{opacity:.5;pointer-events:none}
 @media (min-width: 900px){
   .planner .tabbar{flex:1}
-  .planner .tab-send{margin-top:auto;background:rgba(255,106,0,.1);height:auto;padding:12px 0}
+  .planner .tab-import{margin-top:auto;height:auto;padding:12px 0}
+  .planner .tab-import::after{white-space:normal;text-align:center;line-height:1.25}
+  .planner .tab-send{margin-top:8px;background:rgba(255,106,0,.1);height:auto;padding:12px 0}
   .planner .tab-send::after{white-space:normal;text-align:center;line-height:1.25}
 }

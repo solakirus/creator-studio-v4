@@ -22,6 +22,9 @@
   function check(obj){
     if(obj && obj.format === 'creator-studio') throw new Error("That's a backup, not a plan — use Restore from backup for it.");
     const has = k => obj && Array.isArray(obj[k]) && obj[k].length;
+    /* v4: "videos" — the plan Claude writes in chat: each video with its
+       series (or none), hook, idea and shots. The same as seriesEpisodes. */
+    if(obj && has('videos')) obj.seriesEpisodes = (Array.isArray(obj.seriesEpisodes) ? obj.seriesEpisodes : []).concat(obj.videos);
     if(!obj || (obj.format !== FORMAT && !has('series') && !has('seriesEpisodes')))
       throw new Error("That isn't a plan or a list of series.");
     obj.months = Array.isArray(obj.months) ? obj.months : [];
@@ -67,7 +70,12 @@
 
   /* Whatever was picked: a plan or series JSON, or a CSV of series ideas. */
   function parseAny(text){
-    const t = String(text || '').trim();
+    /* pasted from chat: the code block's fences, or words around the JSON */
+    let t = String(text || '').trim().replace(/^```[\w-]*\s*\n?|\n?```\s*$/g, '').trim();
+    if(!/^[{\[]/.test(t) && /[{\[]/.test(t)){
+      const a = t.search(/[{\[]/), b = Math.max(t.lastIndexOf('}'), t.lastIndexOf(']'));
+      if(b > a){ const inner = t.slice(a, b + 1); try { JSON.parse(inner); t = inner; } catch(e){} }
+    }
     if(t.startsWith('{') || t.startsWith('[')){
       let obj;
       try { obj = JSON.parse(t); } catch(e){ throw new Error("That file isn't valid JSON."); }
@@ -80,6 +88,64 @@
   const str = v => (v === null || v === undefined) ? '' : String(v);
   const beats = b => ({ intro:str(b && b.intro), history:str(b && b.history), wisdom:str(b && b.wisdom),
                         science:str(b && b.science), backToMe:str(b && b.backToMe) });
+
+  /* ---- v4: a video's planned fields: what a plan sets and an update compares ---- */
+  const STAGE_KEYS = ['idea', 'planned', 'shot', 'editing', 'published'];
+  const PLATS = { yt:'youtube', youtube:'youtube', shorts:'shorts', ig:'instagram', insta:'instagram', instagram:'instagram',
+                  reels:'instagram', tiktok:'tiktok', tt:'tiktok', facebook:'facebook', fb:'facebook', x:'x' };
+  /* a video's shoot day is a date ("2026-11-20") or nothing */
+  const dayOf = v => (v.day == null || v.day === '') ? null : v.day;
+  const isDay = d => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ''));
+  /* only the fields the plan item actually has */
+  function planFields(pi){
+    const f = {};
+    if(pi.title != null) f.title = str(pi.title).trim();
+    if(pi.hook != null) f.hook = str(pi.hook);
+    const parts = Array.isArray(pi.parts) ? pi.parts.map(str).filter(Boolean) : [];
+    if(pi.idea != null || pi.notes != null || pi.timing || parts.length){
+      f.notes = [str(pi.idea != null ? pi.idea : pi.notes),
+        pi.timing ? `When: ${pi.timing}` : '',
+        parts.length ? `Parts:\n${parts.map((x, i) => `${i + 1}. ${x}`).join('\n')}` : ''].filter(Boolean).join('\n\n');
+    }
+    if(parts.length) f.parts = parts;
+    if(Array.isArray(pi.tags)) f.tags = pi.tags.map(t => str(t).trim()).filter(Boolean);
+    if(pi.stage != null && STAGE_KEYS.includes(String(pi.stage).toLowerCase())) f.stage = String(pi.stage).toLowerCase();
+    const pl = pi.platform || pi.plat;
+    if(pl && PLATS[String(pl).toLowerCase()]) f.plat = PLATS[String(pl).toLowerCase()];
+    if(pi.day !== undefined || pi.date !== undefined || pi.shootDay !== undefined){
+      const d = pi.day !== undefined ? pi.day : pi.date !== undefined ? pi.date : pi.shootDay;
+      f.day = isDay(d) ? d : null;
+    }
+    if(Array.isArray(pi.shots) && global.ShotList) f.shotList = ShotList.norm(pi.shots);
+    /* a shoot day makes it planned (Videos.schedule does the same) */
+    if(f.day && (f.stage || 'idea') === 'idea') f.stage = 'planned';
+    return f;
+  }
+  /* those fields as the video stores them */
+  function stored(f){
+    const o = { ...f };
+    delete o.parts;
+    if(o.shotList) o.shots = o.shotList.map(x => x.text || 'Shot');
+    return o;
+  }
+  const shotKey = l => (Array.isArray(l) ? l : []).map(x => [x.text, x.framing, x.movement, x.note,
+    JSON.stringify(x.lines || []), x.editNote || ''].join('¦')).join('\n');
+  const listOf = v => global.ShotList ? ShotList.norm(Array.isArray(v.shotList) ? v.shotList : v.shots) : [];
+  const same = (k, v, f) => {
+    if(k === 'shotList') return shotKey(listOf(v)) === shotKey(f.shotList);
+    if(k === 'tags') return JSON.stringify(v.tags || []) === JSON.stringify(f.tags);
+    if(k === 'day') return dayOf(v) === (f.day == null ? null : f.day);
+    return str(v[k]) === str(f[k]);
+  };
+  const LABEL = { title:'title', hook:'hook', notes:'idea', tags:'tags', stage:'stage', plat:'platform', day:'shoot day', shotList:'shots' };
+  function changed(v, f){ return Object.keys(LABEL).filter(k => k in f && !same(k, v, f)); }
+  /* a fingerprint of the planned fields as they stand, kept on the video at
+     import: if it no longer matches, the video was changed in the app */
+  function sigOf(v){
+    const t = [v.title, v.hook, v.notes, JSON.stringify(v.tags || []), v.stage, v.plat, v.day || '', shotKey(listOf(v))].join('\u0001');
+    let h = 5381; for(let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36);
+  }
 
   /* Work out what would happen, without writing anything. */
   async function preview(obj){
@@ -197,26 +263,31 @@
     if(unknownChans.length) warnings.push(`Not one of your channels yet: ${unknownChans.join(', ')} — the series keep the name`);
 
     const ideas = [];
-    const takenIdea = new Set(existingVideos.map(v => (v.seriesId || '') + '|' + low(v.title)));
-    const seenVid = new Set(existingVideos.map(v => v.id));
+    const byKey = new Map(existingVideos.map(v => [(v.seriesId || '') + '|' + low(v.title), v]));
+    const byId = new Map(existingVideos.map(v => [v.id, v]));
     const now = Date.now();
     for(const pi of planIdeas){
       const sid = seriesIdMap[pi.seriesId] || null;
-      const parts = Array.isArray(pi.parts) ? pi.parts.map(str).filter(Boolean) : [];
-      const notes = [str(pi.idea),
-        pi.timing ? `When: ${pi.timing}` : '',
-        parts.length ? `Parts:\n${parts.map((x, i) => `${i + 1}. ${x}`).join('\n')}` : ''].filter(Boolean).join('\n\n');
-      const rec = { id: pi.id || null, title: str(pi.title), channel: chan(pi.channel), seriesId: sid,
-                    plat:'youtube', stage:'idea', day:null, tags:[], hook:'', notes, shots:[], taskId:null,
-                    order: +pi.order || 0, parts,
+      const pf = planFields(pi, chan);
+      const rec = { id: pi.id || null, title: pf.title || 'Untitled video', channel: chan(pi.channel), seriesId: sid,
+                    plat:'youtube', stage:'idea', day:null, tags:[], hook:'', notes:'', shots:[], taskId:null,
+                    order: +pi.order || 0, ...(pf.parts ? { parts:pf.parts } : {}),
+                    ...stored(pf),
                     /* newest first is how videos list, so the plan's order reads top to bottom */
                     createdAt: now - (+pi.order || 0) };
       const key = (sid || '') + '|' + low(rec.title);
-      if((rec.id && seenVid.has(rec.id)) || takenIdea.has(key)){
-        ideas.push({ action:'skip', plan:pi, rec, reason:'already in that series' }); continue;
+      /* v4: the same video again (its id, or its title in that series): an
+         update, so a plan refined in chat can be pasted back over itself */
+      const have = (rec.id && byId.get(rec.id)) || byKey.get(key);
+      if(have){
+        const changes = changed(have, pf);
+        if(!changes.length){ ideas.push({ action:'skip', plan:pi, rec:have, reason:'no changes' }); continue; }
+        /* changed here since it came in (or made here by hand): yours wins unless you tick it */
+        const edited = !have.imported || have.imported.sig !== sigOf(have);
+        ideas.push({ action:'update', plan:pi, rec:have, pf, changes, edited }); continue;
       }
-      takenIdea.add(key); if(rec.id) seenVid.add(rec.id);
-      ideas.push({ action:'create', plan:pi, rec });
+      byKey.set(key, rec); if(rec.id) byId.set(rec.id, rec);
+      ideas.push({ action:'create', plan:pi, rec, pf });
     }
 
     return { obj, months, episodes, series, ideas, warnings };
@@ -253,12 +324,85 @@
       }
       for(const x of (pv.ideas || []).filter(y => y.action === 'create')){
         if(x.rec.id && await Videos.get(x.rec.id)) continue;
-        await Videos.save({ ...x.rec, id: x.rec.id || null });
+        const day = x.rec.day; delete x.rec.day;
+        let v = await Videos.save({ ...x.rec, id: x.rec.id || null });
+        if(day && Videos.schedule){ try { v = (await Videos.schedule(v, day)) || v; } catch(e){} }
+        await stamp(v.id);
         made.ideas++;
+      }
+      made.updated = 0;
+      for(const x of (pv.ideas || []).filter(y => y.action === 'update' && y.apply)){
+        const v = await Videos.get(x.rec.id);
+        if(!v) continue;
+        const f = stored(x.pf);
+        /* a shot that stays keeps its frame, its tick and its id */
+        if(f.shotList){
+          const old = listOf(v);
+          f.shotList = f.shotList.map(s => { const o = old.find(y => y.text.toLowerCase() === s.text.toLowerCase());
+            return o ? { ...s, id:o.id, item:s.item || o.item, done:o.done } : s; });
+          f.shots = f.shotList.map(s => s.text || 'Shot');
+        }
+        const day = 'day' in f ? f.day : undefined; delete f.day;
+        let nv = await Videos.save({ ...v, ...f });
+        if(day !== undefined && day !== dayOf(v)){
+          if(day && Videos.schedule){ try { nv = (await Videos.schedule(nv, day)) || nv; } catch(e){} }
+          else if(!day) nv = await Videos.save({ ...nv, day:null });
+        }
+        await stamp(nv.id);
+        made.updated++;
       }
     }
     return made;
   }
+  /* remember how a video looked when it came in, so the next import can tell
+     whether you've changed it since */
+  async function stamp(id){
+    const v = await Videos.get(id);
+    if(!v) return;
+    await Store.put('videos', { ...v, imported:{ at:Date.now(), sig:sigOf(v) } });
+    if(global.Data && Data.invalidate) Data.invalidate('videos');
+  }
 
-  global.PlanImport = { FORMAT, parse, parseAny, fromCSV, preview, apply };
+  /* ---- v4: the plan as it stands, to paste into chat and refine there ----
+     Series and their videos that aren't out yet, with ids, so pasting the
+     refined plan back updates them instead of adding copies. */
+  async function exportPlan(o = {}){
+    let series = [], videos = [];
+    try { series = await Data.series(); } catch(e){}
+    try { videos = await Videos.all(); } catch(e){}
+    if(!o.published) videos = videos.filter(v => v.stage !== 'published');
+    if(o.seriesId) videos = videos.filter(v => v.seriesId === o.seriesId);
+    const used = new Set(videos.map(v => v.seriesId).filter(Boolean));
+    const sById = new Map(series.map(x => [x.id, x]));
+    const out = {
+      format: FORMAT, version: 2, made: new Date().toISOString().slice(0, 10),
+      note: 'Creator Studio plan. Keep each id so importing this back updates those videos; leave id out for a new one.',
+      series: series.filter(x => used.has(x.id)).map(x => ({ id:x.id, channel:x.channel || '', name:x.title })),
+      videos: videos.sort((a, b) => (a.seriesId || '').localeCompare(b.seriesId || '') || (a.order || 0) - (b.order || 0) || (a.createdAt || 0) - (b.createdAt || 0))
+        .map(v => {
+          const sr = v.seriesId && sById.get(v.seriesId);
+          const shots = listOf(v).map(s => {
+            const x = { text:s.text };
+            ['framing', 'movement', 'note', 'editNote'].forEach(k => { if(s[k]) x[k] = s[k]; });
+            if(s.lines && s.lines.length) x.lines = s.lines;
+            return Object.keys(x).length === 1 ? s.text : x;
+          });
+          const r = { id:v.id, title:v.title };
+          if(sr){ r.seriesId = sr.id; r.series = sr.title; }
+          if(v.channel) r.channel = v.channel;
+          if(v.order) r.order = v.order;
+          r.stage = v.stage || 'idea';
+          if(v.plat) r.platform = v.plat;
+          if(v.day) r.day = v.day;
+          r.hook = v.hook || '';
+          r.idea = v.notes || '';
+          if((v.tags || []).length) r.tags = v.tags;
+          r.shots = shots;
+          return r;
+        })
+    };
+    return out;
+  }
+
+  global.PlanImport = { FORMAT, parse, parseAny, fromCSV, preview, apply, exportPlan, sigOf };
 })(window);
