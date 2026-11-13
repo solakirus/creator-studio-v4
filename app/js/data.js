@@ -209,6 +209,15 @@
         moved.challenges++;
       }
       if(global.Challenges && Challenges.invalidate) Challenges.invalidate();
+      /* v4: quarters are thirteen-week blocks from week 1, so they move with it
+         (otherwise the app lays out a second set beside the old) */
+      const { values: qs } = await Store.all('quarters').catch(() => ({ values:[] }));
+      for(const q of qs){
+        if(!q.startDate) continue;
+        await Store.put('quarters', { ...q, startDate: q.startDate + weeks * 7 * DAY, endDate: q.endDate ? q.endDate + weeks * 7 * DAY : q.endDate });
+        moved.quarters = (moved.quarters || 0) + 1;
+      }
+      if(qs.length && global.Data && Data.invalidate) Data.invalidate('quarters');
     }
 
     const next = { start: midnight(newStart) };

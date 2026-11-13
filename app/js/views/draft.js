@@ -86,12 +86,16 @@
     return lastSat < firstSat ? firstSat : lastSat;
   }
   const sundaysBetween = (a, b) => { const out = []; for(let s = Months.snapSunday(a); s <= b; s = Months.addDays(s, 7)) out.push(s); return out; };
-  /* a quarter's three months: whole weeks, four, four and the rest */
   function quarterMonths(q){
-    const suns = sundaysBetween(iso(q.startDate), iso(q.endDate));
-    const cut = [4, 4, suns.length - 8];
-    const out = []; let i = 0;
-    cut.forEach(n => { if(n < 1) return; const s = suns[i], e = Months.addDays(suns[i + n - 1], 6); out.push({ startDate:s, endDate:e }); i += n; });
+    /* the app's own rule: a week belongs to the month its Saturday falls in
+       (Jan: Dec 27 – Jan 30, Feb: Jan 31 – Feb 27, Mar: Feb 28 – Mar 27) */
+    const end = iso(q.endDate), out = [];
+    let s = Months.snapSunday(iso(q.startDate));
+    for(let i = 0; i < 3 && s <= end; i++){
+      const e = i === 2 || monthEndFor(s) > end ? end : monthEndFor(s);
+      out.push({ startDate:s, endDate:e });
+      s = Months.addDays(e, 1);
+    }
     return out;
   }
 
