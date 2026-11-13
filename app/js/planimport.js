@@ -92,8 +92,9 @@
 
   /* ---- v4: a video's planned fields: what a plan sets and an update compares ---- */
   const STAGE_KEYS = ['idea', 'planned', 'shot', 'editing', 'published'];
-  const PLATS = { yt:'youtube', youtube:'youtube', shorts:'shorts', ig:'instagram', insta:'instagram', instagram:'instagram',
-                  reels:'instagram', tiktok:'tiktok', tt:'tiktok', facebook:'facebook', fb:'facebook', x:'x' };
+  /* the clip's own words for them (views/clips.js): Instagram is Reels */
+  const PLATS = { yt:'youtube', youtube:'youtube', shorts:'shorts', ig:'reels', insta:'reels', instagram:'reels',
+                  reels:'reels', tiktok:'tiktok', tt:'tiktok', facebook:'facebook', fb:'facebook', x:'x' };
   /* a video's shoot day is a date ("2026-11-20") or nothing */
   const dayOf = v => (v.day == null || v.day === '') ? null : v.day;
   const isDay = d => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ''));
@@ -143,7 +144,7 @@
     if(k === 'post') return (v.post || null) === (f.post || null);
     return str(v[k]) === str(f[k]);
   };
-  const LABEL = { title:'title', hook:'hook', notes:'idea', tags:'tags', stage:'stage', plat:'platform', day:'shoot day', post:'post day', shotList:'shots' };
+  const LABEL = { title:'title', hook:'hook', notes:'idea', tags:'tags', stage:'stage', plat:'platform', channel:'channel', day:'shoot day', post:'post day', shotList:'shots' };
   function changed(v, f){ return Object.keys(LABEL).filter(k => k in f && !same(k, v, f)); }
   /* a fingerprint of the planned fields as they stand, kept on the video at
      import: if it no longer matches, the video was changed in the app */
@@ -278,7 +279,7 @@
   /* what a patch does, in words: "hook, +3 shots, +2 sequences" */
   const NAMES = { title:'title', hook:'hook', notes:'idea', tags:'tags', stage:'stage', plat:'platform', day:'shoot day', shotList:'shots',
     name:'name', topic:'topic', throughline:'throughline', challenge:'challenge', reward:'reward', quarterTheme:'theme',
-    skill:'skill', weeklyChallenge:'challenge', passLine:'pass line', acts:'sequences', post:'post day' };
+    skill:'skill', weeklyChallenge:'challenge', passLine:'pass line', acts:'sequences', post:'post day', channel:'channel' };
   function says(cur, patch, mode){
     return Object.keys(patch).map(k => {
       if(mode === 'add' && k === 'shotList'){ const n = patch.shotList.length - listOf(cur).length; return `+${n} shot${n === 1 ? '' : 's'}`; }
@@ -307,7 +308,11 @@
     let clips = [];
     try { clips = await Data.clips(); } catch(e){}
     const out = [];
-    for(const c of clips){
+    for(const c of clips) out.push(await viewOf(c));
+    return out;
+  }
+  async function viewOf(c){
+    {
       let day = null;
       if(c.shootTaskId){
         try { const t = await Store.get('tasks', c.shootTaskId); if(t && t.day != null && t.view !== 'done') day = Months.iso(await Data.dayToDate(t.day)); } catch(e){}
@@ -315,11 +320,10 @@
       const pl = c.plan || {};
       const at = c.scheduledAt ? new Date(c.scheduledAt) : null;
       const post = at ? Months.iso(at.getTime()) + (at.getHours() || at.getMinutes() ? ` ${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}` : '') : null;
-      out.push({ post, id:c.id, fromVideo:c.fromVideo || null, title:c.title || '', hook:pl.hook || '', notes:pl.notes || '', tags:tagsOf(pl.tags),
+      return ({ post, id:c.id, fromVideo:c.fromVideo || null, title:c.title || '', hook:pl.hook || '', notes:pl.notes || '', tags:tagsOf(pl.tags),
         stage:c.stage || 'idea', plat:c.plat || '', day, seriesId:c.seriesId || null, shotList:Array.isArray(c.shotList) ? c.shotList : (c.shots || []),
         imported:c.imported || null, order:c.order || 0, channel:c.channel || '', createdAt:c.createdAt || 0 });
     }
-    return out;
   }
   const clipIdFor = id => !id ? null : (String(id).startsWith('cv_') || String(id).startsWith('c_') || String(id).startsWith('clip') ? String(id) : 'cv_' + id);
   /* a patch in the plan's terms onto the clip itself */
@@ -333,6 +337,7 @@
     if('tags' in patch) n.plan.tags = patch.tags.map(t => '#' + String(t).replace(/^#/, '')).join(' ');
     if('stage' in patch) n.stage = patch.stage;
     if('plat' in patch) n.plat = patch.plat;
+    if('channel' in patch) n.channel = patch.channel;
     if('post' in patch){
       if(patch.post){ const [d, hm] = patch.post.split(' '); const t = new Date(Months.ts(d)); if(hm){ const [h, mi] = hm.split(':'); t.setHours(+h, +mi, 0, 0); } n.scheduledAt = t.getTime(); }
       else delete n.scheduledAt;
@@ -355,10 +360,13 @@
     if(Data.invalidate){ Data.invalidate('clips'); Data.invalidate('tasks'); }
     return n;
   }
+  /* one clip at a time: a whole year's plan stamps hundreds */
   async function stampClip(id){
-    const c = (await clipViews()).find(x => x.id === id);
     const r = await Store.get('clips', id);
-    if(c && r){ await Data.saveClip({ ...r, imported:{ at:Date.now(), sig:sigOf(c) } }); if(Data.invalidate) Data.invalidate('clips'); }
+    if(!r) return;
+    const c = await viewOf(r);
+    await Data.saveClip({ ...r, imported:{ at:Date.now(), sig:sigOf(c) } });
+    if(Data.invalidate) Data.invalidate('clips');
   }
 
   /* Work out what would happen, without writing anything. */
@@ -526,7 +534,11 @@
     for(const pi of planIdeas){
       const sid = seriesIdMap[pi.seriesId] || null;
       const pf = planFields(pi, chan);
-      const rec = { id: pi.id || null, title: pf.title || 'Untitled video', channel: chan(pi.channel), seriesId: sid,
+      /* a video takes its series' channel when it doesn't name one */
+      const ps = planSeries.find(x => x.id === pi.seriesId), es = sid ? existingSeries.find(x => x.id === sid) : null;
+      const channel = chan(pi.channel || (ps && ps.channel) || (es && es.channel) || '');
+      if(channel) pf.channel = channel;
+      const rec = { id: pi.id || null, title: pf.title || 'Untitled video', channel, seriesId: sid,
                     plat:'youtube', stage:'idea', day:null, tags:[], hook:'', notes:'', shots:[], taskId:null,
                     order: +pi.order || 0, ...(pf.parts ? { parts:pf.parts } : {}),
                     ...stored(pf),
@@ -617,6 +629,7 @@
         const vidId = x.rec.id ? String(x.rec.id).replace(/^cv_/, '') : 'vid_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
         const c = ClipFlow.fromVideo({ ...x.rec, id: vidId });
         delete c.fromVideo;
+        c.dur = c.plat === 'youtube' ? '15:00' : '0:45';   /* a starting length; the clip page changes it */
         if(await Store.get('clips', c.id)) continue;
         await Data.saveClip(c);
         if(Data.invalidate) Data.invalidate('clips');

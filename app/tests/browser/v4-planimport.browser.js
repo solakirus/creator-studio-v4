@@ -58,7 +58,7 @@ const chat = obj => 'Here is the plan:\n\n```json\n' + JSON.stringify(obj, null,
   await p.screenshot({ path: path.join(out, 'planimport-preview.png') });
   await p.click('[data-go]'); await p.waitForTimeout(900);
   let v = await vids();
-  ok(v.length === 2 && v[0].hook === PLAN.videos[0].hook && v[0].plat === 'instagram', 'both come in as clips, with their hooks and platform', v.map(x => x.id).join(' '));
+  ok(v.length === 2 && v[0].hook === PLAN.videos[0].hook && v[0].plat === 'reels', 'both come in as clips, with their hooks and platform (Instagram is Reels)', v.map(x => x.id).join(' '));
   ok(v[0].shotList.length === 3 && v[0].shotList[0].framing === 'Wide' && v[0].shotList[1].lines[0].t === 'Every day starts the same.', 'with their shots: framing, movement, the line said over it');
   const c2 = await p.evaluate(async () => { const c = await Store.get('clips', 'cv_ce-02'); const t = c && c.shootTaskId ? await Store.get('tasks', c.shootTaskId) : null;
     return { stage: c && c.stage, day: t && t.day, want: await Data.dateToDay(Months.ts('2026-11-20')), clipId: t && t.clipId }; });

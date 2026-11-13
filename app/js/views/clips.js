@@ -71,7 +71,7 @@
           role="button"` : ''}>${c.channel
           ? `<span class="dot" style="background:${chanColour(c.channel)}"></span>${c.channel}`
           : `<span class="dot" style="background:#4A443B"></span>No channel`}</span>
-        <span class="dur">${c.dur}</span>
+        <span class="dur">${c.dur || ''}</span>
         <div class="body"><h3 style="font-size:21px">${c.title}</h3>
           <!-- The platform sits in the meta line, not over the artwork. Two
                badges on a 92px card overlapped the title; and the platform is
