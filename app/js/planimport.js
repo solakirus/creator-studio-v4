@@ -25,13 +25,14 @@
     /* v4: "videos" — the plan Claude writes in chat: each video with its
        series (or none), hook, idea and shots. The same as seriesEpisodes. */
     if(obj && has('videos')) obj.seriesEpisodes = (Array.isArray(obj.seriesEpisodes) ? obj.seriesEpisodes : []).concat(obj.videos);
-    if(!obj || (obj.format !== FORMAT && !has('series') && !has('seriesEpisodes')))
+    if(!obj || (obj.format !== FORMAT && !has('series') && !has('seriesEpisodes') && !has('months') && !has('episodes') && !has('quarters')))
       throw new Error("That isn't a plan or a list of series.");
+    obj.quarters = Array.isArray(obj.quarters) ? obj.quarters : (obj.quarter && typeof obj.quarter === 'object' ? [obj.quarter] : []);
     obj.months = Array.isArray(obj.months) ? obj.months : [];
     obj.episodes = Array.isArray(obj.episodes) ? obj.episodes : [];
     obj.series = Array.isArray(obj.series) ? obj.series : [];
     obj.seriesEpisodes = Array.isArray(obj.seriesEpisodes) ? obj.seriesEpisodes : [];
-    if(!obj.months.length && !obj.episodes.length && !obj.series.length && !obj.seriesEpisodes.length)
+    if(!obj.quarters.length && !obj.months.length && !obj.episodes.length && !obj.series.length && !obj.seriesEpisodes.length)
       throw new Error('There is nothing in that file to import.');
     return obj;
   }
@@ -147,6 +148,63 @@
     return (h >>> 0).toString(36);
   }
 
+  /* ---- v4: what a plan can set on a quarter, a month, an episode ---- */
+  const Q_KEYS = ['name', 'topic', 'throughline', 'challenge'];
+  const M_KEYS = ['name', 'challenge', 'reward', 'notes', 'quarterTheme'];
+  const E_KEYS = ['title', 'skill', 'weeklyChallenge', 'passLine'];
+  const pick = (o, keys) => { const f = {}; keys.forEach(k => { if(o && o[k] != null) f[k] = str(o[k]); }); return f; };
+  /* an episode's acts (the days, or parts) and their sequences, from a plan:
+       acts:[{ title, sequences:[{ title, purpose, setup, script, shots }] }]
+     (or "beats" for sequences). None given: the usual seven days. */
+  const SETUP_KEYS = ['talking', 'vlog', 'phone', 'location', 'transition', 'screen', 'broll'];
+  const vid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  function actsFrom(pe){
+    if(!Array.isArray(pe.acts) || !pe.acts.length) return null;
+    return pe.acts.map((a, i) => ({
+      id: vid('a'), title: str(a.title || a.day || a.name) || `Part ${i + 1}`, day:null, open: i === 0,
+      beats: (Array.isArray(a.sequences) ? a.sequences : Array.isArray(a.beats) ? a.beats : []).map((b, j) => ({
+        id: vid('b'), title: str(b.title || b.name) || `Sequence ${j + 1}`, purpose: str(b.purpose),
+        setup: SETUP_KEYS.includes(String(b.setup || '').toLowerCase()) ? String(b.setup).toLowerCase() : 'vlog',
+        script: str(b.script), sourceId:null, day:null, at:null, done:false, clipId:null,
+        shots: (Array.isArray(b.shots) ? b.shots : []).map(raw => {
+          const x = global.ShotList ? ShotList.norm([raw])[0] : null;
+          if(!x) return null;
+          return { id:x.id, text:x.text, note:x.note || '', framing:x.framing || '', movement:x.movement || '',
+            location: raw && typeof raw === 'object' ? str(raw.location) : '', done:false, ...(x.lines ? { lines:x.lines } : {}) };
+        }).filter(Boolean)
+      }))
+    }));
+  }
+  const actsKey = acts => JSON.stringify((acts || []).map(a => [a.title, (a.beats || []).map(b => [b.title, b.purpose || '', b.script || '',
+    (b.shots || []).map(x => x.text)])]));
+  /* a plan's acts over the episode's own: a sequence of the same name keeps its
+     id, frames, ticks and clip; a shot of the same words keeps its frame */
+  function mergeActs(old, next){
+    const flat = (old || []).flatMap(a => a.beats || []);
+    return next.map(a => {
+      const oa = (old || []).find(x => String(x.title).toLowerCase() === String(a.title).toLowerCase());
+      return { ...a, id: oa ? oa.id : a.id, day: oa ? oa.day : null, beats: a.beats.map(b => {
+        const ob = flat.find(x => String(x.title).toLowerCase() === String(b.title).toLowerCase());
+        if(!ob) return b;
+        return { ...ob, ...b, id: ob.id, day: ob.day, at: ob.at, done: ob.done, clipId: ob.clipId, sourceId: ob.sourceId,
+          shots: b.shots.map(x => { const os = (ob.shots || []).find(y => String(y.text).toLowerCase() === String(x.text).toLowerCase());
+            return os ? { ...x, id: os.id, item: os.item || x.item, done: os.done } : x; }) };
+      }) };
+    });
+  }
+  const recSig = (r, keys) => {
+    const t = keys.map(k => k === 'acts' ? actsKey(r.acts) : str(r[k])).join('\u0001');
+    let h = 5381; for(let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36);
+  };
+  /* changed here since it came in? With no record of coming in, only when a
+     field the plan changes already has something written in it */
+  /* what the app writes by itself: a quarter's "Q6", an episode's "Discipline — week 2" */
+  const AUTO = /^(Q\d+|Untitled.*|Week \d+|.* — week \d+|.* — verdict)$/;
+  const editedSince = (r, keys, changes) => r.imported && r.imported.sig ? r.imported.sig !== recSig(r, keys)
+    : changes.some(k => k === 'acts' ? (r.acts || []).some(a => (a.beats || []).some(b => (b.shots || []).length || b.purpose || b.script))
+      : str(r[k]).trim() !== '' && !((k === 'name' || k === 'title') && AUTO.test(str(r[k]).trim())));
+
   /* Work out what would happen, without writing anything. */
   async function preview(obj){
     const existingMonths = await Months.all();
@@ -154,7 +212,25 @@
     try { existingEps = (await Store.all('vlogs')).values; } catch(e){}
     const warnings = [];
 
-    /* months: skip one that already starts on the same Sunday */
+    /* ---- v4: quarters ----
+       Quarters are made by the app (thirteen project weeks each), so a plan
+       never adds one: it fills in the one on those dates (or that number) —
+       its name, topic, throughline and challenge. */
+    const quarters = [];
+    let allQ = [];
+    try { if(global.Quarters){ await Quarters.ensureThrough(new Date().getFullYear() + 1); allQ = await Quarters.all(); } } catch(e){}
+    for(const pq of obj.quarters){
+      const at = pq.startDate ? Months.ts(pq.startDate) : null;
+      const q = allQ.find(x => pq.id && x.id === pq.id) || allQ.find(x => pq.n && +x.n === +pq.n)
+        || (at ? allQ.find(x => x.startDate && at >= x.startDate - 4 * 864e5 && at <= x.endDate) : null);
+      const f = pick(pq, Q_KEYS);
+      if(!q){ quarters.push({ action:'skip', plan:pq, rec:{ name:str(pq.name) || 'A quarter' }, reason:'no quarter on those dates' }); continue; }
+      const changes = Q_KEYS.filter(k => k in f && str(q[k]) !== str(f[k]));
+      if(!changes.length){ quarters.push({ action:'skip', plan:pq, rec:q, reason:'no changes' }); continue; }
+      quarters.push({ action:'update', kind:'quarter', plan:pq, rec:q, patch:f, changes, edited:editedSince(q, Q_KEYS, changes) });
+    }
+
+    /* months: a new one, or the one already starting that Sunday is updated */
     const monthIdMap = {};          /* plan month id → the id it will have in the app */
     const months = obj.months.map(pm => {
       const rec = Months.normalise({
@@ -166,53 +242,75 @@
       });
       if(rec.startDate !== pm.startDate || rec.endDate !== pm.endDate)
         warnings.push(`${rec.name}: dates snapped to ${rec.startDate} – ${rec.endDate}`);
-      const same = existingMonths.find(m => m.startDate === rec.startDate)
-        || existingMonths.find(m => pm.id && m.id === pm.id);
+      /* the quarter its first week falls in */
+      const qq = allQ.find(x => x.startDate && Months.ts(rec.startDate) >= x.startDate - 864e5 && Months.ts(rec.startDate) <= x.endDate);
+      if(qq) rec.quarterId = qq.id;
+      const same = existingMonths.find(m => pm.id && m.id === pm.id) || existingMonths.find(m => m.startDate === rec.startDate);
+      const key = pm.id || pm.name || rec.startDate;
       if(same){
-        monthIdMap[pm.id] = same.id;
-        return { action:'skip', plan:pm, rec, reason:`${same.name || 'A month'} already starts ${Months.label(rec.startDate)}` };
+        monthIdMap[key] = same.id;
+        const f = pick(pm, M_KEYS);
+        const changes = M_KEYS.filter(k => k in f && str(same[k]) !== str(f[k]));
+        if(!changes.length) return { action:'skip', plan:pm, rec:same, reason:`${same.name || 'A month'} already starts ${Months.label(rec.startDate)}` };
+        return { action:'update', kind:'month', plan:pm, rec:same, patch:f, changes, edited:editedSince(same, M_KEYS, changes) };
       }
-      rec.id = pm.id || null;       /* keep the plan's id, so a second import recognises it */
-      monthIdMap[pm.id] = rec.id;
+      rec.id = pm.id || ('mo_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
+      monthIdMap[key] = rec.id;
       return { action:'create', plan:pm, rec };
     });
+    const plannedMonths = months.map(x => x.rec);
+    /* the month an episode's week falls in: the plan's, or one you have */
+    const monthFor = (pe, weekStart) => {
+      if(pe.monthId && monthIdMap[pe.monthId]) return monthIdMap[pe.monthId];
+      if(pe.month && monthIdMap[pe.month]) return monthIdMap[pe.month];
+      if(!weekStart) return null;
+      const t = Months.ts(weekStart);
+      const m = plannedMonths.concat(existingMonths).find(x => x.startDate && x.endDate && t >= Months.ts(x.startDate) && t <= Months.ts(x.endDate));
+      return m ? m.id : null;
+    };
 
-    /* episodes: skip one imported before, or a week that already has an episode */
-    const takenWeeks = new Map(existingEps.filter(v => Months.hasWeek(v)).map(v => [+v.week, v]));
-    const seenIds = new Set(existingEps.map(v => v.id));
+    /* episodes: a new one, or the one already in that week (or with that id) is updated */
+    const byWeek = new Map(existingEps.filter(v => Months.hasWeek(v)).map(v => [+v.week, v]));
+    const byEpId = new Map(existingEps.map(v => [v.id, v]));
     const episodes = [];
     for(const pe of obj.episodes){
       let week = null;
-      try { week = pe.filmStart ? await Data.weekNumber(Months.ts(Months.snapSunday(pe.filmStart))) : null; } catch(e){}
+      const sun = pe.filmStart || pe.weekOf || pe.week_of || null;
+      try { week = sun ? await Data.weekNumber(Months.ts(Months.snapSunday(sun))) : null; } catch(e){}
       if(week === null && pe.weekNumber) week = +pe.weekNumber;
       if(pe.weekNumber && week !== null && +pe.weekNumber !== week)
-        warnings.push(`${pe.title}: the plan says week ${pe.weekNumber}, but ${pe.filmStart} is week ${week} with your program start — using week ${week}`);
+        warnings.push(`${pe.title}: the plan says week ${pe.weekNumber}, but ${sun} is week ${week} with your program start — using week ${week}`);
 
       const auto = pe.filmEnd ? Months.thursdayAfter(pe.filmEnd) : null;
+      const acts = actsFrom(pe);
       const rec = {
         id: pe.id || null,
         title: str(pe.title) || `Week ${week}`,
         format:'weekly', length:'15', seriesId:null, week,
-        monthId: monthIdMap[pe.monthId] || null,
-        skill:str(pe.skill), weeklyChallenge:str(pe.weeklyChallenge), passLine:str(pe.passLine),
+        monthId: monthFor(pe, sun ? Months.snapSunday(sun) : null),
+        skill:str(pe.skill), weeklyChallenge:str(pe.weeklyChallenge || pe.challenge), passLine:str(pe.passLine),
         /* the release is only stored when it isn't the usual Thursday */
         releaseDate: pe.releaseDate && pe.releaseDate !== auto ? pe.releaseDate : null,
         isVerdict: !!pe.isVerdict,
         result: (pe.result === 'W' || pe.result === 'L') ? pe.result : null,
-        scriptBeats: beats(pe.scriptBeats)
+        scriptBeats: beats(pe.scriptBeats),
+        ...(acts ? { acts } : {})
       };
-      if(pe.monthId && !monthIdMap[pe.monthId]) warnings.push(`${rec.title}: its month isn't in the plan — it will come in untagged`);
+      if((pe.monthId || pe.month) && !rec.monthId) warnings.push(`${rec.title}: its month isn't in the plan — it will come in untagged`);
 
-      if(rec.id && seenIds.has(rec.id)){
-        episodes.push({ action:'skip', plan:pe, rec, reason:'already imported' }); continue;
-      }
-      const holder = week !== null ? takenWeeks.get(week) : null;
-      if(holder){
-        episodes.push({ action:'skip', plan:pe, rec, reason:`week ${week} already has "${holder.title || 'an episode'}"` });
+      const have = (rec.id && byEpId.get(rec.id)) || (week !== null ? byWeek.get(week) : null);
+      if(have){
+        const f = pick({ ...pe, weeklyChallenge: pe.weeklyChallenge != null ? pe.weeklyChallenge : pe.challenge }, E_KEYS);
+        if(acts) f.acts = acts;
+        const changes = E_KEYS.filter(k => k in f && str(have[k]) !== str(f[k]));
+        if(acts && actsKey(have.acts) !== actsKey(acts)) changes.push('acts');
+        if(!changes.length){ episodes.push({ action:'skip', plan:pe, rec:have, reason:'no changes' }); continue; }
+        episodes.push({ action:'update', kind:'episode', plan:pe, rec:have, patch:f, changes,
+          edited:editedSince(have, E_KEYS.concat('acts'), changes) });
         continue;
       }
-      if(week !== null) takenWeeks.set(week, rec);   /* two plan episodes in one week: the first wins */
-      if(rec.id) seenIds.add(rec.id);
+      if(week !== null) byWeek.set(week, rec);   /* two plan episodes in one week: the first wins */
+      if(rec.id) byEpId.set(rec.id, rec);
       episodes.push({ action:'create', plan:pe, rec });
     }
 
@@ -290,7 +388,7 @@
       ideas.push({ action:'create', plan:pi, rec, pf });
     }
 
-    return { obj, months, episodes, series, ideas, warnings };
+    return { obj, quarters, months, episodes, series, ideas, warnings };
   }
 
   /* Write what preview said it would create — nothing else. */
@@ -305,13 +403,32 @@
     for(const e of pv.episodes.filter(x => x.action === 'create')){
       const id = e.rec.id || ('v_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6));
       if(await Store.get('vlogs', id)) continue;
-      await Store.put('vlogs', {
-        ...e.rec, id,
-        acts: Months.weeklyActs(),
-        segments: Months.defaultSegments(),
-        createdAt: Date.now()
-      });
+      const ep = { ...e.rec, id, acts: e.rec.acts || Months.weeklyActs(), segments: Months.defaultSegments(), createdAt: Date.now() };
+      ep.imported = { at:Date.now(), sig:recSig(ep, E_KEYS.concat('acts')) };
+      await Store.put('vlogs', ep);
       made.episodes++;
+    }
+    /* v4: updates to quarters, months and episodes you ticked */
+    made.updated = 0;
+    for(const x of (pv.quarters || []).filter(y => y.action === 'update' && y.apply)){
+      const q = await Quarters.get(x.rec.id); if(!q) continue;
+      const nq = { ...q, ...x.patch }; nq.imported = { at:Date.now(), sig:recSig(nq, Q_KEYS) };
+      await Quarters.save(nq); made.updated++;
+    }
+    for(const x of pv.months.filter(y => y.action === 'update' && y.apply)){
+      const m = await Store.get('months', x.rec.id); if(!m) continue;
+      const nm = { ...m, ...x.patch }; nm.imported = { at:Date.now(), sig:recSig(nm, M_KEYS) };
+      await Months.save(nm); made.updated++;
+    }
+    for(const x of pv.episodes.filter(y => y.action === 'update' && y.apply)){
+      const v = await Store.get('vlogs', x.rec.id); if(!v) continue;
+      const patch = { ...x.patch };
+      if(patch.acts) patch.acts = mergeActs(v.acts, patch.acts);
+      const nv = { ...v, ...patch }; nv.imported = { at:Date.now(), sig:recSig(nv, E_KEYS.concat('acts')) };
+      await Store.put('vlogs', nv); made.updated++;
+    }
+    for(const m of pv.months.filter(x => x.action === 'create')){ /* stamped after Months.save above */
+      const r = await Store.get('months', m.rec.id); if(r && !r.imported){ r.imported = { at:Date.now(), sig:recSig(r, M_KEYS) }; await Store.put('months', r); }
     }
     Months.invalidate();
 
@@ -330,7 +447,6 @@
         await stamp(v.id);
         made.ideas++;
       }
-      made.updated = 0;
       for(const x of (pv.ideas || []).filter(y => y.action === 'update' && y.apply)){
         const v = await Videos.get(x.rec.id);
         if(!v) continue;

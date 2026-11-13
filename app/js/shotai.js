@@ -23,6 +23,28 @@
 
   const esc = s => U.esc(s);   /* shared: util.js */
 
+  /* v4: the Claude plan on this computer (Claude Code), when the app has it —
+     no API key. Checked once; Settings → Claude for planning checks again. */
+  let planSt = null;
+  async function planClaude(fresh){
+    if(!global.CS4Claude) return null;
+    if(!planSt || fresh){ try { planSt = await CS4Claude.status(); } catch(e){ planSt = { found:false }; } }
+    return planSt && planSt.found ? planSt : null;
+  }
+  /* the route each ask takes: the plan, then a key, then copy and paste */
+  async function route(){
+    const c = await cfg();
+    if(c.route !== 'key' && await planClaude()) return { kind:'plan', c };
+    if(c.key) return { kind:'key', c };
+    return { kind:'paste', c };
+  }
+  async function viaPlan(p, c){
+    const text = Array.isArray(p) ? p.filter(x => x.type === 'text').map(x => x.text).join('\n') : p;
+    const r = await CS4Claude.ask({ prompt:text, model: c.planModel || '' });
+    if(!r || !r.ok) throw new Error((r && r.why) || 'Claude didn’t answer');
+    return r.text;
+  }
+
   async function cfg(){ try { return (await Store.get('settings', KEY)) || {}; } catch(e){ return {}; } }
   async function setCfg(c){ await Store.put('settings', c, KEY); }
 
@@ -66,6 +88,7 @@ Reply with ONLY a JSON array, no prose, no code fences. Each item:
 
   /* p is the prompt text, or a full content array (text plus an image) */
   async function ask(p, c, signal){
+    if(c.__plan) return viaPlan(p, c);
     const res = await fetch('https://api.anthropic.com/v1/messages', { signal, method:'POST',
       headers:{ 'content-type':'application/json', 'x-api-key': c.key, 'anthropic-version':'2023-06-01',
                 'anthropic-dangerous-direct-browser-access':'true' },
@@ -79,7 +102,8 @@ Reply with ONLY a JSON array, no prose, no code fences. Each item:
   /* ---------------------------------------------------------- the sheet */
 
   async function suggest(ctx, onAdd){
-    const c = await cfg();
+    const rt = await route();
+    const c = { ...rt.c, __plan: rt.kind === 'plan', key: rt.kind === 'paste' ? '' : (rt.kind === 'plan' ? 'plan' : rt.c.key) };
     const p = prompt(ctx);
     let list = null, busy = false, err = '';
     let ctl = null;
@@ -129,7 +153,7 @@ Reply with ONLY a JSON array, no prose, no code fences. Each item:
           if(c.key) return run();
           list = null; err = ''; return draw();
         }
-        if(t.closest('[data-stop]')){ if(ctl) ctl.abort(); return; }
+        if(t.closest('[data-stop]')){ if(ctl) ctl.abort(); if(c.__plan && global.CS4Claude) CS4Claude.stop(); return; }
         if(t.closest('[data-copy]')){
           try { await navigator.clipboard.writeText(p); U.toast('Prompt copied'); }
           catch(e2){ U.toast('Could not copy'); }
@@ -157,34 +181,79 @@ Reply with ONLY a JSON array, no prose, no code fences. Each item:
     });
   }
 
-  /* Settings → AI shot suggestions */
+  /* Settings → Claude for planning. Three ways, in this order: the Claude
+     plan on this computer (Claude Code, signed in with the Claude account — no
+     key, no extra bill), an Anthropic API key, or copy and paste into a chat. */
   async function openSettings(){
     const c = await cfg();
+    const desktop = !!global.CS4Claude;
+    let st = desktop ? await planClaude(true) : null;
+    const PLAN_MODELS = [['', 'Default'], ['sonnet', 'Sonnet'], ['opus', 'Opus'], ['haiku', 'Haiku']];
+    const win = /Win/i.test(navigator.platform || navigator.userAgent);
+    const cmd = win ? 'irm https://claude.ai/install.ps1 | iex' : 'curl -fsSL https://claude.ai/install.sh | bash';
     App.sheet(`
-      <h2>AI shot suggestions</h2>
-      <p class="hintline" style="margin:0 0 12px">With your own Anthropic API key, Suggest shots asks Claude
-        directly. The key stays on this device — it is left out of backups and plan packs. Without one,
-        Suggest shots gives you a prompt to paste into a Claude chat instead.</p>
-      <div class="field"><label for="ai-key">API key</label>
-        <input id="ai-key" type="password" autocomplete="off" placeholder="sk-ant-…" value="${esc(c.key || '')}"></div>
-      <div class="field"><label>Model</label><div class="opts" data-group="setmodel">
-        ${MODELS.map(([id, n]) => `<button type="button" class="opt" data-v="${id}" aria-pressed="${(c.model || MODELS[0][0]) === id}">${n}</button>`).join('')}
-      </div></div>
+      <h2>Claude for planning</h2>
+      <p class="hintline" style="margin:0 0 12px">Draft and Suggest shots ask Claude. ${desktop
+        ? 'On this computer they use your Claude plan through Claude Code — your Pro or Max subscription, no API key.'
+        : 'On this device there is no Claude Code, so each step gives you a prompt to paste into a Claude chat (or add an API key below). Plan on the laptop to skip that.'}</p>
+      ${desktop ? `<div class="block" style="margin:0 0 14px" data-planbox>
+        ${st ? `<p style="margin:0;font-size:14.5px"><b style="color:#5BBE6A">✓ Claude Code ${U.esc(st.version || '')}</b> is on this computer.</p>
+          <p class="hintline" style="margin:6px 0 0">If it was never signed in, open a terminal, type <b>claude</b> and sign in with your Claude account
+            (pick your subscription, not an API key). Then <b>Test</b>.</p>`
+        : `<p style="margin:0 0 6px;font-size:14.5px"><b>Set up once (about two minutes):</b></p>
+          <ol class="hintline" style="margin:0;padding-left:20px;line-height:1.6">
+            <li>Open ${win ? '<b>PowerShell</b>' : 'a <b>terminal</b>'} and paste:<br><code style="user-select:all">${U.esc(cmd)}</code></li>
+            <li>Close it, open a new one, type <b>claude</b>, and sign in with your Claude account — pick your subscription.</li>
+            <li>Come back here and press <b>Check again</b>.</li></ol>`}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 0">
+          ${st ? '<button class="btn-sm" data-test>Test</button>' : `<button class="btn-sm" data-copycmd>Copy the install command</button>`}
+          <button class="btn-sm" data-recheck>Check again</button></div>
+        <p class="hintline" data-planmsg style="margin:8px 0 0"></p>
+        ${st ? `<div class="field" style="margin:10px 0 0"><label>Model</label><div class="opts" data-group="planmodel">
+          ${PLAN_MODELS.map(([id, n]) => `<button type="button" class="opt" data-v="${id}" aria-pressed="${(c.planModel || '') === id}">${n}</button>`).join('')}
+        </div></div>` : ''}
+      </div>` : ''}
+      <details ${c.key && !st ? 'open' : ''} style="margin:0 0 12px"><summary class="hintline" style="cursor:pointer">Use an Anthropic API key instead</summary>
+        <p class="hintline" style="margin:8px 0">A key from console.anthropic.com is billed separately from your Claude plan. It stays on this
+          device and is left out of backups and plan packs.</p>
+        <div class="field"><label for="ai-key">API key</label>
+          <input id="ai-key" type="password" autocomplete="off" placeholder="sk-ant-…" value="${esc(c.key || '')}"></div>
+        <div class="field"><label>Model</label><div class="opts" data-group="setmodel">
+          ${MODELS.map(([id, n]) => `<button type="button" class="opt" data-v="${id}" aria-pressed="${(c.model || MODELS[0][0]) === id}">${n}</button>`).join('')}
+        </div></div>
+        ${desktop ? `<label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" id="ai-route" ${c.route === 'key' ? 'checked' : ''}>
+          Use the key even when Claude Code is here</label>` : ''}
+      </details>
       <div class="sheetcta">
         <button class="btn-primary" data-save>Save</button>
         <button class="btn-ghost" data-cancel>Cancel</button>
       </div>`, sheetEl => {
+      const msg = t => { const m = sheetEl.querySelector('[data-planmsg]'); if(m) m.textContent = t; };
       sheetEl.addEventListener('click', async e => {
         const opt = e.target.closest('.opt');
         if(opt){ opt.closest('.opts').querySelectorAll('.opt').forEach(o => o.setAttribute('aria-pressed', 'false'));
                  opt.setAttribute('aria-pressed', 'true'); return; }
         if(e.target.closest('[data-cancel]')) return App.closeSheet();
+        if(e.target.closest('[data-copycmd]')){
+          try { await navigator.clipboard.writeText(cmd); U.toast('Copied — paste it into ' + (win ? 'PowerShell' : 'a terminal')); } catch(err){ U.toast('Could not copy'); }
+          return;
+        }
+        if(e.target.closest('[data-recheck]')){ await setCfg({ ...(await cfg()) }); App.closeSheet(); return openSettings(); }
+        if(e.target.closest('[data-test]')){
+          msg('Asking Claude…');
+          const r = await CS4Claude.ask({ prompt:'Reply with exactly: ready', model:'' }).catch(err => ({ ok:false, why:err.message }));
+          msg(r && r.ok ? '✓ Claude answered — Draft and Suggest shots will use your plan.' : '✗ ' + ((r && r.why) || 'No answer'));
+          return;
+        }
         if(!e.target.closest('[data-save]')) return;
         const key = sheetEl.querySelector('#ai-key').value.trim();
-        const model = sheetEl.querySelector('[data-group="setmodel"] .opt[aria-pressed="true"]').dataset.v;
-        await setCfg({ key, model });
+        const pm = sheetEl.querySelector('[data-group="setmodel"] .opt[aria-pressed="true"]');
+        const plm = sheetEl.querySelector('[data-group="planmodel"] .opt[aria-pressed="true"]');
+        const rk = sheetEl.querySelector('#ai-route');
+        await setCfg({ ...c, key, model: pm ? pm.dataset.v : c.model, planModel: plm ? plm.dataset.v : (c.planModel || ''),
+                       route: rk && rk.checked && key ? 'key' : '' });
         App.closeSheet();
-        U.toast(key ? 'Saved — Suggest shots will ask Claude directly' : 'Key removed');
+        U.toast(st && !(rk && rk.checked && key) ? 'Saved — Claude asks go through your Claude plan' : key ? 'Saved — Claude asks use your key' : 'Saved');
       });
     });
   }
@@ -258,8 +327,13 @@ Reply with ONLY a JSON array, no prose, no code fences. Each item:
   /* Any text job: with a key it asks Claude directly; without one it shows the
      prompt to copy into a chat and waits for the pasted answer. Text or null. */
   async function askText(text, label, maxTokens){
-    const c = await cfg();
-    if(c.key){
+    const rt = await route();
+    const c = rt.c;
+    if(rt.kind === 'plan'){
+      try { return await viaPlan(text, c); }
+      catch(e){ U.toast(e.message || 'Could not reach Claude — paste it instead'); }
+    }
+    else if(rt.kind === 'key'){
       U.toast(label || 'Asking Claude…');
       try {
         const res = await fetch('https://api.anthropic.com/v1/messages', { method:'POST',
@@ -276,7 +350,7 @@ Reply with ONLY a JSON array, no prose, no code fences. Each item:
       App.sheet(`
         <h2>${esc(label || 'Ask Claude')}</h2>
         <p class="hintline" style="margin:0 0 10px">Copy the prompt into a Claude chat, then paste the whole
-          answer here. (With an API key in Settings → Planning help this happens by itself.)</p>
+          answer here. (With an API key in Settings → Claude for planning this happens by itself.)</p>
         <div class="sheetcta" style="margin:0 0 10px"><button class="btn-primary" data-copy>Copy prompt</button></div>
         <textarea id="ai-tx" rows="6" placeholder="Paste Claude's answer"
           style="width:100%;background:var(--bg);border:1px solid var(--line);border-radius:var(--r);
@@ -298,5 +372,5 @@ Reply with ONLY a JSON array, no prose, no code fences. Each item:
     });
   }
 
-  global.ShotAI = { suggest, forBeat, openSettings, prompt, parse, readImage, askText, MODELS };
+  global.ShotAI = { suggest, forBeat, openSettings, prompt, parse, readImage, askText, route, MODELS };
 })(window);

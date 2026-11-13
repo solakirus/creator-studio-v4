@@ -97,6 +97,13 @@ contextBridge.exposeInMainWorld('CS3Lib', {
    them from the next launch. The page says when it has started properly. */
 const updateListeners = new Set();
 ipcRenderer.on('cs3:update-ready', (e, build) => updateListeners.forEach(cb => { try { cb(build); } catch (err) {} }));
+/* v4: Claude through the Claude plan on this computer (electron/claude.js) */
+contextBridge.exposeInMainWorld('CS4Claude', {
+  status: () => ipcRenderer.invoke('cs4:claude-status'),
+  ask: o => ipcRenderer.invoke('cs4:claude-ask', o),
+  stop: () => ipcRenderer.invoke('cs4:claude-stop')
+});
+
 contextBridge.exposeInMainWorld('CS3Update', {
   ok: () => ipcRenderer.send('cs3:web-ok'),
   check: () => ipcRenderer.invoke('cs3:web-check'),

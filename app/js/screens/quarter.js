@@ -79,6 +79,8 @@
         <div class="view">
           <div class="pagehead"><h1 class="page-title">${esc(q.name)}</h1>
             <span class="headacts" style="display:flex;gap:8px;align-items:center">
+              <button class="headbtn" data-plan-claude='${esc(JSON.stringify({ kind:'quarter', quarterId:q.id, title:q.name || '',
+                idea:[q.topic, q.throughline, q.challenge].filter(Boolean).join('\n') }))}'>✦ PLAN</button>
               <button class="headbtn" data-a="edit">EDIT</button>
               <button class="headbtn" data-a="new">NEW</button>
             </span></div>

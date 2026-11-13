@@ -46,7 +46,10 @@
     const plan = TABS.find(t => t.id === 'weekly'), content = TABS.find(t => t.id === 'series');
     plan.label = 'Plan';
     TABS.length = 0;
-    TABS.push(plan, content, { id:'settings', label:'Settings', screen:'settings',
+    /* Draft: plan one idea with Claude, then import it (views/draft.js) */
+    const draft = { id:'draft', label:'Draft', view:() => global.ViewDraft,
+      icon:'<path d="M11 2.5l1.9 5.1 5.1 1.9-5.1 1.9L11 16.5l-1.9-5.1L4 9.5l5.1-1.9zM18.5 13.5l.95 2.55 2.55.95-2.55.95-.95 2.55-.95-2.55-2.55-.95 2.55-.95z"/>' };
+    TABS.push(draft, plan, content, { id:'settings', label:'Settings', screen:'settings',
       icon:'<path fill-rule="evenodd" d="M10.3 2.6h3.4l.5 2.6 1.7.9 2.4-1.2 2.4 2.4-1.2 2.4.8 1.8 2.6.5v3.4l-2.6.5-.8 1.8 1.2 2.4-2.4 2.4-2.4-1.2-1.7.9-.5 2.6h-3.4l-.5-2.6-1.7-.9-2.4 1.2-2.4-2.4 1.2-2.4-.8-1.8-2.6-.5v-3.4l2.6-.5.8-1.8-1.2-2.4 2.4-2.4 2.4 1.2 1.7-.9zM12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8z"/>' });
     document.documentElement.classList.add('planner');
     document.title = 'Creator Studio Planner';

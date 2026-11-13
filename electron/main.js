@@ -353,6 +353,8 @@ const WebUpdate = (() => {
 })();
 
 ipcMain.on('cs3:web-ok', () => WebUpdate.ok());
+/* v4: Claude through the Claude plan (Claude Code, `claude -p`) */
+require('./claude').register(ipcMain);
 ipcMain.handle('cs3:web-check', () => WebUpdate.check());
 ipcMain.handle('cs3:web-sources', (e, list) => WebUpdate.setSources(list));
 /* "Restart now" after an update has downloaded: open again on the new version */

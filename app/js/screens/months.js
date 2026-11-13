@@ -172,13 +172,15 @@
         rows.push({ m, rec:Months.record(eps), weeks:slots.length, linked:filled });
       }
       const head = Screens.bar({ kicker:'Calendar', title:'Months',
-        actions:`<button class="btn-sm" data-a="import">Import plan</button>
+        actions:`<button class="btn-sm" data-plan-claude='{"kind":"month"}'>✦ Plan with Claude</button>
+                 <button class="btn-sm" data-a="import">Import plan</button>
                  <button class="btn-sm accent" data-a="new">+ New month</button>` });
 
       el.innerHTML = (embedded ? '' : head) + `
       <div class="view">
         ${embedded ? `<div class="pagehead"><h1 class="page-title">Months</h1>
           <span class="headacts" style="display:flex;gap:8px;align-items:center">
+            <button class="headbtn" data-plan-claude='{"kind":"month"}'>✦ PLAN</button>
             <button class="headbtn" data-a="import">IMPORT PLAN</button>
             <button class="headbtn" data-a="new">NEW MONTH</button>
           </span></div>` : ''}
@@ -274,10 +276,19 @@
     const sS = (pv.series || []).filter(x => x.action === 'skip')
       .filter((x, i, a) => a.findIndex(y => (y.rec.title + '|' + y.rec.channel).toLowerCase() === (x.rec.title + '|' + x.rec.channel).toLowerCase()) === i);
     const iC = (pv.ideas || []).filter(x => x.action === 'create'), iS = (pv.ideas || []).filter(x => x.action === 'skip');
+    /* v4: everything the plan changes — a quarter, a month, an episode, a video —
+       in one list. Each goes ahead unless you've changed it here since. */
+    const qU = (pv.quarters || []).filter(x => x.action === 'update'), qS = (pv.quarters || []).filter(x => x.action === 'skip' && x.reason !== 'no changes');
+    const mU = pv.months.filter(x => x.action === 'update'), eU = pv.episodes.filter(x => x.action === 'update');
     const iU = (pv.ideas || []).filter(x => x.action === 'update');
-    /* updates go ahead unless you've changed that video here since it came in */
-    iU.forEach(x => { x.apply = !x.edited; });
-    const LBL = { title:'title', hook:'hook', notes:'idea', tags:'tags', stage:'stage', plat:'platform', day:'shoot day', shotList:'shots' };
+    const ups = [...qU.map(x => ({ x, what:'Quarter', name:x.rec.name || 'Quarter ' + (x.rec.n || '') })),
+                 ...mU.map(x => ({ x, what:'Month', name:x.rec.name })),
+                 ...eU.map(x => ({ x, what:'Episode', name:x.rec.title })),
+                 ...iU.map(x => ({ x, what:'Video', name:x.rec.title, series:true }))];
+    ups.forEach(u => { u.x.apply = !u.x.edited; });
+    const LBL = { title:'title', hook:'hook', notes:'idea', tags:'tags', stage:'stage', plat:'platform', day:'shoot day', shotList:'shots',
+      name:'name', topic:'topic', throughline:'throughline', challenge:'challenge', reward:'reward', quarterTheme:'theme',
+      skill:'skill', weeklyChallenge:'challenge', passLine:'pass line', acts:'sequences' };
     const hasSeries = (pv.series || []).length || (pv.ideas || []).length;
     /* the series by channel, for a readable summary */
     const byChan = {};
@@ -286,14 +297,15 @@
       line-height:1.55;color:var(--muted)">${rows.map(fn).join('')}</ul>` : '';
     const full = { month:'short', day:'numeric' };
 
-    const planish = pv.months.length || pv.episodes.length;
+    const planish = pv.months.length || pv.episodes.length || (pv.quarters || []).length;
     App.sheet(`
       <h2>${planish || (pv.ideas || []).length ? 'Import plan' : 'Import series'}</h2>
       <p style="margin:0 0 12px;color:var(--muted);font-size:14px;line-height:1.5">${[esc(pv.obj.project || pv.obj.plan || ''),
         pv.obj.phase ? `Phase ${esc(pv.obj.phase)}` : ''].filter(Boolean).join(' · ')}${pv.obj.project || pv.obj.plan || pv.obj.phase ? ' — ' : ''}nothing is written until you tap Import.</p>
       <div class="mo-facts" style="margin:0 0 12px">
-        ${planish ? `<div><small>Months</small><b>${mC.length} new · ${mS.length} skipped</b></div>
-        <div><small>Vlogs</small><b>${eC.length} new · ${eS.length} skipped</b></div>` : ''}
+        ${(pv.quarters || []).length ? `<div><small>Quarter</small><b>${qU.length ? qU.length + ' to update' : 'unchanged'}</b></div>` : ''}
+        ${pv.months.length ? `<div><small>Months</small><b>${mC.length} new · ${mU.length} to update · ${mS.length} unchanged</b></div>` : ''}
+        ${pv.episodes.length ? `<div><small>Weekly vlogs</small><b>${eC.length} new · ${eU.length} to update · ${eS.length} unchanged</b></div>` : ''}
         ${hasSeries ? `<div><small>Channel series</small><b>${sC.length} new · ${sS.length} already here</b></div>
         <div><small>Videos</small><b>${iC.length} new · ${iU.length} to update · ${iS.length} unchanged</b></div>` : ''}
       </div>
@@ -303,10 +315,11 @@
       ${mC.length ? `<p class="mo-group" style="margin:10px 0 0;font-weight:800;font-size:12px;letter-spacing:.12em;
         text-transform:uppercase;color:var(--muted)">New months</p>${list(mC, x => `<li>${esc(x.rec.name)} ·
         ${Months.label(x.rec.startDate, full)} – ${Months.label(x.rec.endDate, full)} · ${esc(x.rec.challenge)}</li>`)}` : ''}
-      ${mS.length ? `<p style="margin:12px 0 0;font-weight:800;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
-        color:var(--muted)">Skipped months</p>${list(mS, x => `<li>${esc(x.rec.name)} — ${esc(x.reason)}</li>`)}` : ''}
-      ${eS.length ? `<p style="margin:12px 0 0;font-weight:800;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
-        color:var(--muted)">Skipped vlogs</p>${list(eS, x => `<li>${esc(x.rec.title)} — ${esc(x.reason)}</li>`)}` : ''}
+      ${eC.length ? `<p style="margin:12px 0 0;font-weight:800;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+        color:var(--muted)">New weekly vlogs</p>${list(eC, x => `<li>${esc(x.rec.title)}${x.rec.week != null ? ' · week ' + x.rec.week : ''}${
+          x.rec.acts ? ` · ${x.rec.acts.reduce((n, a) => n + (a.beats || []).length, 0)} sequences` : ''}</li>`)}` : ''}
+      ${qS.length ? `<p style="margin:12px 0 0;font-weight:800;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+        color:var(--muted)">Not found</p>${list(qS, x => `<li>${esc(x.rec.name)} — ${esc(x.reason)}</li>`)}` : ''}
       ${pv.warnings.length ? `<div class="mo-prev warn" style="margin:12px 0 0">${pv.warnings.map(esc).join('<br>')}</div>` : ''}
       ${sC.length ? `<div id="pi-slist"><p style="margin:12px 0 0;font-weight:800;font-size:12px;letter-spacing:.12em;
         text-transform:uppercase;color:var(--muted)">New series</p>${list(Object.entries(byChan), ([ch, names]) =>
@@ -317,11 +330,11 @@
         color:var(--muted)">Series already here</p>${list(sS, x => `<li>${esc(x.rec.title)}${x.rec.channel ? ' · ' + esc(x.rec.channel) : ''} — new videos go into yours</li>`)}` : ''}
       ${iC.length ? `<p style="margin:12px 0 0;font-weight:800;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
         color:var(--muted)">New videos</p>${list(iC, x => `<li>${esc(x.rec.title)}${(x.rec.shotList || []).length ? ` · ${x.rec.shotList.length} shot${x.rec.shotList.length === 1 ? '' : 's'}` : ''}</li>`)}` : ''}
-      ${iU.length ? `<div id="pi-ulist"><p style="margin:12px 0 0;font-weight:800;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
-        color:var(--muted)">Updates</p>${iU.map((x, i) => `<label class="pi-up" style="display:flex;gap:10px;align-items:flex-start;margin:8px 0 0;font-size:14px;cursor:pointer">
-          <input type="checkbox" data-pi-up="${i}" ${x.apply ? 'checked' : ''} style="width:18px;height:18px;margin:2px 0 0;flex:none">
-          <span><b style="color:var(--cream)">${esc(x.rec.title)}</b> — ${x.changes.map(k => LBL[k] || k).join(', ')}${
-            x.edited ? `<br><small style="color:var(--orange)">You’ve changed this one in the app — tick to replace yours with the plan’s</small>` : ''}</span></label>`).join('')}</div>` : ''}
+      ${ups.length ? `<div id="pi-ulist"><p style="margin:12px 0 0;font-weight:800;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+        color:var(--muted)">Updates</p>${ups.map((u, i) => `<label class="pi-up" ${u.series ? 'data-series-up' : ''} style="display:flex;gap:10px;align-items:flex-start;margin:8px 0 0;font-size:14px;cursor:pointer">
+          <input type="checkbox" data-pi-up="${i}" ${u.x.apply ? 'checked' : ''} style="width:18px;height:18px;margin:2px 0 0;flex:none">
+          <span><small style="color:var(--muted)">${u.what}</small> <b style="color:var(--cream)">${esc(u.name || '')}</b> — ${u.x.changes.map(k => LBL[k] || k).join(', ')}${
+            u.x.edited ? `<br><small style="color:var(--orange)">You’ve changed this one in the app — tick to replace yours with the plan’s</small>` : ''}</span></label>`).join('')}</div>` : ''}
       <div class="sheetcta">
         <button class="btn-primary" data-go></button>
         <button class="btn-ghost" data-cancel>Cancel</button>
@@ -336,15 +349,15 @@
         if(eC.length) bits.push(`${eC.length} vlog${eC.length === 1 ? '' : 's'}`);
         if(withSeries() && sC.length) bits.push(`${sC.length} series`);
         if(withSeries() && iC.length) bits.push(`${iC.length} video${iC.length === 1 ? '' : 's'}`);
-        const up = iU.filter(x => x.apply).length;
-        if(withSeries() && up) bits.push(`update ${up}`);
+        const up = ups.filter(u => u.x.apply && (!u.series || withSeries())).length;
+        if(up) bits.push(`update ${up}`);
         goBtn.disabled = !bits.length;
         goBtn.textContent = bits.length ? `Import ${bits.join(', ')}` : 'Nothing new to import';
-        const ul = sheetEl.querySelector('#pi-ulist'); if(ul) ul.style.opacity = withSeries() ? '1' : '.4';
+        sheetEl.querySelectorAll('[data-series-up]').forEach(l => { l.style.opacity = withSeries() ? '1' : '.4'; });
         const sl = sheetEl.querySelector('#pi-slist'); if(sl) sl.style.opacity = withSeries() ? '1' : '.4';
       }
       if(cb) cb.addEventListener('change', label);
-      sheetEl.addEventListener('change', e => { const u = e.target.closest('[data-pi-up]'); if(u){ iU[+u.dataset.piUp].apply = u.checked; label(); } });
+      sheetEl.addEventListener('change', e => { const u = e.target.closest('[data-pi-up]'); if(u){ ups[+u.dataset.piUp].x.apply = u.checked; label(); } });
       label();
       sheetEl.addEventListener('click', async e => {
         if(e.target.closest('[data-cancel]')) return App.closeSheet();
@@ -353,15 +366,16 @@
         go.disabled = true; go.textContent = 'Importing…';
         try {
           pv.includeSeries = withSeries();
+          if(!pv.includeSeries) iU.forEach(x => { x.apply = false; });
           const made = await PlanImport.apply(pv);
           App.closeSheet();
           const skipped = mS.length + eS.length + (pv.includeSeries ? sS.length + iS.length : 0);
           const n = (k, one, many) => made[k] ? `${made[k]} ${made[k] === 1 ? one : many}` : '';
           const got = [n('months','month','months'), n('episodes','vlog','vlogs'),
-                       pv.includeSeries ? n('series','series','series') : '', pv.includeSeries ? n('ideas','video','videos') : '',
-                       pv.includeSeries && made.updated ? `updated ${made.updated}` : '']
+                       pv.includeSeries ? n('series','series','series') : '', pv.includeSeries ? n('ideas','video','videos') : '']
             .filter(Boolean);
-          U.toast(`${got.length ? 'Created ' + got.join(', ') : 'Nothing new created'}${skipped ? ` · skipped ${skipped}` : ''}`);
+          const said = [got.length ? 'Created ' + got.join(', ') : '', made.updated ? `updated ${made.updated}` : ''].filter(Boolean).join(' · ');
+          U.toast(`${said || 'Nothing changed'}${skipped ? ` · ${skipped} unchanged` : ''}`);
           after && after();
         } catch(err){
           console.error(err);
@@ -583,7 +597,9 @@
       const stray = eps.filter(v => !placed.has(v.id));
 
       el.innerHTML = Screens.bar({ kicker:'Month', title:esc(m.name) || 'Month',
-        actions:`<button class="btn-sm" data-a="edit">Edit</button>` }) + `
+        actions:`<button class="btn-sm" data-plan-claude='${esc(JSON.stringify({ kind:'month', monthStart:m.startDate, monthEnd:m.endDate, title:m.name || '',
+          idea:[m.name, m.challenge ? 'Challenge: ' + m.challenge : '', m.notes].filter(Boolean).join('\n') }))}'>✦ Plan with Claude</button>
+          <button class="btn-sm" data-a="edit">Edit</button>` }) + `
       <div class="view">
         <div class="mo-head">
           <p class="nm">${esc(m.name) || 'Untitled month'}</p>
@@ -771,7 +787,7 @@
   injectCSS();
 
   /* the same import, reachable from the Series tab for a file of series ideas */
-  window.PlanImportUI = { fromFile: importPlan };
+  window.PlanImportUI = { fromFile: importPlan, preview: previewPlan };
 
   /* so a quarter can add a month that already belongs to it */
   window.MonthsUI = { openForm };

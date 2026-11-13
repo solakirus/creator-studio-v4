@@ -116,7 +116,7 @@
 
       ${sec('Planning help')}
       <div class="group">
-        ${row(D.bolt,'AI shot suggestions','Your Anthropic key for Suggest shots — or none, and paste into a chat','data-go="ai"')}
+        ${row(D.bolt,'Claude for planning','Your Anthropic key for Draft and Suggest shots — or none, and paste into a chat','data-go="ai"')}
       </div>
 
       ${sec('Data')}

@@ -693,7 +693,10 @@
       const shotsDone = beats.reduce((n,x) => n + (x.beat.shots || []).filter(s => s.done).length, 0);
 
       el.innerHTML = Screens.bar({ kicker:v.week ? `Vlog ${v.week}` : 'Vlog builder', title:v.title,
-        actions:`<span class="modetog">
+        actions:`<button class="btn-sm" data-plan-claude='${esc(JSON.stringify({ kind:'vlog', week:v.week, title:v.title || '',
+            idea:[v.title, v.weeklyChallenge ? 'This week\'s challenge: ' + v.weeklyChallenge : '', v.skill ? 'Skill: ' + v.skill : ''].filter(Boolean).join('\n') }))}'
+            title="Plan this episode's days, sequences and shots with Claude">✦ Plan</button>
+        <span class="modetog">
           <button data-a="mode-plan" aria-pressed="${mode==='plan'}">Plan</button>
           <button data-a="mode-board" aria-pressed="false">Board</button>
           <button data-a="mode-week" aria-pressed="${mode==='week'}">Shoot</button>
