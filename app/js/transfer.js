@@ -135,7 +135,32 @@
   /* mode 'merge' adds and overwrites by id; 'replace' clears each store the
      backup carries first. A store the file doesn't mention is never touched —
      restoring an older backup must not wipe what it never had. */
-  async function importAll(obj, mode){
+  /* v4: what a file holds, by the groups you'd pick from — so a backup from
+     Creator Studio 3 can bring in just its swipe file (or just anything) */
+  const GROUPS = [
+    { k:'swipe',    label:'Swipe file',               stores:['swipes', 'swipe-thumb'] },
+    { k:'refs',     label:'Reference library',        stores:['refs', 'ref-img', 'ref-poster'] },
+    { k:'tasks',    label:'Tasks and routines',       stores:['tasks', 'task-media', 'routines', 'templates', 'presets', 'task-frames'] },
+    { k:'content',  label:'Series, clips and videos', stores:['series', 'clips', 'videos'] },
+    { k:'vlog',     label:'Vlogs, months, quarters',  stores:['vlogs', 'months', 'quarters', 'challenges', 'sources', 'seq-template'] },
+    { k:'notes',    label:'Inbox, notes and journal', stores:['inbox', 'inbox-media', 'journal', 'board-items'] },
+    { k:'library',  label:'Library and templates',    stores:['lib-items', 'lib-blob', 'lib-poster', 'lib-boards', 'shot-templates', 'star-groups', 'nb-music'] },
+    { k:'fitness',  label:'Workouts and body',        stores:['sessions', 'exercises', 'exercise-art', 'runs', 'physique', 'physique-photo', 'plans', 'loads', 'courses'] },
+    { k:'food',     label:'Food',                     stores:['meals', 'meal-photo', 'grocery', 'pantry', 'prep', 'planner'] },
+    { k:'settings', label:'Settings and channels',    stores:['settings'] }
+  ];
+  /* [{ k, label, stores, count }] for the groups this file has records in;
+     anything not in a group is "Everything else" */
+  function contents(obj){
+    const count = s => (Array.isArray((obj.data || {})[s]) ? obj.data[s].length : 0) + (Array.isArray((obj.keyed || {})[s]) ? obj.keyed[s].length : 0);
+    const inFile = [...new Set(Object.keys(obj.data || {}).concat(Object.keys(obj.keyed || {})))].filter(s => count(s));
+    const out = GROUPS.map(g => ({ ...g, stores:g.stores.filter(s => inFile.includes(s)), count:count(g.stores[0]) || g.stores.reduce((n, s) => n + count(s), 0) })).filter(g => g.stores.length);
+    const rest = inFile.filter(s => !GROUPS.some(g => g.stores.includes(s)));
+    if(rest.length) out.push({ k:'other', label:'Everything else', stores:rest, count:rest.reduce((n, s) => n + count(s), 0) });
+    return out;
+  }
+
+  async function importAll(obj, mode, only){
     if(!obj || obj.format !== FORMAT) throw new Error('Not a Creator Studio backup');
     if((obj.version || 1) > VERSION) throw new Error('That backup is from a newer version of the app');
     const shape = await layout();
@@ -143,7 +168,9 @@
     const stats = { blobs:0 };
 
     const plan = [];
+    const wanted = s => !only || only.has(s);
     for(const [s, rows] of Object.entries(obj.data || {})){
+      if(!wanted(s)) continue;
       if(!(s in shape)){ report.skipped.push(s); continue; }
       if(!Array.isArray(rows)) continue;
       const kp = shape[s];
@@ -156,6 +183,7 @@
       }
     }
     for(const [s, pairs] of Object.entries(obj.keyed || {})){
+      if(!wanted(s)) continue;
       if(!(s in shape)){ report.skipped.push(s); continue; }
       if(!Array.isArray(pairs)) continue;
       const kp = shape[s];
@@ -376,6 +404,6 @@
     }
   };
 
-  global.Transfer = { exportAll, importAll, download, pickFile, toObjects, IMPORTERS,
+  global.Transfer = { exportAll, importAll, contents, GROUPS, download, pickFile, toObjects, IMPORTERS,
                       report: () => lastReport, encode, decode, VERSION };
 })(window);

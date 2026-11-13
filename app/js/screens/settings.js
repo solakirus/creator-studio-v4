@@ -1197,14 +1197,49 @@
         const mode = sheetEl.querySelector('[data-group="setmode"] .opt[aria-pressed="true"]').dataset.v;
         const text = await Transfer.pickFile('application/json,.json');
         if(!text) return;
-        try {
-          const n = await Transfer.importAll(JSON.parse(text), mode);
-          const rep = Transfer.report() || {};
-          Data.invalidate(); Nutrition.invalidate(); Channels.invalidate();
-          App.closeSheet();
-          U.toast(`Restored ${n} records${rep.photos ? ` and ${rep.photos} pictures` : ''}`);
-          setTimeout(() => location.reload(), 700);
-        } catch(err){ console.error(err); U.toast(err.message || 'That file could not be read'); }
+        let obj;
+        try { obj = JSON.parse(text); } catch(err){ return U.toast('That file could not be read'); }
+        pickParts(obj, mode);
+      });
+    });
+  }
+
+  /* v4: what's in the file, and which parts to bring in — "just the swipe
+     file" from Creator Studio 3, say. Everything is ticked to start with. */
+  function pickParts(obj, mode){
+    const parts = Transfer.contents ? Transfer.contents(obj) : [];
+    const go = async only => {
+      try {
+        const n = await Transfer.importAll(obj, mode, only);
+        const rep = Transfer.report() || {};
+        Data.invalidate(); Nutrition.invalidate(); Channels.invalidate();
+        App.closeSheet();
+        U.toast(`Brought in ${n} records${rep.photos ? ` and ${rep.photos} pictures` : ''}`);
+        setTimeout(() => location.reload(), 700);
+      } catch(err){ console.error(err); U.toast(err.message || 'That file could not be read'); }
+    };
+    if(!parts.length) return go(null);
+    const swipe = parts.find(p => p.k === 'swipe');
+    App.sheet(`
+      <h2>What to bring in</h2>
+      <p style="margin:0 0 12px;color:var(--muted);font-size:14.5px;line-height:1.55">${mode === 'replace'
+        ? 'Each part you tick replaces what this device has of it. Parts you leave unticked aren’t touched.'
+        : 'Each part you tick is added to what’s here (the same item is updated, nothing is removed).'}</p>
+      ${swipe ? `<button class="btn-ghost" data-only-swipe style="width:100%;margin:0 0 12px">Just the swipe file (${swipe.count})</button>` : ''}
+      <div data-parts>${parts.map(p => `<label style="display:flex;gap:10px;align-items:center;margin:0 0 8px;font-size:14.5px;cursor:pointer">
+        <input type="checkbox" data-part="${p.k}" checked style="width:18px;height:18px;margin:0">
+        <span><b style="color:var(--cream)">${U.esc(p.label)}</b> <small style="color:var(--muted)">${p.count} item${p.count === 1 ? '' : 's'}</small></span></label>`).join('')}</div>
+      <div class="sheetcta"><button class="btn-primary" data-bring>Bring in what’s ticked</button>
+        <button class="btn-ghost" data-cancel>Cancel</button></div>`, sh => {
+      sh.addEventListener('click', e => {
+        if(e.target.closest('[data-cancel]')) return App.closeSheet();
+        if(e.target.closest('[data-only-swipe]')) return go(new Set(swipe.stores));
+        if(e.target.closest('[data-bring]')){
+          const ks = [...sh.querySelectorAll('[data-part]:checked')].map(x => x.dataset.part);
+          if(!ks.length) return U.toast('Tick something to bring in');
+          if(ks.length === parts.length) return go(null);
+          return go(new Set(parts.filter(p => ks.includes(p.k)).flatMap(p => p.stores)));
+        }
       });
     });
   }
