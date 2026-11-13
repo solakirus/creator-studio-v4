@@ -80,6 +80,8 @@
     const cutoff = startOfToday() - KEEP_DAYS * DAY;
     const want = new Set();
     for(const g of await all('star-groups')) (g.items || []).forEach(u => { if(UID.test(u)) want.add(u); });
+    /* frames another device asked for (frameget.js) */
+    for(const r of await all('frame-requests')) if(r && UID.test(r.uid)) want.add(r.uid);
     /* a template's frames are ready on the phone before it's ever used —
        "Morning routine" at 6 am doesn't wait for the laptop to be on */
     for(const t of await all('shot-templates')) collect(t, want);
@@ -128,8 +130,11 @@
       try { blob = await MediaLib.blobOf(it); } catch(e){ blob = null; }
       if(!blob){ missing++; continue; }
       if(blob.size > MAX_BYTES){ tooBig++; continue; }
+      /* where it lives, so another device can put it in the same place (frameget.js) */
+      const pg = it.page && lib.pageIdx ? lib.pageIdx.get(it.page) : null;
       const rec = { uid, kind:it.kind || MediaLib.kindOf(it.name, blob.type) || 'image', name:it.name || 'frame',
                     label:it.label || '', caption:it.caption || '', mime:blob.type || it.mime || '',
+                    path:it.path || '', library:(pg && pg.collection) || '', page:(pg && (pg.page || MediaLib.pageLabel(pg))) || '',
                     bytes:blob.size, blob, keptAt:now() };
       if(it.kind === 'video'){
         try {

@@ -307,6 +307,31 @@
     return { added, refused };
   }
 
+  /* v4: one frame from another device, into this device's app storage
+     (frameget.js). It still answers to the uid it had there (`from`), so the
+     templates and tasks that use it find it here. */
+  async function addBlob(blob, o){
+    const kind = o.kind || kindOf(o.name, blob.type);
+    if(!kind || !blob) return null;
+    if(o.from){
+      const have = (await Store.all('lib-items').catch(() => ({ values:[] }))).values.find(r => r.from === o.from);
+      if(have) return uidOf(have);
+    }
+    const id = newId();
+    const rec = { id, kind, name:o.name || 'frame', label:o.label || '', caption:o.caption || '', link:o.link || '',
+                  source:o.source || '', tags:o.tags || [], from:o.from || '',
+                  library:o.library || 'From other devices', page:o.page || 'Fetched',
+                  bytes:blob.size || 0, mime:blob.type || '', createdAt:Date.now() };
+    if(kind === 'video'){
+      const p = await videoPoster(blob);
+      if(p && p.blob){ await Store.put('lib-poster', p.blob, id); rec.dur = p.dur; rec.w = p.w; rec.h = p.h; }
+    }
+    await Store.put('lib-blob', blob, id);
+    await Store.put('lib-items', rec);
+    invalidate();
+    return uidOf(rec);
+  }
+
   /* a direct link to a GIF, a clip or a picture, fetched outside the page */
   async function addFromLink(link, library){
     const u = String(link || '').trim();
@@ -647,7 +672,7 @@
     BOARD_GROUPS, KIND_LABEL, KINDS, MAX_GIF_BYTES,
     kindOf, titleCase, title, pageLabel,
     settings, setSettings, load, invalidate, find, url, posterUrl, blobOf,
-    addFiles, addFromLink, update, remove, moveToLibrary, bringIn,
+    addFiles, addFromLink, addBlob, update, remove, moveToLibrary, bringIn,
     allBoards, saveBoard, deleteBoard, addToBoard, importShotline,
     allStars, saveStar, deleteStar, starInto, unstar, starredSet,
     deck, search, target, setTarget, disk, videoPoster,

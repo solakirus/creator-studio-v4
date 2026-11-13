@@ -185,6 +185,47 @@ function wire({ ipcMain, dialog, shell, net, getWin }) {
   });
 
   /* "delete" moves into Shot Library/_Deleted, keeping the folders (library.rs trash) */
+  /* v4: a frame from another device (frameget.js), saved into this computer's
+     Shot Library at its path there — <library>/<video>/… — from bytes the
+     page has, or straight from a link (nastime's Shot Library). Never
+     overwrites a different file: that one gets " (2)". */
+  ipcMain.handle('cs3:lib-save', async (e, o) => {
+    try {
+      const parts = String((o && o.path) || '').replace(/\\/g, '/').split('/')
+        .filter(x => x && x !== '.' && x !== '..').map(x => safeName(x));
+      if (!parts.length || !kindOf(parts[parts.length - 1])) return { ok: false, why: 'Not a GIF, clip or picture' };
+      const root = path.resolve(defaultRoot());
+      let abs = path.join(root, ...parts);
+      if (!abs.startsWith(root + path.sep)) return { ok: false, why: 'Outside the Shot Library' };
+      let buf;
+      if (o.url) {
+        if (!/^https?:\/\//i.test(o.url)) return { ok: false, why: 'Bad link' };
+        const r = await net.fetch(o.url, { cache: 'no-store' });
+        if (!r.ok) return { ok: false, why: 'answered ' + r.status };
+        buf = Buffer.from(await r.arrayBuffer());
+      } else buf = Buffer.from(o.data || []);
+      if (!buf.length) return { ok: false, why: 'Empty' };
+      if (fs.existsSync(abs)) {
+        if (fs.statSync(abs).size === buf.length) return { ok: true, path: parts.join('/'), same: true };
+        const ext = path.extname(abs), stem = abs.slice(0, -ext.length || undefined);
+        let n = 2; while (fs.existsSync(`${stem} (${n})${ext}`)) n++;
+        abs = `${stem} (${n})${ext}`;
+      }
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      fs.writeFileSync(abs + '.cs4part', buf);
+      fs.renameSync(abs + '.cs4part', abs);
+      return { ok: true, path: path.relative(root, abs).split(path.sep).join('/') };
+    } catch (err) { return { ok: false, why: err.message }; }
+  });
+  /* nastime's Shot Library list, read outside the page (no CORS, no mixed content) */
+  ipcMain.handle('cs3:lib-fetchjson', async (e, url) => {
+    try {
+      if (!/^https?:\/\//i.test(String(url))) return null;
+      const r = await net.fetch(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now(), { cache: 'no-store' });
+      return r.ok ? await r.json() : null;
+    } catch (err) { return null; }
+  });
+
   ipcMain.handle('cs3:lib-trash', (e, list) => {
     let n = 0;
     const deleted = path.join(defaultRoot(), '_Deleted');

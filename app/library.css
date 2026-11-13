@@ -392,3 +392,10 @@ html[data-mode="light"] .lv-btn:not(.ghost){color:#fff}
 .tp-fbtn{width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.65);color:#fff;
   font-size:14px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0}
 .tp-fbtn:hover{background:var(--accent,#ff6a00);border-color:transparent}
+/* v4: GIFs this device's Library doesn't have (frameget.js) */
+.lv-missbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:9px 12px;border-radius:var(--r);
+  background:rgba(255,106,0,.08);border:1px dashed var(--orange,#ff6a00);font-size:14px}
+.lv-missbar > span{flex:1;min-width:200px}
+.lv-missbar small{color:var(--muted)}
+.lv-missing{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+.lv-getone{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:3;white-space:nowrap}

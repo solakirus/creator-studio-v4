@@ -268,6 +268,8 @@
           </article>`).join('')}</div>`
           : `<div class="empty"><b>Nothing starred yet</b>Make groups for the shots you make all the time — Walking, Car work, Transitions — and star frames into them. Each group is on your phone, ready for any task.</div>`}`;
       hydrate(body, lib, { play:false });
+      /* v4: starred GIFs this device's Library doesn't have — one button gets them all */
+      if(window.FrameGet) FrameGet.bar(body, all, () => render());
       body.addEventListener('click', async e => {
         const nameSheet = (title, val, done) => App.sheet(`<h2 style="margin:0 0 14px">${title}</h2>
           <input id="sg-n" class="pgname" type="text" value="${esc(val || '')}" placeholder="e.g. Walking, Car work, Transitions" autocomplete="off">

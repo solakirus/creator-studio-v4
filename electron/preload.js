@@ -80,6 +80,8 @@ contextBridge.exposeInMainWorld('CS3Lib', {
   pickFolder: () => ipcRenderer.invoke('cs3:lib-pick-folder'),
   open: target => ipcRenderer.invoke('cs3:lib-open', target),
   trash: list => ipcRenderer.invoke('cs3:lib-trash', list || []),
+  saveFrame: o => ipcRenderer.invoke('cs3:lib-save', o),
+  fetchJson: url => ipcRenderer.invoke('cs3:lib-fetchjson', url),
   boardFolder: o => ipcRenderer.invoke('cs3:lib-board-folder', o),
   shotline: () => ipcRenderer.invoke('cs3:lib-shotline'),
   grabFind: setting => ipcRenderer.invoke('cs3:grab-find', setting || ''),

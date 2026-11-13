@@ -2,7 +2,7 @@
    One database, one version, every store declared in one place. */
 (function(global){
   const DB_NAME = global.CS_DB_NAME || 'creator-studio-4';   /* tests set CS_DB_NAME so they never touch real data */
-  const DB_VERSION = 37;
+  const DB_VERSION = 38;
   const STORES = {
     art:            {},                  // task card images, keyed by item slug
     focal:          {},                  // {x,y} focal point per item slug
@@ -68,7 +68,10 @@
     'task-frames':  { keyPath:'uid' },
     /* v4: starred groups — frames picked on the laptop that live on every
        device, always (taskframes.js keeps them; they're never swept) */
-    'star-groups':  { keyPath:'id' }
+    'star-groups':  { keyPath:'id' },
+    /* v4: frames a device asked the others for (frameget.js): whoever has
+       one copies it into task-frames, and the asker saves it into its Library */
+    'frame-requests': { keyPath:'uid' }
   };
 
   let dbp = null;

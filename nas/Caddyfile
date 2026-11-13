@@ -26,11 +26,13 @@
 	# the Shot Library, for the iPad's Library: the list comes from the
 	# helper, the files straight from the folder
 	handle /shotlib-index.json {
+		header Access-Control-Allow-Origin "*"
 		reverse_proxy {$HELPER:creator-studio-v4-helper:8080}
 	}
 	handle_path /shotlib/* {
 		root * /shotlib
 		header Cache-Control "public, max-age=86400"
+		header Access-Control-Allow-Origin "*"
 		file_server
 	}
 

@@ -91,11 +91,16 @@
         const inner = document.createElement('div');
         box.appendChild(inner);
         PagesEditor.mount(inner, { sheets:t.sheets, tasks:t.tasks.map(x => x.title), tid:t.id, save:() => save() });
-        return;
+        return missingBar(box);
       }
-      if(tab === 'tasks') return tasksTab(box);
-      if(tab === 'look') return lookTab(box);
-      return shotsTab(box);
+      if(tab === 'tasks') await tasksTab(box);
+      else if(tab === 'look') await lookTab(box);
+      else await shotsTab(box);
+      missingBar(box);
+    }
+    /* v4: this template's GIFs that this device's Library doesn't have — one button gets them all */
+    function missingBar(box){
+      if(window.FrameGet && window.TaskFrames && t) FrameGet.bar(box, [...TaskFrames.collect([t.shots, t.sheets, t.look])], () => render());
     }
 
     /* ---------------------------------------------------------- Shots (ui_plan.rs storyboard) */
@@ -119,7 +124,7 @@
               <small>${Notebook.fmtTime(s0)} · ${Notebook.fmtTime(s.seconds || per)}</small></div>
             <div class="tp-frame${s.item ? '' : ' empty'}" data-frame="${i}">
               ${s.sequence ? `<div class="tp-mosaic">${s.sequence.slots.slice(0, 9).map(x => x.item ? LibView.tile(MediaLib.find(lib, x.item), { badge:false }) : '<div class="lv-tile lv-blank"></div>').join('')}</div>`
-                : s.item ? LibView.tile(it, { badge:false }) : ''}
+                : s.item ? LibView.tile(it, { badge:false, uid:s.item }) : ''}
               <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
               ${s.role ? `<span class="tp-role">${esc(s.role.toUpperCase())}</span>` : ''}
               <span class="tp-hint">${s.sequence ? 'Open the task sequence' : s.item ? 'Click to view · ↻ change · ✕ take off' : 'Pick a frame from the Library'}</span>

@@ -1060,6 +1060,11 @@
       }
 
       if(t.page) drawPage();
+      /* v4: GIFs on this task's pages that this device's Library doesn't have — one button gets them all */
+      if(window.FrameGet && window.TaskFrames && hasLib()){
+        const sb = el.querySelector('[data-fold="steps"]');
+        if(sb) FrameGet.bar(sb, [...TaskFrames.collect([t.page, t.morePages, t.subs])], () => render());
+      }
       slideDir = '';
       /* a shot's name, type and note: saved when left, or on Enter */
       el.querySelectorAll('[data-pf]').forEach(f => {

@@ -12,7 +12,8 @@
   /* One frame, filled in later by hydrate(). `cls` adds classes, `sel` ticks it. */
   function tile(it, o){
     const opts = o || {};
-    if(!it) return `<div class="lv-tile lv-missing ${opts.cls || ''}"><span>not in your library</span></div>`;
+    if(!it) return `<div class="lv-tile lv-missing ${opts.cls || ''}"><span>not in your library</span>${
+      opts.uid && MediaLib.hasLibrary() ? `<button type="button" class="lv-btn sm lv-getone" data-getone="${esc(opts.uid)}">↓ Get it</button>` : ''}</div>`;
     return `<div class="lv-tile ${opts.cls || ''}${opts.sel ? ' is-sel' : ''}" data-uid="${esc(it.uid)}" data-kind="${it.kind}"
         title="${esc(MediaLib.title(it))}">
       <div class="lv-media" data-media="${esc(it.uid)}"></div>
