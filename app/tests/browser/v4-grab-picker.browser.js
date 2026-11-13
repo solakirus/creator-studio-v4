@@ -93,6 +93,15 @@ const head = s => console.log(`\n— ${s} —`);
   await toLib();
   if(await p.$eval('.lv-tabs [data-tab="add"]', e => e.getAttribute('aria-selected')) !== 'true'){ await p.click('.lv-tabs [data-tab="add"]'); await p.waitForTimeout(600); }
   ok(await p.$$eval('[data-found] [data-fl]', x => x.length) === 3, 'all three found links are listed again', String(await p.$$eval('[data-found] [data-fl]', x => x.length)));
+  await p.evaluate(() => __G.emit('link', { url:'https://www.instagram.com/reel/MR0/', title:'Reel · MR0 · 628K views · pinned', kind:'video',
+    thumb:'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACwAAAAAAQABAAACAkQBADs=' }));
+  await p.waitForTimeout(150);
+  ok(await p.$$eval('[data-found] .lv-fthumb', x => x.length) === 1, 'a found reel shows its picture');
+  ok(/instagram\.com\/reel\/MR0/.test(await p.textContent('[data-found]')), 'and where it lives, under its name');
+  await p.click('[data-tickfound]'); await p.waitForTimeout(100);
+  ok(await p.$$eval('[data-found] [data-fl]', x => x.every(c => c.checked)), 'Tick all ticks every found link');
+  await p.click('[data-tickfound]'); await p.waitForTimeout(100);
+  ok(await p.$$eval('[data-found] [data-fl]', x => x.every(c => !c.checked)), 'and again clears them');
   ok(await p.isVisible('[data-stop]'), 'and the scan can be stopped');
   await p.click('[data-stop]'); await p.waitForTimeout(150);
   ok(await p.evaluate(() => __G.stops) === 2, 'Stop on Add & grab reaches the grabber');

@@ -842,10 +842,7 @@
         const box = body.querySelector('[data-found]');
         const draw = () => {
           if(!box.isConnected) return;
-          box.innerHTML = `<p class="hintline">${plural(found.length, 'link')} found — tick the ones to grab</p>` +
-            found.map((x, i) => `<label class="lv-row lv-found"><input type="checkbox" data-fl="${i}"> <span class="pill sm">${esc(x.kind || '')}</span>
-              <span class="lv-pt">${esc(x.title || x.url)}</span></label>`).join('') +
-            `<button class="lv-btn sm" data-addfound>Add ticked to the links list</button>`;
+          box.innerHTML = foundHtml(found);
           box._found = found;
         };
         if(found.length) draw();
@@ -858,6 +855,19 @@
         if(o.setup && log.isConnected) setTimeout(render, 400);
       }));
       return say;
+    }
+    /* v4: what a scan found — the post's picture, a readable name and where
+       it lives, so you can tell which reels you're ticking */
+    function foundHtml(found){
+      const shortUrl = u => String(u || '').replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+      return `<p class="hintline">${plural(found.length, 'link')} found — tick the ones to grab
+          ${found.length > 1 ? '<button class="lv-btn sm ghost" data-tickfound>Tick all</button>' : ''}</p>` +
+        found.map((x, i) => `<label class="lv-row lv-found"><input type="checkbox" data-fl="${i}">
+          ${x.thumb ? `<img class="lv-fthumb" src="${esc(x.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
+          <span class="lv-ftext"><span class="lv-pt">${esc(x.title || shortUrl(x.url))}</span>
+          <small class="lv-furl">${esc(shortUrl(x.url))}</small></span>
+          <span class="pill sm">${esc(x.kind || '')}</span></label>`).join('') +
+        `<button class="lv-btn sm" data-addfound>Add ticked to the links list</button>`;
     }
     async function restoreGrab(body){
       const d = MediaLib.disk();
@@ -879,10 +889,7 @@
         wireGrab(body, { scan:st.mode === 'scan', found:found || [], setup:st.mode === 'setup' });
       } else if(found && found.length){
         const box = body.querySelector('[data-found]');
-        box.innerHTML = `<p class="hintline">${plural(found.length, 'link')} found — tick the ones to grab</p>` +
-          found.map((x, i) => `<label class="lv-row lv-found"><input type="checkbox" data-fl="${i}"> <span class="pill sm">${esc(x.kind || '')}</span>
-            <span class="lv-pt">${esc(x.title || x.url)}</span></label>`).join('') +
-          `<button class="lv-btn sm" data-addfound>Add ticked to the links list</button>`;
+        box.innerHTML = foundHtml(found);
         box._found = found;
       }
       if(st.running) body.querySelector('[data-log]').closest('.lv-card').scrollIntoView({ block:'nearest' });
@@ -970,6 +977,13 @@
         if(!r.ok) return U.toast(r.why);
         setBusy(body, true);
         return say('Finding links on ' + url + '…');
+      }
+      if(e.target.closest('[data-tickfound]')){
+        e.preventDefault();
+        const boxes = [...body.querySelectorAll('[data-found] [data-fl]')];
+        const on = boxes.some(x => !x.checked);
+        boxes.forEach(x => { x.checked = on; });
+        return;
       }
       if(e.target.closest('[data-addfound]')){
         const box = body.querySelector('[data-found]');

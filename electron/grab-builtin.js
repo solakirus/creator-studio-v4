@@ -394,7 +394,7 @@ async function scan(job, t, url, max, link) {
   if (isSocial(url) && !postLink(url) && Browser.available()) {
     const list = await Browser.postLinks(job, url, postLink, max);
     if (!list) { job.emit('✗ The page couldn’t be opened'); return 1; }
-    for (const l of list) link({ url: l.url, title: l.title || l.url.replace(/^https:\/\/(www\.)?/, ''), kind: l.kind });
+    for (const l of list) link({ url: l.url, title: l.title || l.url.replace(/^https:\/\/(www\.)?/, ''), kind: l.kind, thumb: l.thumb || '' });
     job.emit(list.length ? `${list.length} post${list.length === 1 ? '' : 's'} and reel${list.length === 1 ? '' : 's'} found`
       : 'No posts found — is the profile private, or did the sign-in not finish?');
     return list.length ? 0 : 1;

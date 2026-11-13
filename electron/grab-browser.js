@@ -139,30 +139,96 @@ async function signIn(win, url, job) {
 const POSTS = `(() => [...document.querySelectorAll('a[href]')].map(a => {
   let u = ''; try { u = new URL(a.getAttribute('href'), location.href).href; } catch (e) {}
   const im = a.querySelector('img');
-  return { url: u, title: ((im && im.getAttribute('alt')) || a.getAttribute('aria-label') || a.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 120) };
+  /* the grid's picture: an <img>, or a background-image on a box inside the link */
+  let thumb = im ? (im.currentSrc || im.src || '') : '';
+  if (!thumb) for (const el of a.querySelectorAll('div,span')) {
+    const bg = getComputedStyle(el).backgroundImage;
+    const m = bg && /url\\(["']?([^"')]+)/.exec(bg);
+    if (m) { thumb = m[1]; break; }
+  }
+  /* the words people wrote (alt text, a label) — not the counters the grid draws over it */
+  const alt = (im && im.getAttribute('alt')) || a.getAttribute('aria-label') || '';
+  return { url: u, nav: !!a.closest('nav,[role=navigation],header'), title: alt.replace(/\\s+/g, ' ').trim().slice(0, 140), text: (a.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 200), thumb };
 }).filter(l => /^https?:/.test(l.url)))()`;
+/* v4: a readable name for a post or reel. The grid's text is its counters
+   ("37.1K38KPinned post iconView Count Icon628K"), so unless the post has
+   real words (alt text), it's "Reel DQx1abc · 628K views · pinned". */
+function postTitle(k, l) {
+  const words = String(l.title || '').trim();
+  const generic = /^(photo|video|reel|image|post)( by .*)?$|may be an image|no photo description/i;
+  if (words && !generic.test(words) && !/icon/i.test(words)) return words;
+  const code = (/\/(?:p|reel|reels|tv|video|photo|status)\/([^/?#]+)/.exec(k.url) || [])[1] || '';
+  const t = String(l.text || '');
+  const views = (/view count icon\s*([\d.,]+\s*[KMB]?)/i.exec(t) || /([\d.,]+\s*[KMB]?)\s*views?/i.exec(t) || [])[1];
+  const pinned = /pinned/i.test(t);
+  return [k.kind === 'video' ? 'Reel' : 'Post', code, views && views.replace(/\s+/g, '') + ' views', pinned && 'pinned'].filter(Boolean).join(' · ');
+}
 async function postLinks(job, url, keep, max) {
   const ses = session();
   const win = makeWindow(ses);
   try {
     if (!(await open(win, url, job))) return null;
     const found = new Map();
-    let last = 0, same = 0;
+    const handle = profileHandle(url);
+    let last = 0, same = 0, askedSignIn = false;
     for (let i = 0; i < SCROLL_MAX * 2 && !job.stopped && found.size < max; i++) {
       let links = [];
       try { links = await win.webContents.executeJavaScript(POSTS); } catch (e) { break; }
-      for (const l of links) { const k = keep(l.url); if (k && !found.has(k.url)) found.set(k.url, { ...k, title: k.title || l.title }); }
+      for (const l of links) {
+        if (l.nav) continue;            /* the site's own menu (its Reels tab is someone else's reel) */
+        const k = keep(l.url);
+        if (k && !found.has(k.url)) found.set(k.url, { ...k, title: k.title || postTitle(k, l), thumb: l.thumb || '', own: ownedBy(l.url, handle) });
+      }
       if (i % 5 === 4) job.emit(`  ${found.size} found so far…`);
       let h = 0;
       try { h = await win.webContents.executeJavaScript('window.scrollBy(0, Math.round(innerHeight * 0.9)); Math.round(scrollY + innerHeight) + "/" + document.documentElement.scrollHeight'); } catch (e) { break; }
       await wait(SCROLL_PAUSE_MS);
       const [at, total] = String(h).split('/').map(Number);
       const n = found.size;
+      /* stuck after the first rows: Instagram and TikTok put a sign-in box over
+         the grid once you scroll. Sign in once, then it carries on. */
+      if (n === last && !askedSignIn && SIGNIN_SITES.test(hostOf(url)) && await isWalled(win)) {
+        askedSignIn = true;
+        if (await signIn(win, url, job) === false) break;
+        same = 0; continue;
+      }
       if (at >= total - 4 && n === last) { if (++same >= 3) break; } else same = 0;
       last = n;
     }
-    return [...found.values()].slice(0, max);
+    /* the profile's own posts only: under the grid sit "more posts" and
+       suggested reels from other people. Their links carry the handle. */
+    let list = [...found.values()];
+    if (list.some(x => x.own)) list = list.filter(x => x.own);
+    list = list.slice(0, max);
+    for (const x of list) { x.thumb = await thumbData(ses, x.thumb); delete x.own; }
+    return list;
   } catch (e) { return null; } finally { try { win.destroy(); } catch (e) {} }
+}
+
+/* "bryanhynes" from instagram.com/bryanhynes/reels/, "@name" from tiktok.com/@name */
+function profileHandle(url) {
+  let x; try { x = new URL(url); } catch (e) { return ''; }
+  const seg = x.pathname.split('/').filter(Boolean)[0] || '';
+  if (!seg || /^(p|reel|reels|tv|explore|stories|video|photo|search|home|i)$/i.test(seg)) return '';
+  return seg.toLowerCase();
+}
+function ownedBy(href, handle) {
+  if (!handle) return false;
+  try { return new URL(href).pathname.toLowerCase().split('/').filter(Boolean)[0] === handle; } catch (e) { return false; }
+}
+/* a small copy of the grid picture, so the list shows what each link is
+   (the site's picture links don't load outside its own pages) */
+async function thumbData(ses, u) {
+  if (!u || !/^https?:/.test(u)) return u && u.startsWith('data:') && u.length < 300000 ? u : '';
+  try {
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 6000);
+    const r = await ses.fetch(u, { signal: ctl.signal }); clearTimeout(t);
+    if (!r.ok) return '';
+    const type = (r.headers.get('content-type') || 'image/jpeg').split(';')[0];
+    if (!/^image\//.test(type)) return '';
+    const b = Buffer.from(await r.arrayBuffer());
+    return b.length > 250000 ? '' : `data:${type};base64,${b.toString('base64')}`;
+  } catch (e) { return ''; }
 }
 
 /* the app window's own sign-in for a site, as a cookies.txt yt-dlp can read,
@@ -437,5 +503,5 @@ async function pageLinks(job, url) {
   } catch (e) { return null; } finally { try { win.destroy(); } catch (e) {} }
 }
 
-module.exports = { available, grabPage, pageLinks, postLinks, cookieFile, mediaIn, rank, kindOf, challenged,
+module.exports = { available, grabPage, pageLinks, postLinks, postTitle, profileHandle, ownedBy, cookieFile, mediaIn, rank, kindOf, challenged,
   SIGNIN_SITES, WALLED, POSTS, CHECK_WAIT_MS, SCROLL_MAX, MIN_SIDE, BIG_MAX };

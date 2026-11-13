@@ -31,6 +31,25 @@ const NAV = `<nav><a href="/">Instagram</a><a href="/accounts/login/">Log In</a>
 const server = http.createServer((req, res) => {
   const signed = /sessionid=ok/.test(req.headers.cookie || '');
   const send = (h, code) => { res.writeHead(code || 200, { 'Content-Type': 'text/html' }); res.end(h); };
+  /* a tiny picture for the grid's thumbnails */
+  if (req.url.startsWith('/thumb/')) { res.writeHead(200, { 'Content-Type': 'image/gif' });
+    return res.end(Buffer.from('R0lGODlhAQABAIAAAP///wAAACwAAAAAAQABAAACAkQBADs=', 'base64')); }
+  /* a Reels tab like Instagram's now: no words on the tiles, only counters
+     ("37.1K38KPinned post iconView Count Icon628K"), the picture as a
+     background, the site's own Reels menu pointing at someone else's reel,
+     other people's reels below the grid — and signed out, a log-in box over
+     the grid once you scroll past the first 12 */
+  if (req.url.startsWith('/mid/')) {
+    const n = signed ? 30 : 12;
+    const tiles = Array.from({ length: n }, (_, i) => `<a href="/mid/reel/MR${i}/"><div style="height:300px;background-image:url(&quot;https://scontent.cdninstagram.com/thumb/MR${i}.gif&quot;)"></div>
+      <span>${i === 0 ? '37.1K</span><span>38K</span><svg aria-label="Pinned post icon"><title>Pinned post icon</title></svg>' : '180</span><span>342</span>'}
+      <svg aria-label="View Count Icon"><title>View Count Icon</title></svg><span>${i === 0 ? '628K' : (i + 1) * 1000}</span></a>`).join('');
+    const nav = `<nav><a href="/reels/NAVREEL1/">Reels</a><a href="/explore/">Explore</a></nav>`;
+    const more = `<h3>More from Instagram</h3><a href="/someoneelse/reel/OTHER1/"><span>9</span></a><a href="/another/reel/OTHER2/"><span>12</span></a>`;
+    return send(page(nav + `<h1>mid</h1><div id="g" style="display:grid;grid-template-columns:1fr 1fr 1fr">${tiles}</div>${signed ? more : ''}
+      ${signed ? '' : `<script>addEventListener('scroll',()=>{if(scrollY>400&&!document.querySelector('[role=dialog]'))
+        document.body.insertAdjacentHTML('beforeend','<div role="dialog"><h2>Log in to see more</h2><input type="password"><a href="/accounts/login/">Log in</a></div>')});</script>`}`));
+  }
   if (req.url.startsWith('/bryanhynes')) {
     if (!signed) return send(page(NAV + `<h1>bryanhynes</h1><div role="dialog"><h2>Log in to Instagram</h2>
       <input name="username"><input type="password" name="password"><a href="/accounts/login/">Log in</a></div>`));
@@ -65,7 +84,7 @@ class BrowserWindow {
 const fakeElectron = {
   BrowserWindow,
   app: { isReady: () => true },
-  session: { fromPartition: () => ({ getUserAgent: () => 'Mozilla/5.0 Chrome/131 Electron/30', setUserAgent(){},
+  session: { fromPartition: () => ({ fetch: (u, o) => { const x = new URL(u); return fetch(`http://127.0.0.1:${server.address().port}${x.pathname}`, o); }, getUserAgent: () => 'Mozilla/5.0 Chrome/131 Electron/30', setUserAgent(){},
     cookies: { get: async ({ domain }) => (await ctx.cookies()).filter(c => c.domain.replace(/^\./, '').endsWith(domain))
       .map(c => ({ ...c, expirationDate: c.expires > 0 ? c.expires : undefined, hostOnly: !c.domain.startsWith('.') })) } }) }
 };
@@ -116,6 +135,20 @@ require.cache.electron = { id: 'electron', filename: 'electron', loaded: true, e
   ok(!!jar && /^# Netscape HTTP Cookie File/.test(txt), 'a cookies.txt yt-dlp can read is written');
   ok(/www\.instagram\.com\tFALSE\t\/\tTRUE\t\d+\tsessionid\tok/.test(txt), 'holding the Instagram sign-in', txt.split('\n')[1]);
   ok(await Browser.cookieFile('https://www.tiktok.com/@x/video/1', dir) === null, 'and nothing for a site never signed in to');
+
+  console.log('\n— a Reels tab whose log-in box only shows after scrolling —');
+  await ctx.clearCookies();
+  const before = shows.length, j3 = job(), reels = [];
+  await Builtin.scan(j3, { ytdlp: null }, 'https://www.instagram.com/mid/reels/', 200, l => reels.push(l));
+  ok(shows.length === before + 1, 'the log-in box that appears mid-scroll opens the sign-in window');
+  ok(reels.length === 30, 'so every reel is found, not just the first 12 shown signed out', reels.length);
+  ok(reels.every(l => /\/reel\/MR\d+\/$/.test(l.url)), 'only this profile\'s reels — not the menu\'s Reels link or other people\'s below the grid',
+    reels.filter(l => !/MR\d/.test(l.url)).map(l => l.url).join(' '));
+  const t0 = reels.find(l => /MR0\//.test(l.url)), t5 = reels.find(l => /MR5\//.test(l.url));
+  ok(!reels.some(l => /icon/i.test(l.title)), 'no "View Count Icon" junk in the names', t0 && t0.title);
+  ok(t0 && t0.title === 'Reel · MR0 · 628K views · pinned', 'a reel is named by its code, views and pinned', t0 && t0.title);
+  ok(t5 && t5.title === 'Reel · MR5 · 6000 views', 'and the others by code and views', t5 && t5.title);
+  ok(reels.every(l => /^data:image\/gif;base64,/.test(l.thumb || '')), 'each carries its grid picture, copied so the app can show it', (t0 && t0.thumb || '').slice(0, 30));
 
   await browser.close(); server.close();
   console.log(`\nsocial profiles  (${pass} ok, ${fail} failed)`);
