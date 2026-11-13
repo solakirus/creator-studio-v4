@@ -19,7 +19,7 @@
     { v:'week',     label:'Week',     screen:'week-board',
       d:'M3 5h18v15H3zM3 9h18M8.5 9v11M14 9v11' }
   ];
-  let section = (global.matchMedia && matchMedia('(min-width: 900px)').matches) ? 'week' : 'calendar';
+  let section = /[?&]planner\b/.test(location.search) || (global.matchMedia && matchMedia('(min-width: 900px)').matches) ? 'week' : 'calendar';
 
   (function css(){
     if(document.getElementById('mn-css')) return;

@@ -4058,3 +4058,12 @@ html{-webkit-text-size-adjust:100%}
 .upd-bar span{flex:1;white-space:nowrap}
 .upd-bar button{height:32px;padding:0 12px;border-radius:var(--r);border:1px solid var(--line);background:transparent;color:inherit;font:inherit;font-weight:700;cursor:pointer}
 .upd-bar .upd-go{background:var(--orange,#ff6a00);border-color:transparent;color:#111}
+
+/* v4: the Planner (app.js PLANNER) — Plan, Content, Settings and Send to phone */
+.planner .tab-send{color:var(--orange)}
+.planner .tab-send.busy{opacity:.5;pointer-events:none}
+@media (min-width: 900px){
+  .planner .tabbar{flex:1}
+  .planner .tab-send{margin-top:auto;background:rgba(255,106,0,.1);height:auto;padding:12px 0}
+  .planner .tab-send::after{white-space:normal;text-align:center;line-height:1.25}
+}

@@ -1753,5 +1753,7 @@
   Screens.register('coverage', mountCoverage);
   Screens.register('channels', mountChannels);
   Screens.register('settings', mount);
+  /* v4: the Planner's Send to phone falls back on this when Sync isn't set up */
+  window.SettingsActions = { exportForDevice };
   Screens.register('toolicons', mountIcons);
 })();

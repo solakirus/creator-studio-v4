@@ -10,6 +10,7 @@ const { app, BrowserWindow, protocol, net, shell, Menu, ipcMain, dialog,
         Notification, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { pathToFileURL } = require('url');
 
 const SCHEME = 'cs4';                  /* deep links: cs4://go/today */
@@ -49,11 +50,18 @@ if (SHOT) {
 const linkIn = argv => (argv || []).find(a => typeof a === 'string' && a.startsWith(SCHEME + '://')) || null;
 let launchUrl = linkIn(process.argv);
 let win = null;
+/* v4: the Planner — the same app showing only planning (week board, months,
+   episodes, series, clips, templates, Library) and a Send to phone button.
+   `--planner` opens it (the "Creator Studio Planner" shortcuts); started while
+   the app is open, it opens as a second window on the same data. */
+const PLANNER_NAME = 'Creator Studio Planner';
+const wantsPlanner = argv => (argv || []).includes('--planner');
+const plannerWins = new Set();
 
-function open(){
-  win = new BrowserWindow({
+function open(planner){
+  const w = new BrowserWindow({
     width: 1440, height: 900, minWidth: 380, minHeight: 600,
-    backgroundColor: '#151515', title: NAME, autoHideMenuBar: true,
+    backgroundColor: '#151515', title: planner ? PLANNER_NAME : NAME, autoHideMenuBar: true,
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     /* a screenshot run never shows the window, so it can't take focus */
     show: !SHOT,
@@ -67,19 +75,53 @@ function open(){
       preload: path.join(__dirname, 'preload.js')
     }
   });
-  win.loadURL('app://cs3/index.html');
-  if (SHOT) takeScreenshot(win);
+  w.loadURL('app://cs3/index.html' + (planner ? '?planner=1' : ''));
+  if (!win) win = w;
+  if (planner){ plannerWins.add(w); w.on('page-title-updated', e => e.preventDefault()); }
+  w.on('closed', () => {
+    plannerWins.delete(w);
+    if (win === w) win = BrowserWindow.getAllWindows().find(x => !x.isDestroyed()) || null;
+  });
+  if (SHOT) takeScreenshot(w);
 
   const external = url => /^(https?:|mailto:|tel:)/i.test(url);
-  win.webContents.setWindowOpenHandler(({ url }) => {
+  w.webContents.setWindowOpenHandler(({ url }) => {
     if (external(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
-  win.webContents.on('will-navigate', (e, url) => {
+  w.webContents.on('will-navigate', (e, url) => {
     if (url.startsWith('app://')) return;
     e.preventDefault();
     if (external(url)) shell.openExternal(url);
   });
+  return w;
+}
+
+/* The Planner's own shortcuts, made once: Desktop and Start menu on Windows,
+   the app menu on Linux. They start this same app with --planner. */
+function plannerShortcuts(){
+  if (SHOT || process.defaultApp) return;
+  const flag = path.join(app.getPath('userData'), 'planner-shortcuts-v1');
+  if (fs.existsSync(flag)) return;
+  try {
+    if (process.platform === 'win32') {
+      const icon = process.execPath;
+      const lnk = { target: process.execPath, args: '--planner', description: 'Plan videos — the minimal Creator Studio', icon, iconIndex: 0,
+                    appUserModelId: 'com.solakirus.creatorstudio4' };
+      shell.writeShortcutLink(path.join(app.getPath('desktop'), PLANNER_NAME + '.lnk'), 'create', lnk);
+      const menu = path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs');
+      if (fs.existsSync(menu)) shell.writeShortcutLink(path.join(menu, PLANNER_NAME + '.lnk'), 'create', lnk);
+    } else if (process.platform === 'linux') {
+      const dir = path.join(os.homedir(), '.local', 'share', 'applications');
+      fs.mkdirSync(dir, { recursive: true });
+      const exec = (process.env.APPIMAGE || process.execPath).replace(/"/g, '\\"');
+      fs.writeFileSync(path.join(dir, 'creator-studio-planner.desktop'), [
+        '[Desktop Entry]', 'Type=Application', 'Name=' + PLANNER_NAME, 'Comment=Plan videos — the minimal Creator Studio',
+        `Exec="${exec}" --planner %U`, 'Icon=creator-studio-v4', 'Terminal=false', 'Categories=Office;Video;', 'StartupWMClass=Creator Studio v4', ''].join('\n'));
+    }
+    fs.mkdirSync(path.dirname(flag), { recursive: true });
+    fs.writeFileSync(flag, new Date().toISOString());
+  } catch (e) { console.warn('planner shortcuts', e); }
 }
 
 function focus(){
@@ -89,6 +131,12 @@ function focus(){
 }
 
 app.on('second-instance', (e, argv) => {
+  /* the Planner shortcut while the app is open: its own window (or the one already open) */
+  if (wantsPlanner(argv)) {
+    const pw = [...plannerWins].find(x => !x.isDestroyed());
+    if (pw) { if (pw.isMinimized()) pw.restore(); pw.show(); pw.focus(); } else open(true);
+    return;
+  }
   focus();
   const url = linkIn(argv);
   if (url && win) win.webContents.send('cs3:link', url);
@@ -114,7 +162,8 @@ app.whenReady().then(() => {
 
   protocol.handle('cs3lib', req => Library.serve(req));
 
-  open();
+  open(wantsPlanner(process.argv));
+  plannerShortcuts();
   /* look for a newer version once the window is up; it loads next launch */
   setTimeout(() => WebUpdate.check().catch(err => console.warn('update check', err)), 8000);
   /* and again every 30 minutes while it's open, so a push reaches a laptop left running */

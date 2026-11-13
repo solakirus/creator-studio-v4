@@ -42,8 +42,9 @@
   const onLaptop = () => !!global.CS3Lib || !!(global.MediaLib && MediaLib.hasLibrary() && !MediaLib.phone());
   /* v4: the phone keeps its own Library too (phonelib.js): Library and Starred, no Templates */
   const onPhone = () => !!(global.MediaLib && MediaLib.phone && MediaLib.phone());
+  /* the Planner (app.js) keeps to planning: no Swipe file */
   const shown = () => NAV.filter(n => onPhone() ? n.v !== 'templates'
-    : (!n.laptop || onLaptop()) && (!n.phone || !onLaptop()));
+    : (!n.laptop || onLaptop()) && (!n.phone || !onLaptop()) && !(global.CS4_PLANNER && n.v === 'swipe'));
 
   let view = 'clips';
 

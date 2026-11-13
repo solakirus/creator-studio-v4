@@ -49,7 +49,7 @@ const head = s => console.log(`\n— ${s} —`);
       pickFolder: async () => null, open: async () => {}, trash: async () => 0, boardFolder: async () => ({}), shotline: async () => null,
       grabFind: async () => null, grabRun: async () => ({}), grabStop: async () => {}, grabStatus: async () => ({ running:false, lines:[], links:[] }), onGrab: () => () => {} }; });
     const L = await lctx.newPage(); L.on('pageerror', e => errs.push('laptop: ' + e.message));
-    await L.goto(url); await L.waitForFunction(() => window.App && window.MediaLib && window.PhoneLib, null, { timeout: 15000 });
+    await L.goto(url); await L.waitForFunction(() => window.App && window.MediaLib && window.PhoneLib, null, { timeout: 15000 }); await L.waitForTimeout(1500);
     const luids = await L.evaluate(async ({ g, s }) => { const b64 = x => Uint8Array.from(atob(x), c => c.charCodeAt(0));
       const a = await MediaLib.addFiles([new File([b64(g)], 'kettle.gif', { type:'image/gif' }), new File([b64(s)], 'mug.png', { type:'image/png' })], 'Everyday', 'Coffee');
       await MediaLib.addFiles([new File([b64(g)], 'walk.gif', { type:'image/gif' })], 'Everyday', 'Walks');

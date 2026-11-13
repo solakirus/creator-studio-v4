@@ -35,6 +35,42 @@
       icon:'<circle cx="12" cy="8.4" r="3.9"/><path d="M4.4 20.4a7.6 7.6 0 0 1 15.2 0z"/>' }
   ];
 
+  /* v4: the Planner — this same app showing only planning: the week board,
+     months and calendar (Plan), episodes, series, clips, templates and the
+     Library (Content), Settings, and Send to phone. Opened by the "Creator
+     Studio Planner" shortcut (Electron --planner) or ?planner in a browser.
+     Same data as the full app on this device, so nothing is copied between them. */
+  const PLANNER = /[?&]planner\b/.test(global.location ? location.search : '');
+  global.CS4_PLANNER = PLANNER;
+  if(PLANNER){
+    const plan = TABS.find(t => t.id === 'weekly'), content = TABS.find(t => t.id === 'series');
+    plan.label = 'Plan';
+    TABS.length = 0;
+    TABS.push(plan, content, { id:'settings', label:'Settings', screen:'settings',
+      icon:'<path fill-rule="evenodd" d="M10.3 2.6h3.4l.5 2.6 1.7.9 2.4-1.2 2.4 2.4-1.2 2.4.8 1.8 2.6.5v3.4l-2.6.5-.8 1.8 1.2 2.4-2.4 2.4-2.4-1.2-1.7.9-.5 2.6h-3.4l-.5-2.6-1.7-.9-2.4 1.2-2.4-2.4 1.2-2.4-.8-1.8-2.6-.5v-3.4l2.6-.5.8-1.8-1.2-2.4 2.4-2.4 2.4 1.2 1.7-.9zM12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8z"/>' });
+    document.documentElement.classList.add('planner');
+    document.title = 'Creator Studio Planner';
+  }
+  const HOME = PLANNER ? 'weekly' : 'today';
+
+  /* Send to phone: everything goes through Sync, so it's one sync now; with
+     no Sync set up, the file for the other device instead */
+  async function sendToPhone(btn){
+    const s = global.Sync ? await Sync.status().catch(() => null) : null;
+    if(s && s.connected){
+      if(btn) btn.classList.add('busy');
+      try { await Sync.syncNow(); U.toast('Sent — the phone, the iPad and the laptop get it the next time they sync (when opened, or within 3 minutes)'); }
+      catch(e){ U.toast('Couldn’t reach the sync server — ' + (e.message || e) + '. It sends by itself once it can.'); }
+      finally { if(btn) btn.classList.remove('busy'); }
+      return;
+    }
+    if(global.SettingsActions && SettingsActions.exportForDevice){
+      U.toast('Sync isn’t set up here — making a file for the phone instead (Settings → Restore from backup → Add to what’s here, on the phone)');
+      return SettingsActions.exportForDevice();
+    }
+    U.toast('Set up Sync in Settings to send plans to the phone');
+  }
+
   let current = null, toolIcons = {}, imageCb = null;
   const viewEl  = () => document.getElementById('view');
   const dockEl  = () => document.getElementById('dock');
@@ -167,12 +203,16 @@
     document.getElementById('tabbar').innerHTML = TABS.map(t => `
       <button class="tab" data-tab="${t.id}" aria-label="${t.label}">
         <svg viewBox="0 0 24 24" fill="currentColor">${t.icon}</svg>
-      </button>`).join('');
+      </button>`).join('') + (PLANNER ? `
+      <button class="tab tab-send" data-send aria-label="Send to phone" title="Send the plan to the phone and the iPad">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm0 3v13h8V5zm2.5 15h3v-1h-3zM12 6.5l3.2 3.2-1.1 1.1-1.3-1.3V15h-1.6V9.5l-1.3 1.3-1.1-1.1z"/></svg>
+      </button>` : '');
 
     await reloadToolIcons();
 
     document.getElementById('tabbar').addEventListener('click', e => {
       const b = e.target.closest('.tab'); if(!b) return;
+      if(b.dataset.send !== undefined) return sendToPhone(b);
       /* On a wide screen the tabs stay visible beside pushed screens (the
          sidebar), so a tab has to close them — otherwise it changes the tab
          underneath and nothing seems to happen. On a phone screens cover the
@@ -264,7 +304,7 @@
       else if(current) go(current);
     });
 
-    go('today');
+    go(HOME);
 
     /* Reaching the first screen is the proof a self-updated version works;
        without it, one that fails three times is rolled back. */
@@ -308,7 +348,7 @@
     if(sheet && sheet.classList.contains('open')){ closeSheet(); return true; }
     if(toolsOpen()){ setTools(false); return true; }
     if(Screens.depth && Screens.depth()){ Screens.pop(); return true; }
-    if(current && current !== 'today'){ go('today'); return true; }
+    if(current && current !== HOME){ go(HOME); return true; }
     return false;
   }
 
@@ -465,6 +505,6 @@
     else setTimeout(run, 6000);
   }
 
-  global.App = { go, goBack, refreshTab, sheet, closeSheet, pickImage, reloadToolIcons, updateBar, TOOLS, PRESETS };
+  global.App = { go, goBack, refreshTab, sheet, closeSheet, pickImage, reloadToolIcons, updateBar, sendToPhone, planner:PLANNER, TOOLS, PRESETS };
   document.addEventListener('DOMContentLoaded', () => { init(); backupWhenIdle(); });
 })(window);
