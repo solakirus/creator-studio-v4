@@ -207,7 +207,7 @@
       /* Icon-only actions keep the header on one line without truncating the title. */
       const IC_IMPORT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 18v-6"/><path d="M9 15l3 3 3-3"/></svg>`;
       const IC_LINK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/></svg>`;
-      const ACTS = `<button class="iconbtn" data-a="import" aria-label="Import" title="Import your saves or a CSV"
+      const ACTS = `${window.ViewAs ? ViewAs.picker('swipe') : ''}<button class="iconbtn" data-a="import" aria-label="Import" title="Import your saves or a CSV"
                    style="width:34px;height:34px;color:var(--cream)">${IC_IMPORT}</button>
                  <button class="iconbtn" data-a="paste" aria-label="Add links" title="Add links"
                    style="width:34px;height:34px;background:var(--orange-grad);border:0;color:#fff">${IC_LINK}</button>`;
@@ -244,7 +244,7 @@
           <span id="fetchbar" style="font-size:13.5px;color:var(--muted)">${fetchBarText()}</span>
           <button class="btn-sm" data-a="stopfetch">Stop</button></div>` : ''}
 
-        ${rows.length ? `<div class="swipegrid">${rows.map(s => {
+        ${rows.length ? `<div class="swipegrid ${window.ViewAs ? ViewAs.cls('swipe') : ''}" data-lay-host="swipe">${rows.map(s => {
           const so = SOURCES[s.source] || SOURCES.reel;
           return `<button class="swipecard" data-open="${s.id}">
             <!-- Still pictures only. A live TikTok / Instagram / Facebook player
@@ -596,6 +596,13 @@
     await loadThumbs();
     await loadChannels();
     render();
+    /* Grid / Big / List (viewas.js): the Instagram previews are sized to the
+       card when they load, so a new card size needs them drawn again */
+    const onLayout = e => {
+      if(!el.isConnected){ window.removeEventListener('cs-layout', onLayout); return; }
+      if(e.detail && e.detail.key === 'swipe') render();
+    };
+    window.addEventListener('cs-layout', onLayout);
 
     /* Cards with no picture at all get one, quietly, on a device that can ask
        the platforms (the phone and Windows apps; a browser cannot). Once a

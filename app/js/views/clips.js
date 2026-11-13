@@ -140,6 +140,7 @@
         <div class="headacts">
           <!-- the way into the channel pages, the same idea as the clips button
                that sits on Series -->
+          ${global.ViewAs ? ViewAs.picker('clips') : ''}
           <button class="sq" data-chans aria-label="Channels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="7" r="2.6"/><circle cx="6" cy="17" r="2.6"/><path d="M11 7h9M11 17h9"/></svg></button>
           <button class="sq" aria-label="Import"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4M4 20h16"/></svg></button>
           <button class="sq" data-new aria-label="New clip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -167,7 +168,7 @@
               rows.filter(c => !c.channel).length}</option>` : ''}
       </select>
     </div></div>
-    <div class="pad"><div class="list" id="clipList"></div></div>`;
+    <div class="pad"><div class="list ${global.ViewAs ? ViewAs.cls('clips') : ''}" data-lay-host="clips" id="clipList"></div></div>`;
 
     /* hold a clip to start picking several, then delete them together */
     if(global.Select) Select.enable(root, {

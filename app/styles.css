@@ -1537,7 +1537,10 @@ button.hrow{width:100%;background:none;border:0;text-align:left;cursor:pointer;
    A ::before 125% of the width tall is a 4:5 box in every browser there is;
    flex:none stops the card squeezing it. */
 .swipecard .thumb{position:relative;display:block;flex:none;background-size:cover;background-position:center;
-  background-color:#221F1A}
+  background-color:#221F1A;width:100%}
+/* width:100% — the laptop app's Chromium (Electron 33) gave this box no width
+   inside the card's <button> flexbox, so 125% of nothing was 0 tall and only
+   the titles showed. Newer Chromium and Safari stretch it either way. */
 .swipecard .thumb::before{content:"";display:block;padding-top:125%}
 .swipecard .thumb::after{content:"";position:absolute;inset:0;
   background:linear-gradient(180deg,rgba(10,8,6,.15) 40%,rgba(10,8,6,.72) 100%)}
@@ -4068,4 +4071,53 @@ html{-webkit-text-size-adjust:100%}
   .planner .tab-import::after{white-space:normal;text-align:center;line-height:1.25}
   .planner .tab-send{margin-top:8px;background:rgba(255,106,0,.1);height:auto;padding:12px 0}
   .planner .tab-send::after{white-space:normal;text-align:center;line-height:1.25}
+}
+
+/* ---------- View as: Grid / Big / List (viewas.js) ----------
+   Laptop width only. The phone keeps one card per row whatever was picked. */
+.laypick{display:none}
+@media (min-width: 900px){
+  .laypick{display:inline-flex;flex:none;height:34px;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+  .laypick button{width:34px;padding:0;border:0;background:transparent;color:var(--muted);cursor:pointer;
+    display:flex;align-items:center;justify-content:center}
+  .laypick button+button{border-left:1px solid var(--line)}
+  .laypick button:hover{color:var(--cream)}
+  .laypick button[aria-pressed="true"]{background:var(--cream);color:#151515}
+  .laypick svg{width:15px;height:15px}
+
+  /* the swipe file */
+  .swipegrid.lay-grid{grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+  .swipegrid.lay-grid h3{font-size:13.5px;margin:0 0 6px;display:-webkit-box;-webkit-line-clamp:2;
+    -webkit-box-orient:vertical;overflow:hidden}
+  .swipegrid.lay-grid .tx{padding:8px 9px 10px}
+  .swipegrid.lay-big{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+  .swipegrid.lay-list{grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:8px}
+  .swipegrid.lay-list .swipecard{flex-direction:row;align-items:center}
+  .swipegrid.lay-list .thumb{width:56px}
+  .swipegrid.lay-list .src,.swipegrid.lay-list .noangle{display:none}
+  .swipegrid.lay-list .play{right:4px;top:4px;width:20px;height:20px}
+  .swipegrid.lay-list .play svg{width:10px;height:10px}
+  .swipegrid.lay-list .tx{flex:1;min-width:0;padding:8px 12px}
+  .swipegrid.lay-list h3{font-size:14.5px;margin:0 0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* Clips and Vlog: the shared media card */
+  .list.lay-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));align-items:start}
+  /* a clip card stacks channel, title and meta: in a narrower column the title
+     wrapped up into the channel chip, so it keeps to one line here */
+  .list.lay-grid .card h3,#ctWrap .list.lay-grid .card h3{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    padding-right:4px}
+  .list.lay-grid .meta{flex-wrap:nowrap;overflow:hidden;white-space:nowrap}
+  .list.lay-grid .meta > *{white-space:nowrap}
+  #ctWrap #clipList.lay-grid .card .body{right:64px}
+  .list.lay-list{gap:6px}
+  .list.lay-list .mediacard .card,#ctWrap .list.lay-list .mediacard .card{height:auto;min-height:50px;
+    display:flex;align-items:center;gap:12px;padding:7px 12px 7px 0}
+  .list.lay-list .art{position:relative;inset:auto;flex:0 0 72px;align-self:stretch;margin:-7px 0}
+  .list.lay-list .plat,.list.lay-list .state,.list.lay-list .dur,.list.lay-list .stat,
+  #ctWrap #clipList.lay-list .plat,#ctWrap #clipList.lay-list .stat{position:static;flex:none}
+  .list.lay-list .dur:empty{display:none}
+  .list.lay-list .card .body{position:static;flex:1;min-width:0;display:flex;align-items:center;gap:14px}
+  .list.lay-list .card h3,#ctWrap .list.lay-list .card h3{font-size:15.5px!important;margin:0;flex:0 1 auto;
+    max-width:48%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .list.lay-list .meta{flex:1;min-width:0;font-size:12px;flex-wrap:nowrap;overflow:hidden;white-space:nowrap}
 }

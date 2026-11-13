@@ -126,13 +126,14 @@
       const keys = Object.keys(groups).sort();
 
       const head = Screens.bar({ kicker:'Creator studio', title:'Vlog',
-        actions:`<button class="btn-sm" data-a="challenges">Challenges</button>
+        actions:`${window.ViewAs ? ViewAs.picker('vlog') : ''}<button class="btn-sm" data-a="challenges">Challenges</button>
                  <button class="btn-sm accent" data-a="new">+ New</button>` });
 
       el.innerHTML = (embedded ? '' : head) + `
       <div class="view">
         ${embedded ? `<div class="pagehead"><h1 class="page-title">Vlog</h1>
           <span class="headacts" style="display:flex;gap:8px;align-items:center">
+            ${window.ViewAs ? ViewAs.picker('vlog') : ''}
             <button class="headbtn" data-a="challenges">CHALLENGES</button>
             <button class="headbtn" data-a="new">NEW</button>
           </span></div>` : ''}
@@ -146,7 +147,7 @@
         ${rows.length ? keys.map(k => `
           <div class="sec"><h2>${groups[k].label}</h2><div class="rule"></div>
             <span class="alt">${groups[k].items.length}</span></div>
-          <div class="list">
+          <div class="list ${window.ViewAs ? ViewAs.cls('vlog') : ''}" data-lay-host="vlog">
             ${groups[k].items.sort((a,b) => ((a.wk ?? 1e9) - (b.wk ?? 1e9)) || ((a.v.createdAt || 0) - (b.v.createdAt || 0))).map(({ v, wk }) => {
               const beats = everyBeat(v);
               const done = beats.filter(x => x.beat.done).length;
