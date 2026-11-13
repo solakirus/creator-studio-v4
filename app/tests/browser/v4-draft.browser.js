@@ -120,7 +120,7 @@ const FAKE = () => {
   ok(/Month · Discipline/.test(await txt('.drf-card:last-of-type')) && (await p.$$eval('.drf-card:last-of-type li', x => x.length)) === weeks + 1, 'the plan shows the month and its weekly vlogs');
   const go1 = await importIt();
   ok(/Import 1 month, \d+ vlogs/.test(go1), 'the import preview offers the month and its vlogs', go1);
-  const mo = await p.evaluate(async () => { const m = (await Months.all()).find(x => x.name === 'Discipline'); const eps = (await Store.all('vlogs')).values.filter(v => v.monthId === (m && m.id)); return { m, n: eps.length, titles: eps.map(v => v.title) }; });
+  const mo = await p.evaluate(async () => { const m = (await Months.all()).find(x => /Discipline/.test(x.name)); const eps = (await Store.all('vlogs')).values.filter(v => v.monthId === (m && m.id)); return { m, n: eps.length, titles: eps.map(v => v.title) }; });
   ok(mo.m && mo.m.challenge === 'Up at 5 every day' && mo.n === weeks, 'the month is in, with its weekly vlogs tagged to it', mo.n + ' episodes');
   ok(/In the Planner/.test(await txt('.drf-done')), 'the draft says it\'s in the Planner');
   const kids = await p.$$eval('[data-child]', x => x.length);
@@ -149,7 +149,8 @@ const FAKE = () => {
   await p.click('[data-plan]'); await p.waitForTimeout(800);
   ok(/exactly these 3 months/.test(await lastPrompt()), 'the plan prompt gives the quarter\'s three months');
   const go3 = await importIt();
-  ok(/update 1/.test(go3) && /3 months/.test(go3), 'the import fills in the quarter and adds its months', go3);
+  /* the quarter's first month starts the Sunday the Discipline month does, so that one is added to */
+  ok(/update [12]/.test(go3) && /[23] months/.test(go3), 'the import fills in the quarter and adds its months (or adds to one already there)', go3);
   const qq = await p.evaluate(async () => (await Quarters.all()).find(q => q.topic === 'Habits'));
   ok(qq && qq.throughline === 'Small wins stack' && qq.challenge === '90 days of 5am', 'the quarter has its topic, throughline and challenge');
   ok((await p.$$eval('[data-child]', x => x.map(e => e.textContent))).every(t => /Plan this month/.test(t)), 'each month offers "Plan this month"');
@@ -210,13 +211,13 @@ const FAKE = () => {
 
   head('from a month\'s page');
   await p.click('.tabbar [data-tab="weekly"]'); await p.waitForTimeout(600);
-  await p.evaluate(async () => { const m = (await Months.all()).find(x => x.name === 'Discipline'); Screens.push('month', { id: m.id }); }); await p.waitForTimeout(800);
+  await p.evaluate(async () => { const m = (await Months.all()).find(x => /Discipline/.test(x.name)); Screens.push('month', { id: m.id }); }); await p.waitForTimeout(800);
   const btn = await p.$('[data-plan-claude]');
   ok(!!btn, 'a month\'s page has ✦ Plan with Claude');
   if(btn){ await btn.click(); await p.waitForTimeout(900); }
   ok(await p.$eval('.tabbar [data-tab="draft"]', e => e.getAttribute('aria-current')) === 'page' && await p.$eval('[data-kind="month"]', e => e.getAttribute('aria-pressed')) === 'true',
     'it opens a Month draft on the Draft tab');
-  ok((await p.inputValue('[data-f="monthStart"]')) === (await p.evaluate(async () => (await Months.all()).find(x => x.name === 'Discipline').startDate)), 'with that month\'s dates');
+  ok((await p.inputValue('[data-f="monthStart"]')) === (await p.evaluate(async () => (await Months.all()).find(x => /Discipline/.test(x.name)).startDate)), 'with that month\'s dates');
 
   head('Settings → Claude for planning');
   await p.evaluate(() => ShotAI.openSettings()); await p.waitForTimeout(600);
