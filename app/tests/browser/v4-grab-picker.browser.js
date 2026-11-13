@@ -39,6 +39,8 @@ const head = s => console.log(`\n— ${s} —`);
         Object.assign(G.st, { running:true, mode:o.mode, what: o.mode === 'scan' ? o.url : (o.links || []).length + ' links', lines:[], links:[], code:null }); return { ok:true, builtin:true }; },
       grabStop: async () => { G.stops++; },
       grabStatus: async () => JSON.parse(JSON.stringify(G.st)),
+      grabSignIn: async o => { G.signins = (G.signins || []).concat(o); return /sessionid|^\d+%3A/.test(o.text) ? { n:1, signedIn:true } : { n:1, signedIn:false }; },
+      grabSignedIn: async () => false,
       onGrab: (k, f) => { G.ls[k].add(f); return () => G.ls[k].delete(f); } };
   });
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
@@ -109,6 +111,20 @@ const head = s => console.log(`\n— ${s} —`);
   await leave();
   await p.evaluate(() => { __G.emit('done', { code: 0 }); }); await p.waitForTimeout(200);
   ok(/Grab finished/.test(await p.evaluate(() => (document.querySelector('.toast') || {}).textContent || '')), 'a grab that ends while you\'re elsewhere says so');
+
+  head('pasting a sign-in from Chrome');
+  await toLib();
+  if(await p.$eval('.lv-tabs [data-tab="add"]', e => e.getAttribute('aria-selected')) !== 'true'){ await p.click('.lv-tabs [data-tab="add"]'); await p.waitForTimeout(600); }
+  await p.evaluate(() => document.querySelectorAll('details.lv-opts').forEach(d => { d.open = true; }));
+  ok(await p.isVisible('[data-pastesignin]'), 'Paste a sign-in… sits next to Signed-in sites');
+  ok((await p.$eval('[data-scan]', e => e.closest('body') && true)) && (await p.evaluate(() => __G.runs.filter(r => r.mode === 'scan').every(r => 'cookies' in r))), 'scans send the Signed-in sites choice along');
+  await p.click('[data-pastesignin]'); await p.waitForTimeout(400);
+  ok(/F12/.test(await p.textContent('#sheet')) && /sessionid/.test(await p.textContent('[data-psname]')), 'it says where to copy it from in Chrome');
+  await p.fill('#psText', 'csrftoken=abc'); await p.click('[data-pssave]'); await p.waitForTimeout(250);
+  ok(/not the sign-in one/.test(await p.textContent('[data-psmsg]')), 'the wrong cookie says which one is needed', await p.textContent('[data-psmsg]'));
+  await p.fill('#psText', '123%3Aabcdef'); await p.click('[data-pssave]'); await p.waitForTimeout(400);
+  ok(/Signed in to Instagram/.test(await p.evaluate(() => (document.querySelector('.toast') || {}).textContent || '')), 'the right one signs in and closes');
+  ok(await p.evaluate(() => __G.signins.pop().url) === 'https://www.instagram.com/', 'for Instagram');
 
   head('one video or page at a time');
   await p.evaluate(async ({ g, s }) => {

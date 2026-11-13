@@ -869,6 +869,48 @@
           <span class="pill sm">${esc(x.kind || '')}</span></label>`).join('') +
         `<button class="lv-btn sm" data-addfound>Add ticked to the links list</button>`;
     }
+    /* v4: sign in by copying the sign-in from a browser you're already signed
+       in to — Chrome won't let other apps read its own, and Instagram can turn
+       away a sign-in typed into the app's window */
+    function pasteSignIn(d){
+      const SITES = [['https://www.instagram.com/','Instagram','instagram.com','sessionid'],['https://www.tiktok.com/','TikTok','tiktok.com','sessionid'],
+        ['https://www.facebook.com/','Facebook','facebook.com','c_user and xs'],['https://x.com/','X','x.com','auth_token']];
+      const li = 'margin:0 0 6px';
+      App.sheet(`
+        <h2>Paste a sign-in</h2>
+        <p class="hintline" style="margin:0 0 12px">Use the sign-in from Chrome (or any browser) so scans and downloads see what you see there. You do this once; the app keeps it.</p>
+        <div class="field"><label for="psSite">Site</label><select id="psSite">${SITES.map(([u, n]) => `<option value="${u}">${n}</option>`).join('')}</select></div>
+        <ol class="hintline" style="margin:0 0 12px;padding-left:20px;line-height:1.5">
+          <li style="${li}">In Chrome, open <b data-pshost>instagram.com</b> while signed in.</li>
+          <li style="${li}">Press <b>F12</b> → <b>Application</b> tab → <b>Cookies</b> → the site’s address.</li>
+          <li style="${li}">Click the <b data-psname>sessionid</b> row, copy its <b>Value</b>, and paste it below.</li>
+        </ol>
+        <p class="hintline" style="margin:0 0 8px">A cookies.txt or JSON from a cookie-export extension works too.</p>
+        <div class="field"><textarea id="psText" rows="4" placeholder="Paste here" spellcheck="false" autocomplete="off" style="width:100%;font-family:ui-monospace,monospace;font-size:12.5px"></textarea></div>
+        <div class="lv-row" style="margin:-4px 0 12px"><button class="lv-btn sm ghost" data-psfile>Choose a cookies file…</button><input type="file" id="psFile" accept=".txt,.json,text/plain,application/json" hidden>
+          <span class="hintline" data-psmsg style="margin:0"></span></div>
+        <div class="sheetcta"><button class="btn-primary" data-pssave>Save sign-in</button><button class="btn-ghost" data-psclose>Close</button></div>`);
+      const sh = document.getElementById('sheet') || document;
+      const $ = q => sh.querySelector(q);
+      const site = () => SITES.find(x => x[0] === $('#psSite').value) || SITES[0];
+      const msg = t => { $('[data-psmsg]').textContent = t; };
+      const show = async () => {
+        const [u, , host, name] = site();
+        $('[data-pshost]').textContent = host; $('[data-psname]').textContent = name;
+        msg(await d.grabSignedIn(u).catch(() => false) ? '✓ Signed in to this site already' : '');
+      };
+      $('#psSite').addEventListener('change', show); show();
+      $('[data-psfile]').addEventListener('click', () => $('#psFile').click());
+      $('#psFile').addEventListener('change', async () => { const f = $('#psFile').files[0]; if(f) $('#psText').value = await f.text(); });
+      $('[data-psclose]').addEventListener('click', () => App.closeSheet());
+      $('[data-pssave]').addEventListener('click', async () => {
+        const text = $('#psText').value.trim();
+        if(!text) return msg('Paste the value first');
+        const r = await d.grabSignIn({ url: site()[0], text }).catch(() => null);
+        if(r && r.signedIn){ App.closeSheet(); return U.toast(`Signed in to ${site()[1]} — scan again`); }
+        msg(r && r.n ? `Saved ${plural(r.n, 'cookie')}, but not the sign-in one (${site()[3]}) — copy that row’s Value` : 'That didn’t look like a sign-in — copy the Value of the ' + site()[3] + ' row');
+      });
+    }
     async function restoreGrab(body){
       const d = MediaLib.disk();
       if(!d.grabStatus) return;
@@ -940,7 +982,8 @@
           <div class="lv-row"><span>Bigger GIFs behind thumbnails</span><select class="lv-sel" data-o="bigGifs">${[['link','save each GIF, linked to its bigger GIF'],['download','save the bigger GIFs themselves (large files)'],['off','GIFs only, no bigger links (fastest)']].map(([v, l]) =>
             `<option value="${v}" ${(s.bigGifs || 'link') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
           <div class="lv-row"><span>Signed-in sites (Instagram…)</span><select class="lv-sel" data-o="cookies">${[['none','the app’s own sign-in (it asks when a site needs one)'],['firefox','use Firefox’s sign-in (works with Firefox open)'],['chrome','use Chrome’s sign-in (Chrome often locks it — Firefox is surer)'],['edge','use Edge’s sign-in (close Edge first)']].map(([v, l]) =>
-            `<option value="${v}" ${(s.cookies || 'none') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+            `<option value="${v}" ${(s.cookies || 'none') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+            ${(MediaLib.disk() || {}).grabSignIn ? '<button class="lv-btn sm ghost" data-pastesignin>Paste a sign-in…</button>' : ''}</div>
           <div class="lv-row"><label><input type="checkbox" data-o="keepVideo" ${s.keepVideo ? 'checked' : ''}> keep the downloaded video</label>
             <label><input type="checkbox" data-o="follow" ${s.follow ? 'checked' : ''}> also grab the pages each link points to</label></div>
         </details>
@@ -966,6 +1009,7 @@
         setBusy(body, true);
         return say('Setting up the grabber…');
       }
+      if(e.target.closest('[data-pastesignin]')) return pasteSignIn(d);
       if(e.target.closest('[data-stop]')) return d.grabStop();
       if(e.target.closest('[data-scan]')){
         const url = body.querySelector('[data-scanurl]').value.trim();

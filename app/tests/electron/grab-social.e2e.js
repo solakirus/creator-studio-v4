@@ -220,6 +220,23 @@ require.cache.electron = { id: 'electron', filename: 'electron', loaded: true, e
   ok(l9.some(l => /Chrome keeps its sign-ins locked away/.test(l)), 'it says Chrome\'s can\'t be borrowed and suggests Firefox', l9.find(l => /Chrome/.test(l)));
   ok(shows.length === b9 + 1 && cr.length === 40, 'then falls back to the app\'s own sign-in window', cr.length);
 
+  console.log('\n— pasting a sign-in copied from Chrome —');
+  const host = 'https://www.instagram.com/';
+  const lines = j => Browser.toJar(j, host).split('\n').filter(Boolean);
+  ok(/\.instagram\.com\tTRUE\t\/\tTRUE\t\d+\tsessionid\t123%3Aabc/.test(Browser.toJar('123%3Aabc', host)), 'just the sessionid value', Browser.toJar('123%3Aabc', host));
+  ok(lines('Cookie: sessionid=1%3Ax; csrftoken=t; ds_user_id=1').length === 3, 'a Cookie header');
+  ok(/sessionid\tj1/.test(Browser.toJar(JSON.stringify([{ name: 'sessionid', value: 'j1', domain: '.instagram.com', path: '/', expirationDate: 1900000000, httpOnly: true }]), host)), 'a JSON export (Cookie-Editor)');
+  ok(Browser.toJar('.instagram.com\tTRUE\t/\tTRUE\t1900000000\tsessionid\tn1', host).includes('sessionid\tn1'), 'a cookies.txt');
+  await ctx.clearCookies();
+  const r10 = await Browser.pasteSignIn(host, '  "77%3AfromChrome"  ');
+  ok(r10.signedIn && r10.n === 1, 'pasting it signs the app in', JSON.stringify(r10));
+  ok((await ctx.cookies()).some(c => c.name === 'sessionid' && c.value === '77%3AfromChrome' && c.httpOnly), 'as the site\'s own sign-in cookie');
+  const b10 = shows.length, j10 = job(), pasted = [];
+  await Builtin.scan(j10, { ytdlp: null }, 'https://www.instagram.com/quiet/reels/', 200, l => pasted.push(l), { cookies: 'chrome' });
+  ok(shows.length === b10 && pasted.length === 40, 'then a scan needs no window — even with Chrome picked — and finds every reel', pasted.length);
+  await ctx.clearCookies();
+  ok(!(await Browser.pasteSignIn(host, 'csrftoken=x')).signedIn, 'something without the sign-in cookie doesn\'t count as signed in');
+
   await browser.close(); server.close();
   console.log(`\nsocial profiles  (${pass} ok, ${fail} failed)`);
   process.exit(fail ? 1 : 0);

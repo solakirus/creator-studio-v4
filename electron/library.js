@@ -293,6 +293,15 @@ function wire({ ipcMain, dialog, shell, net, getWin }) {
       builtin: !kit, ytdlp: t.ytdlp, ffmpeg: t.ffmpeg, winget: !!t.winget, out: defaultRoot() };
   });
 
+  /* v4: a sign-in copied from another browser (Chrome's can't be read directly) */
+  ipcMain.handle('cs3:grab-signin', async (e, o) => {
+    try { return await Builtin.Browser.pasteSignIn(String(o && o.url || ''), String(o && o.text || '')); }
+    catch (err) { return { n: 0, signedIn: false, why: err.message }; }
+  });
+  ipcMain.handle('cs3:grab-signedin', async (e, url) => {
+    try { return await Builtin.Browser.isSignedIn(String(url || '')); } catch (err) { return false; }
+  });
+
   ipcMain.handle('cs3:grab-run', (e, o) => {
     if (job) return { ok: false, why: 'A grab is already running' };
     if (!kitReady(o.setting)) {

@@ -201,6 +201,33 @@ async function importCookies(url, text) {
   return n;
 }
 
+/* v4: a sign-in pasted from another browser, in whatever shape it comes:
+   cookies.txt (a "Get cookies.txt" extension), a JSON export (Cookie-Editor),
+   a Cookie header ("sessionid=…; csrftoken=…"), or just the sessionid value
+   copied from Chrome's F12 → Application → Cookies. Returns cookies.txt. */
+function toJar(text, url) {
+  const t = String(text || '').trim();
+  const host = hostOf(url);
+  const year = Math.floor(Date.now() / 1000) + 365 * 86400;
+  const line = (c) => [(c.domain || '.' + host), 'TRUE', c.path || '/', 'TRUE', Math.floor(c.exp || year), c.name, c.value].join('\t');
+  if (!t || !host) return '';
+  if (/^[\[{]/.test(t)) {
+    try {
+      let a = JSON.parse(t); if (!Array.isArray(a)) a = a.cookies || [a];
+      return a.filter(c => c && c.name).map(c => (c.httpOnly ? '#HttpOnly_' : '') + line({ domain: c.domain, path: c.path, name: c.name, value: String(c.value == null ? '' : c.value),
+        exp: c.expirationDate || (c.expires > 0 ? c.expires : 0) })).join('\n');
+    } catch (e) { return ''; }
+  }
+  if (/\t/.test(t)) return t;
+  if (/=/.test(t)) return t.replace(/^cookie:\s*/i, '').split(/;\s*/).map(p => { const i = p.indexOf('='); return i > 0 ? line({ name: p.slice(0, i).trim(), value: p.slice(i + 1).trim() }) : ''; }).filter(Boolean).join('\n');
+  const s = SIGNIN[host];
+  return s ? line({ name: s[1], value: t.replace(/^["']|["']$/g, '') }) : '';
+}
+async function pasteSignIn(url, text) {
+  const n = await importCookies(url, toJar(text, url));
+  return { n, signedIn: n > 0 && await isSignedIn(url) };
+}
+
 const isWalled = async win => { try { return !!(await win.webContents.executeJavaScript(WALLED)); } catch (e) { return false; } };
 
 /* A sign-in wall: show the window so the person can sign in, wait, then go
@@ -617,5 +644,5 @@ async function pageLinks(job, url) {
   } catch (e) { return null; } finally { try { win.destroy(); } catch (e) {} }
 }
 
-module.exports = { available, grabPage, pageLinks, postLinks, postTitle, profileHandle, ownedBy, signedIn, isSignedIn, fresh, importCookies, cookieFile, mediaIn, rank, kindOf, challenged,
+module.exports = { available, grabPage, pageLinks, postLinks, postTitle, profileHandle, ownedBy, signedIn, isSignedIn, fresh, importCookies, toJar, pasteSignIn, cookieFile, mediaIn, rank, kindOf, challenged,
   SIGNIN_SITES, WALLED, POSTS, CHECK_WAIT_MS, SCROLL_MAX, MIN_SIDE, BIG_MAX };

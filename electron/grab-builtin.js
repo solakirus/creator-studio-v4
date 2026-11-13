@@ -188,12 +188,11 @@ async function grabVideo(job, t, url, outRoot, o) {
     '-f', VIDEO_FORMAT, '--merge-output-format', 'mp4', '--ffmpeg-location', path.dirname(t.ffmpeg),
     '-o', path.join(tmp, 'video.%(ext)s'),
     '--print', 'before_dl:@@T %(title)s', '--print', 'after_move:@@F %(filepath)s', '--no-simulate'];
-  if (o.cookies && o.cookies !== 'none') args.push('--cookies-from-browser', o.cookies);
-  else if (isSocial(url)) {
-    /* v4: the sign-in made in the app's own window (grab-browser.js) */
-    const jar = await Browser.cookieFile(url, tmp).catch(() => null);
-    if (jar) args.push('--cookies', jar);
-  }
+  /* v4: the app's own sign-in (made in its window, borrowed or pasted) comes
+     first — Chrome's own often can't be read — then the browser picked */
+  const jar = isSocial(url) && await Browser.isSignedIn(url).catch(() => false) ? await Browser.cookieFile(url, tmp).catch(() => null) : null;
+  if (jar) args.push('--cookies', jar);
+  else if (o.cookies && o.cookies !== 'none') args.push('--cookies-from-browser', o.cookies);
   args.push(url);
   let title = '', file = '', last = 0;
   const r = await job.run(t.ytdlp, args, l => {
@@ -405,7 +404,7 @@ async function browserSignIn(job, t, url, browser) {
       job.emit(`  ✓ using ${name}'s sign-in for ${site}`); return true;
     }
     const err = String((r && r.err) || '');
-    if (/decrypt|dpapi|app.?bound/i.test(err)) job.emit(`  ✗ ${name} keeps its sign-ins locked away, so they can't be borrowed. Firefox's can — or sign in once in the app's own window.`);
+    if (/decrypt|dpapi|app.?bound/i.test(err)) job.emit(`  ✗ ${name} keeps its sign-ins locked away, so they can't be borrowed. Use “Paste a sign-in…” next to Signed-in sites (copy it from ${name} once), or Firefox's.`);
     else if (/could not copy|database is locked|permission/i.test(err)) job.emit(`  ✗ ${name} has its sign-ins open — close ${name} and scan again, or use Firefox.`);
     else if (/could not find|not find .*profile|no such file/i.test(err)) job.emit(`  ✗ ${name} isn't set up on this computer.`);
     else job.emit(`  ✗ Not signed in to ${site} in ${name} — sign in there, or in the app's own window.`);
@@ -415,7 +414,7 @@ async function browserSignIn(job, t, url, browser) {
 
 async function scan(job, t, url, max, link, o = {}) {
   job.emit(`Looking for links on ${url}…`);
-  if (isSocial(url) && !postLink(url) && Browser.available() && o.cookies && o.cookies !== 'none')
+  if (isSocial(url) && !postLink(url) && Browser.available() && o.cookies && o.cookies !== 'none' && !(await Browser.isSignedIn(url).catch(() => false)))
     await browserSignIn(job, t, url, o.cookies);
   /* v4: a profile on Instagram, TikTok, X… — yt-dlp can't list those, and a
      plain look at the page signed out sees only its login wall. Open it in
@@ -491,4 +490,4 @@ async function setup(job, t) {
   return code;
 }
 
-module.exports = { tools, grab, scan, setup, makeJob, isVideoLink, isSocial, postLink, mediaOn, cutTimes, SCENE, GIF_FPS, GIF_W, MIN_SHOT };
+module.exports = { Browser, tools, grab, scan, setup, makeJob, isVideoLink, isSocial, postLink, mediaOn, cutTimes, SCENE, GIF_FPS, GIF_W, MIN_SHOT };

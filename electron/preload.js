@@ -88,6 +88,8 @@ contextBridge.exposeInMainWorld('CS3Lib', {
   grabRun: o => ipcRenderer.invoke('cs3:grab-run', o),
   grabStop: () => ipcRenderer.invoke('cs3:grab-stop'),
   grabStatus: () => ipcRenderer.invoke('cs3:grab-status'),
+  grabSignIn: o => ipcRenderer.invoke('cs3:grab-signin', o),
+  grabSignedIn: url => ipcRenderer.invoke('cs3:grab-signedin', url),
   onGrab: (kind, cb) => { const s = grabListeners[kind]; if (s && typeof cb === 'function') { s.add(cb); return () => s.delete(cb); } return () => {}; }
 });
 
