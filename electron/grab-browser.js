@@ -97,7 +97,7 @@ async function open(win, url, job) {
   while (challenged(title()) && Date.now() - t0 < CHECK_WAIT_MS && !job.stopped) await wait(500);
   if (challenged(title())) {
     job.emit('  The site wants a quick check — tick “Verify you are human” in the window that just opened.');
-    win.show(); win.focus();
+    win.show(); win.focus(); win.__shown = true;
     t0 = Date.now();
     while (challenged(title()) && Date.now() - t0 < HUMAN_WAIT_MS && !job.stopped) await wait(700);
     win.hide();
@@ -106,6 +106,55 @@ async function open(win, url, job) {
   }
   await wait(1500);
   if (SIGNIN_SITES.test(hostOf(url)) && await signIn(win, url, job) === false) return false;
+  return true;
+}
+
+/* A window that has been shown and hidden again (to tick a check or sign in)
+   counts as a hidden page from then on: the browser stops drawing it, and
+   pages that load more as you scroll (Instagram's grid) stop at the first
+   12. So carry on in a fresh window — never shown — on the same profile. */
+async function fresh(win, ses, url) {
+  if (!win.__shown) return win;
+  const next = makeWindow(ses);
+  try { await next.loadURL(url); } catch (e) { /* a redirect: fine */ }
+  try { win.destroy(); } catch (e) {}
+  await wait(2500);
+  return next;
+}
+
+/* signed in to the site in the app's window? (its sign-in cookie is there) */
+const SIGNIN = {
+  'instagram.com': ['https://www.instagram.com/accounts/login/', 'sessionid'],
+  'tiktok.com': ['https://www.tiktok.com/login', 'sessionid'],
+  'facebook.com': ['https://www.facebook.com/login', 'c_user'],
+  'x.com': ['https://x.com/i/flow/login', 'auth_token'],
+  'twitter.com': ['https://x.com/i/flow/login', 'auth_token'],
+  'threads.net': ['https://www.threads.net/login', 'sessionid']
+};
+async function signedIn(ses, url) {
+  const s = SIGNIN[hostOf(url)];
+  if (!s) return true;
+  try { return (await ses.cookies.get({ domain: hostOf(url) })).some(c => c.name === s[1] && c.value); } catch (e) { return true; }
+}
+/* Signed out, Instagram shows a profile's first 12 and then just stops —
+   sometimes with no log-in box at all. Open its sign-in page in the window
+   and wait for the person to sign in, once. */
+async function signInPage(win, ses, url, job) {
+  const s = SIGNIN[hostOf(url)];
+  if (!s) return false;
+  const name = siteName(url);
+  job.emit(`  ${name} only shows the first few posts to someone signed out. Sign in once in the window that just opened — the app remembers it after that.`);
+  try { await win.loadURL(s[0]); } catch (e) {}
+  try { win.setTitle(`Sign in to ${name} — then this closes by itself`); } catch (e) {}
+  win.show(); win.focus(); win.__shown = true;
+  const t0 = Date.now();
+  while (Date.now() - t0 < SIGNIN_WAIT_MS && !job.stopped) {
+    await wait(1500);
+    if (await signedIn(ses, url)) break;
+  }
+  win.hide();
+  if (!(await signedIn(ses, url))) { job.emit(`  ✗ Not signed in to ${name}, so only the posts it shows signed out were found.`); return false; }
+  job.emit(`  ✓ signed in to ${name} — the app remembers it`);
   return true;
 }
 
@@ -119,7 +168,7 @@ async function signIn(win, url, job) {
   const name = siteName(url);
   job.emit(`  ${name} wants you signed in. Sign in once in the window that just opened — the app remembers it after that.`);
   try { win.setTitle(`Sign in to ${name} — then this closes by itself`); } catch (e) {}
-  win.show(); win.focus();
+  win.show(); win.focus(); win.__shown = true;
   const t0 = Date.now();
   let left = 0;
   while (Date.now() - t0 < SIGNIN_WAIT_MS && !job.stopped) {
@@ -165,9 +214,10 @@ function postTitle(k, l) {
 }
 async function postLinks(job, url, keep, max) {
   const ses = session();
-  const win = makeWindow(ses);
+  let win = makeWindow(ses);
   try {
     if (!(await open(win, url, job))) return null;
+    win = await fresh(win, ses, url);
     const found = new Map();
     const handle = profileHandle(url);
     let last = 0, same = 0, askedSignIn = false;
@@ -190,9 +240,21 @@ async function postLinks(job, url, keep, max) {
       if (n === last && !askedSignIn && SIGNIN_SITES.test(hostOf(url)) && await isWalled(win)) {
         askedSignIn = true;
         if (await signIn(win, url, job) === false) break;
+        win = await fresh(win, ses, url);
         same = 0; continue;
       }
-      if (at >= total - 4 && n === last) { if (++same >= 3) break; } else same = 0;
+      if (at >= total - 4 && n === last) {
+        if (++same >= 3) {
+          /* at the bottom with nothing new: signed out, that's all the site gives */
+          if (!askedSignIn && SIGNIN[hostOf(url)] && !(await signedIn(ses, url))) {
+            askedSignIn = true;
+            if (!(await signInPage(win, ses, url, job))) break;
+            win = await fresh(win, ses, url);
+            same = 0; last = n; continue;
+          }
+          break;
+        }
+      } else same = 0;
       last = n;
     }
     /* the profile's own posts only: under the grid sit "more posts" and
@@ -386,9 +448,11 @@ async function grabPage(job, url, outRoot, o, h) {
     const ct = ((d.responseHeaders || {})['content-type'] || (d.responseHeaders || {})['Content-Type'] || [''])[0] || '';
     if (d.statusCode === 200 && (/^(image\/gif|video\/|image\/webp)/i.test(ct) || /\.(gif|mp4|webm)(\?|$)/i.test(d.url))) seen.set(d.url, ct);
   });
-  const win = makeWindow(ses), popupWin = makeWindow(ses);
+  let win = makeWindow(ses);
+  const popupWin = makeWindow(ses);
   try {
     if (!(await open(win, url, job))) { job.emit('  ✗ The site’s check wasn’t passed, so the page couldn’t be read'); return null; }
+    win = await fresh(win, ses, url);
     job.emit('  scrolling the page so everything loads…');
     await scrollAll(win, job);
     const page = await win.webContents.executeJavaScript(COLLECT);
@@ -495,13 +559,14 @@ async function grabPage(job, url, outRoot, o, h) {
 /* the links on a page as it shows in the browser (for Find links) */
 async function pageLinks(job, url) {
   const ses = session();
-  const win = makeWindow(ses);
+  let win = makeWindow(ses);
   try {
     if (!(await open(win, url, job))) return null;
+    win = await fresh(win, ses, url);
     await scrollAll(win, job);
     return await win.webContents.executeJavaScript(COLLECT);
   } catch (e) { return null; } finally { try { win.destroy(); } catch (e) {} }
 }
 
-module.exports = { available, grabPage, pageLinks, postLinks, postTitle, profileHandle, ownedBy, cookieFile, mediaIn, rank, kindOf, challenged,
+module.exports = { available, grabPage, pageLinks, postLinks, postTitle, profileHandle, ownedBy, signedIn, fresh, cookieFile, mediaIn, rank, kindOf, challenged,
   SIGNIN_SITES, WALLED, POSTS, CHECK_WAIT_MS, SCROLL_MAX, MIN_SIDE, BIG_MAX };

@@ -39,6 +39,12 @@ const server = http.createServer((req, res) => {
      background, the site's own Reels menu pointing at someone else's reel,
      other people's reels below the grid — and signed out, a log-in box over
      the grid once you scroll past the first 12 */
+  /* a profile that, signed out, shows 12 and simply stops: no log-in box */
+  if (req.url.startsWith('/quiet/')) {
+    const n = signed ? 40 : 12;
+    return send(page(`<h1>quiet</h1><div style="display:grid;grid-template-columns:1fr 1fr 1fr">${Array.from({ length: n }, (_, i) =>
+      `<a href="/quiet/reel/QR${i}/" style="height:300px;display:block"><span>${i}</span><svg aria-label="View Count Icon"></svg><span>${i}K</span></a>`).join('')}</div>`));
+  }
   if (req.url.startsWith('/mid/')) {
     const n = signed ? 30 : 12;
     const tiles = Array.from({ length: n }, (_, i) => `<a href="/mid/reel/MR${i}/"><div style="height:300px;background-image:url(&quot;https://scontent.cdninstagram.com/thumb/MR${i}.gif&quot;)"></div>
@@ -68,14 +74,15 @@ const server = http.createServer((req, res) => {
 /* ---- a stand-in electron, backed by one Chromium */
 let browser, ctx;
 const shows = [];
+let scrolledShown = 0;   /* scrolling a window that was shown and hidden: Electron stops drawing those */
 class BrowserWindow {
   constructor(o){ this.o = o; this.p = null; this.webContents = {
-    executeJavaScript: async js => { await this.ready(); return this.p.evaluate(js); },
+    executeJavaScript: async js => { await this.ready(); if (this.shownEver && /scrollBy/.test(js)) scrolledShown++; return this.p.evaluate(js); },
     getTitle: () => this.title || ''
   }; }
   async ready(){ if(!this.p) this.p = await ctx.newPage(); return this.p; }
   async loadURL(u){ await this.ready(); await this.p.goto(u, { waitUntil: 'domcontentloaded' }); this.title = await this.p.title(); }
-  show(){ shows.push(Date.now());
+  show(){ shows.push(Date.now()); this.shownEver = true;
     /* the person signs in: the site sets its cookie and sends them back */
     setTimeout(async () => { await ctx.addCookies([{ name: 'sessionid', value: 'ok', domain: 'www.instagram.com', path: '/', expires: Math.floor(Date.now() / 1000) + 86400 * 90, secure: true }]);
       await this.p.goto('https://www.instagram.com/', { waitUntil: 'domcontentloaded' }); }, 800); }
@@ -149,6 +156,20 @@ require.cache.electron = { id: 'electron', filename: 'electron', loaded: true, e
   ok(t0 && t0.title === 'Reel · MR0 · 628K views · pinned', 'a reel is named by its code, views and pinned', t0 && t0.title);
   ok(t5 && t5.title === 'Reel · MR5 · 6000 views', 'and the others by code and views', t5 && t5.title);
   ok(reels.every(l => /^data:image\/gif;base64,/.test(l.thumb || '')), 'each carries its grid picture, copied so the app can show it', (t0 && t0.thumb || '').slice(0, 30));
+
+  ok(scrolledShown === 0, 'after signing in, the scan carries on in a fresh window (a shown-then-hidden one stops loading at 12)', scrolledShown);
+
+  console.log('\n— signed out, a profile that just stops at 12 —');
+  await ctx.clearCookies();
+  const b4 = shows.length, j4 = job(), quiet = [];
+  await Builtin.scan(j4, { ytdlp: null }, 'https://www.instagram.com/quiet/reels/', 200, l => quiet.push(l));
+  ok(shows.length === b4 + 1 && j4.lines.some(l => /only shows the first few posts to someone signed out/.test(l)), 'no log-in box, but signed out: it opens Instagram\'s sign-in page');
+  ok(quiet.length === 40, 'and once signed in, finds them all', quiet.length);
+  ok(scrolledShown === 0, 'again in a fresh window');
+  const j5 = job(), again2 = [];
+  const b5 = shows.length;
+  await Builtin.scan(j5, { ytdlp: null }, 'https://www.instagram.com/quiet/reels/', 200, l => again2.push(l));
+  ok(shows.length === b5 && again2.length === 40, 'signed in already: no window, all 40', again2.length);
 
   await browser.close(); server.close();
   console.log(`\nsocial profiles  (${pass} ok, ${fail} failed)`);
