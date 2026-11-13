@@ -37,7 +37,8 @@
 
   /* the long digit string at the end of a TikTok video url */
   function tiktokId(url){
-    const m = String(url || '').match(/tiktok\.com\/[^?#]*\/video\/(\d{6,})/i);
+    /* tiktokv.com/share/video/<id> is the form a TikTok data download uses */
+    const m = String(url || '').match(/tiktokv?\.com\/[^?#]*\/video\/(\d{6,})/i);
     return m ? m[1] : null;
   }
 

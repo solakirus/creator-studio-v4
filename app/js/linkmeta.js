@@ -98,7 +98,8 @@
   async function tiktok(url){
     let finalUrl = url;
     /* vm.tiktok.com short links: follow them to the full /@name/video/123 link */
-    if(/vm\.tiktok|vt\.tiktok|tiktok\.com\/t\//i.test(url)){
+    /* …and the tiktokv.com/share/video/<id> links a TikTok data download gives */
+    if(/vm\.tiktok|vt\.tiktok|tiktok\.com\/t\/|tiktokv\.com\//i.test(url)){
       try { const r = await getText(url, { 'User-Agent':CRAWLER }); if(r.url) finalUrl = r.url.split('?')[0]; } catch(e){}
     }
     const j = await getJSON(`https://www.tiktok.com/oembed?url=${encodeURIComponent(finalUrl)}`);

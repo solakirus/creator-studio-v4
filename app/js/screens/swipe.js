@@ -7,10 +7,10 @@
     story:{ n:'IG Story', c:'#F59E0B' }, tiktok:{ n:'TikTok', c:'#22C7B8' },
     ytshort:{ n:'YT Short', c:'#E2564A' }, ytlong:{ n:'YT Long-form', c:'#FB6900' },
     x:{ n:'X / Twitter', c:'#9AA0A6' }, linkedin:{ n:'LinkedIn', c:'#3B82F6' },
-    newsletter:{ n:'Newsletter', c:'#5BBE6A' }
+    newsletter:{ n:'Newsletter', c:'#5BBE6A' }, facebook:{ n:'Facebook', c:'#4B8BF5' }
   };
   const SHORT = { reel:'REEL', carousel:'CARO', story:'STORY', tiktok:'TT', ytshort:'YTS',
-                  ytlong:'YT', x:'X', linkedin:'LI', newsletter:'NL' };
+                  ytlong:'YT', x:'X', linkedin:'LI', newsletter:'NL', facebook:'FB' };
   const INTENTS = ['Education','Entertainment','Story','Promo','Inspiration'];
   let CHANNELS = [];
   async function loadChannels(){ CHANNELS = await Channels.all(); }
@@ -28,6 +28,7 @@
     if(u.includes('tiktok')) return 'tiktok';
     if(u.includes('youtube') || u.includes('youtu.be')) return u.includes('shorts') ? 'ytshort' : 'ytlong';
     if(u.includes('instagram')) return 'reel';
+    if(u.includes('facebook.com') || u.includes('fb.watch')) return 'facebook';
     if(u.includes('linkedin')) return 'linkedin';
     if(u.includes('twitter') || u.includes('x.com')) return 'x';
     return 'reel';
@@ -120,7 +121,7 @@
     const m = await LinkMeta.get(s.url);
     let changed = false;
     /* TikTok short links become the full link, which also makes previews possible later */
-    if(m.finalUrl && m.finalUrl !== s.url && /vm\.tiktok|vt\.tiktok|tiktok\.com\/t\//i.test(s.url)){
+    if(m.finalUrl && m.finalUrl !== s.url && /vm\.tiktok|vt\.tiktok|tiktok\.com\/t\/|tiktokv\.com\//i.test(s.url)){
       s.url = m.finalUrl; s.source = detectSource(s.url); changed = true;
     }
     if(m.title && needsTitle(s)){ s.title = m.title; changed = true; }
@@ -183,17 +184,21 @@
        folder id (or '__none') is one folder open */
     let view = (params && params.folder) || 'all';
     const esc = s => U.esc(s);   /* shared: util.js */
-    const inFolder = () => view !== 'all' && view !== 'folders';
+    const inFolder = () => view !== 'all' && view !== 'folders' && view !== 'inbox';
+    const inInbox = () => view === 'inbox';
 
     async function render(){
       const folders = window.SwipeFolders ? await SwipeFolders.sorted() : [];
       if(inFolder() && view !== '__none' && !folders.some(f => f.id === view)) view = 'folders';
       if(view === 'folders') return renderFolders(folders);
-      const rows = (await all()).filter(s =>
+      const everything = await all();
+      const inboxN = everything.filter(x => x.inbox).length;
+      const rows = everything.filter(s =>
+        (!inInbox() || s.inbox) &&
         (!inFolder() || (view === '__none'
           ? !(s.folders || []).some(id => folders.some(f => f.id === id))
           : (s.folders || []).includes(view))) &&
-        (!q || (s.title + ' ' + (s.hook||'') + ' ' + (s.myAngle||'')).toLowerCase().includes(q)) &&
+        (!q || (s.title + ' ' + (s.hook||'') + ' ' + (s.myAngle||'') + ' ' + (s.author||'')).toLowerCase().includes(q)) &&
         (!intent  || s.intent === intent) &&
         (!channel || (s.channels || []).includes(channel)) &&
         (!src     || s.source === src) &&
@@ -202,7 +207,7 @@
       /* Icon-only actions keep the header on one line without truncating the title. */
       const IC_IMPORT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 18v-6"/><path d="M9 15l3 3 3-3"/></svg>`;
       const IC_LINK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/></svg>`;
-      const ACTS = `<button class="iconbtn" data-a="csv" aria-label="Import CSV" title="Import CSV"
+      const ACTS = `<button class="iconbtn" data-a="import" aria-label="Import" title="Import your saves or a CSV"
                    style="width:34px;height:34px;color:var(--cream)">${IC_IMPORT}</button>
                  <button class="iconbtn" data-a="paste" aria-label="Add links" title="Add links"
                    style="width:34px;height:34px;background:var(--orange-grad);border:0;color:#fff">${IC_LINK}</button>`;
@@ -212,7 +217,8 @@
           <span class="headacts" style="display:flex;gap:8px;align-items:center">
             ${ACTS}
           </span></div>` : ''}
-        ${viewSwitch()}
+        ${viewSwitch(inboxN)}
+        ${inInbox() ? inboxHead(rows) : ''}
         ${inFolder() ? (() => {
           const f = folders.find(x => x.id === view);
           return `<div class="fd-head">
@@ -222,8 +228,8 @@
           </div>`;
         })() : ''}
         <div class="filterwrap">
-          <input class="wide" id="q" type="text" placeholder="${inFolder() ? 'Search this folder…' : 'Search swipes…'}" value="${q}">
-          ${inFolder() ? '' : `<select id="f-intent"><option value="">All intents</option>
+          <input class="wide" id="q" type="text" placeholder="${inFolder() ? 'Search this folder…' : inInbox() ? 'Search the Inbox — a creator, a word…' : 'Search swipes…'}" value="${esc(q)}">
+          ${inFolder() || inInbox() ? '' : `<select id="f-intent"><option value="">All intents</option>
             ${INTENTS.map(i => `<option${intent===i?' selected':''}>${i}</option>`).join('')}</select>
           <select id="f-src"><option value="">Any source</option>
             ${Object.entries(SOURCES).map(([k,v]) => `<option value="${k}"${src===k?' selected':''}>${v.n}</option>`).join('')}</select>
@@ -253,7 +259,7 @@
               ${!s.myAngle ? `<span class="noangle">No angle yet</span>` : ''}
             </span>
             <span class="tx">
-              <h3>${s.title || 'Untitled swipe'}</h3>
+              <h3>${esc(s.title && !/^untitled swipe$/i.test(s.title) ? s.title : (s.author ? '@' + s.author : 'Untitled swipe'))}</h3>
               <span class="mini-tags">
                 ${(s.targets || []).slice(0,4).map(t =>
                   `<span class="mt" style="color:${(SOURCES[t]||so).c}">${SHORT[t] || t}</span>`).join('')}
@@ -261,6 +267,8 @@
             </span>
           </button>`;
         }).join('')}</div>`
+        : inInbox() ? `<div class="empty"><b>${q ? 'Nothing in the Inbox matches' : 'Inbox zero'}</b>${q ? 'Try a different word.' :
+            'New saves land here until they are in a folder. Import your saves from Instagram, Facebook and TikTok with the file button up top.'}</div>`
         : inFolder() ? `<div class="empty"><b>Nothing in here yet</b>Hold swipes in All and tap <b>+ Folder</b>,
             or paste links straight into this folder.</div>`
         : `<div class="empty"><b>Nothing saved yet</b>Paste a link and break down why it worked while it's fresh.</div>`}
@@ -268,19 +276,34 @@
         <p class="note">${rows.length} entr${rows.length===1?'y':'ies'} · YouTube covers load automatically and Instagram posts show a live preview. Add your own cover from the entry for anything else.</p>
       </div>`;
       wireIgEmbeds(el);
+      /* typing in the search re-renders; keep the cursor in the box */
+      if(keepFocus){ const qi = el.querySelector('#q'); if(qi){ qi.focus(); qi.setSelectionRange(qi.value.length, qi.value.length); } }
     }
+    let keepFocus = false;
 
-    function viewSwitch(){
+    function viewSwitch(inboxN){
       if(!window.SwipeFolders) return '';
       return `<div class="segmented" role="tablist" style="margin:0 0 12px">
         <button role="tab" data-view="all" aria-selected="${view === 'all'}">All</button>
-        <button role="tab" data-view="folders" aria-selected="${view !== 'all'}">Folders</button>
+        <button role="tab" data-view="inbox" aria-selected="${view === 'inbox'}">Inbox${inboxN ? ` <span class="ib-n">${inboxN}</span>` : ''}</button>
+        <button role="tab" data-view="folders" aria-selected="${view !== 'all' && view !== 'inbox'}">Folders</button>
+      </div>`;
+    }
+
+    /* the Inbox: one-at-a-time sorting, or everything a search found at once */
+    function inboxHead(rows){
+      if(!rows.length) return '';
+      return `<div class="ib-head">
+        ${q ? '' : `<button class="btn-primary" data-a="quicksort" style="width:100%">Quick sort ${rows.length}
+          <small>one at a time · tap a folder and the next one comes up</small></button>`}
+        ${q ? `<button class="btn-primary" data-a="fileall" style="width:100%">Put all ${rows.length} in a folder</button>` : ''}
       </div>`;
     }
 
     /* the folder tiles: a 2×2 of covers from inside, the name, how many */
     async function renderFolders(folders){
       const box = await SwipeFolders.contents();
+      const inboxN = (await all()).filter(x => x.inbox).length;
       const mosaic = list => `<span class="fd-mosaic">${[0,1,2,3].map(i => list[i]
         ? `<i style="background-image:${coverFor(list[i])}"></i>` : '<i class="blank"></i>').join('')}</span>`;
       const tile = (id, emoji, name, list, pinned) => `<button class="fd-tile" data-view="${id}">
@@ -290,7 +313,7 @@
       el.innerHTML = (embedded ? '' : Screens.bar({ kicker:'Creator studio', title:'Swipe file' })) + `
       <div class="view">
         ${embedded ? `<div class="pagehead"><h1 class="page-title">Swipe file</h1></div>` : ''}
-        ${viewSwitch()}
+        ${viewSwitch(inboxN)}
         <div class="fd-grid">
           ${folders.map(f => tile(f.id, f.emoji || '📁', f.name, box[f.id] || [], f.pinned)).join('')}
           ${box.__none.length ? tile('__none', '🗂️', 'Not in a folder', box.__none, false) : ''}
@@ -434,6 +457,7 @@
           if(!recs.length) return U.toast(`Already in your swipe file`);
           const fsel = sheetEl.querySelector('#sw-folder');
           if(fsel && fsel.value) recs.forEach(r => { r.folders = [fsel.value]; });
+          else recs.forEach(r => { r.inbox = true; });   /* not in a folder yet: it waits in the Inbox */
           for(const r of recs) await Store.put('swipes', r);
           App.closeSheet();
 
@@ -450,31 +474,33 @@
         setTimeout(() => ta.focus(), 180);
       });
     }
-    /* drop share-tracking tails (?igsh=, ?si=, ?mibextid=) so the same video
-       always looks the same; YouTube keeps v and t */
-    function cleanUrl(u){
-      try {
-        const p = new URL(u);
-        const host = p.hostname.replace(/^(www\.|m\.)/, '');
-        const v = p.searchParams.get('v');
-        if(/^youtube\.com$/i.test(host) && v){
-          const t = p.searchParams.get('t');
-          return `https://www.youtube.com/watch?v=${v}${t ? '&t=' + t : ''}`;
-        }
-        if(/facebook\.com$/i.test(host) && v) return `https://www.facebook.com/watch/?v=${v}`;
-        if(/instagram|tiktok|facebook|fb\.watch|youtu\.be|threads|x\.com|twitter/i.test(host)){
-          p.search = ''; p.hash = '';
-        }
-        return p.toString();
-      } catch(e){ return u; }
+    function openImportChooser(){
+      App.sheet(`<h2>Import</h2>
+        <div class="group compact" style="margin:0 0 12px">
+          <button class="row" data-imp="saves"><span class="lbl">Your saves
+            <small>Saved videos from Instagram, Facebook and TikTok — from their data download</small></span>${U.ICON.chevR}</button>
+          <button class="row" data-imp="csv"><span class="lbl">A CSV file
+            <small>One row per swipe, with your own columns</small></span>${U.ICON.chevR}</button>
+        </div>
+        <div class="sheetcta"><button class="btn-ghost" data-cancel>Cancel</button></div>`, sh => {
+        sh.addEventListener('click', e => {
+          if(e.target.closest('[data-cancel]')) return App.closeSheet();
+          const b = e.target.closest('[data-imp]');
+          if(!b) return;
+          App.closeSheet();
+          setTimeout(() => b.dataset.imp === 'csv' ? openCsv(render)
+            : openSavesImport(() => { view = 'inbox'; q = ''; render(); }, tick, render), 220);
+        });
+      });
     }
+
     function tick(){
       const bar = el.querySelector('#fetchbar');
       if(bar) bar.textContent = fetchBarText();
     }
 
-    el.addEventListener('input', e => {
-      if(e.target.id === 'q'){ q = e.target.value.trim().toLowerCase(); return render(); }
+    el.addEventListener('input', async e => {
+      if(e.target.id === 'q'){ q = e.target.value.trim().toLowerCase(); keepFocus = true; await render(); keepFocus = false; return; }
     });
     el.addEventListener('change', e => {
       const id = e.target.id;
@@ -493,6 +519,10 @@
       warning: 'The entries go for good. Anything you wrote about them goes too.',
       extra: () => !window.SwipeFolders ? [] : [
         { label:'+ Folder', run: (ids, done) => pickFolder(ids, done) },
+        ...(inInbox() ? [{ label:'Sorted', run: async (ids, done) => {
+          const n = await markSorted(ids);
+          U.toast(`${n} out of the Inbox`); done();
+        } }] : []),
         ...(inFolder() && view !== '__none' ? [{ label:'Remove', run: async (ids, done) => {
           const n = await SwipeFolders.removeFrom(ids, view);
           U.toast(`Removed ${n} from this folder`); done();
@@ -520,6 +550,13 @@
       if(a && a.dataset.a === 'paste') return openPaste();
       if(a && a.dataset.a === 'stopfetch'){ fetchQ.stop = true; a.textContent = 'Stopping…'; return; }
       if(a && a.dataset.a === 'csv') return openCsv(render);
+      if(a && a.dataset.a === 'import') return openImportChooser();
+      if(a && a.dataset.a === 'quicksort') return Screens.push('swipe-sort', { onChange:render });
+      if(a && a.dataset.a === 'fileall'){
+        const ids = (await all()).filter(x => x.inbox &&
+          (x.title + ' ' + (x.hook||'') + ' ' + (x.myAngle||'') + ' ' + (x.author||'')).toLowerCase().includes(q)).map(x => x.id);
+        return pickFolder(ids, () => { q = ''; render(); });
+      }
       if(e.target.closest('[data-a="covers"]')){
         /* Everything saved before this could fetch covers, and anything from a
            platform that was down at the time. One at a time rather than a
@@ -570,6 +607,25 @@
     }
   }
 
+  /* drop share-tracking tails (?igsh=, ?si=, ?mibextid=) so the same video
+     always looks the same; YouTube keeps v and t */
+  function cleanUrl(u){
+    try {
+      const p = new URL(u);
+      const host = p.hostname.replace(/^(www\.|m\.)/, '');
+      const v = p.searchParams.get('v');
+      if(/^youtube\.com$/i.test(host) && v){
+        const t = p.searchParams.get('t');
+        return `https://www.youtube.com/watch?v=${v}${t ? '&t=' + t : ''}`;
+      }
+      if(/facebook\.com$/i.test(host) && v) return `https://www.facebook.com/watch/?v=${v}`;
+      if(/instagram|tiktok|facebook|fb\.watch|youtu\.be|threads|x\.com|twitter/i.test(host)){
+        p.search = ''; p.hash = '';
+      }
+      return p.toString();
+    } catch(e){ return u; }
+  }
+
   /* ---------- CSV import ---------- */
   /* Minimal RFC-4180 parse: handles quoted fields and embedded commas. */
   function parseCSV(text){
@@ -597,6 +653,8 @@
     if(!u) return '';
     const yt = ytId(u);
     if(yt) return 'yt:' + yt;
+    const c = window.SwipeImport && SwipeImport.classify(u);
+    if(c) return c.key;
     try {
       const p = new URL(u);
       const host = p.hostname.replace(/^(www\.|m\.)/, '');
@@ -703,6 +761,122 @@
     });
   }
 
+  /* ---------- the Inbox ---------- */
+  /* A swipe waits in the Inbox from when it arrives until it is in a folder or
+     you say it is sorted. Filing it anywhere takes it out (folders.js too). */
+  async function markSorted(ids){
+    let n = 0;
+    for(const id of ids){
+      const s = await Store.get('swipes', id);
+      if(!s || !s.inbox) continue;
+      s.inbox = false; await Store.put('swipes', s); n++;
+    }
+    return n;
+  }
+
+  /* ---------- import your saves from Instagram, Facebook, TikTok ---------- */
+  const HOWTO = {
+    instagram:{ n:'Instagram', steps:`Profile → ☰ → <b>Accounts Center</b> → Your information and permissions →
+      <b>Download your information</b> → Download or transfer → your Instagram → <b>Some of your information</b> →
+      tick <b>Saved</b> → Download to device → Format <b>JSON</b> → Create files.` },
+    facebook:{ n:'Facebook', steps:`Menu → Settings → <b>Accounts Center</b> → Your information and permissions →
+      <b>Download your information</b> → your Facebook → <b>Some of your information</b> →
+      tick <b>Saved items and collections</b> → Format <b>JSON</b> → Create files.` },
+    tiktok:{ n:'TikTok', steps:`Profile → ☰ → Settings and privacy → Account → <b>Download your data</b> →
+      <b>JSON</b> → Request data. It shows up in the <b>Download data</b> tab — hours to a few days.` }
+  };
+  const PLAT_SRC = { instagram:'reel', facebook:'facebook', tiktok:'tiktok' };
+
+  function openSavesImport(after, onTick, onEnd){
+    const esc = t => U.esc(t);
+    App.sheet(`<h2>Import your saves</h2>
+      <p style="margin:0 0 12px;color:var(--muted);font-size:14px;line-height:1.55">None of the apps let another app
+        read your saves, but each one gives them to you in a data download. Ask for it, wait for the email,
+        then pick the zip here — straight from Downloads, no unzipping.</p>
+      ${Object.values(HOWTO).map(h => `<details class="si-how"><summary>How to get it from ${h.n}</summary>
+        <p>${h.steps}</p></details>`).join('')}
+      <div class="field" style="margin-top:14px"><label for="si-file">Pick the zip (or the files from inside it)</label>
+        <input id="si-file" type="file" multiple></div>
+      <div id="si-sum"></div>
+      <div class="sheetcta"><button class="btn-primary" data-go disabled>Import</button>
+        <button class="btn-ghost" data-cancel>Cancel</button></div>`, sh => {
+      const fileIn = sh.querySelector('#si-file'), sum = sh.querySelector('#si-sum'), go = sh.querySelector('[data-go]');
+      let fresh = [], busy = false;
+
+      fileIn.addEventListener('change', async () => {
+        const files = fileIn.files;
+        if(!files || !files.length) return;
+        sum.innerHTML = `<p class="hintline">Reading ${files.length > 1 ? files.length + ' files' : esc(files[0].name)}…</p>`;
+        go.disabled = true;
+        let res;
+        try { res = await SwipeImport.read(files); }
+        catch(err){
+          console.error(err);
+          sum.innerHTML = `<p class="hintline" style="color:var(--red)">${esc(err.message || "Couldn't read that")}</p>`;
+          return;
+        }
+        const existing = await all();
+        const seen = new Set(existing.map(x => urlKey(x.url)).filter(Boolean));
+        fresh = res.items.filter(it => !seen.has(it.key));
+        const dup = res.items.length - fresh.length;
+        if(!res.items.length){
+          sum.innerHTML = `<p class="hintline" style="color:var(--red)">No saved videos in ${res.files.length ? esc(res.files.join(', ')) : 'that'}.
+            ${res.files.length ? '' : 'Pick the zip the app sent you, or saved_posts.json / your_saved_items.json / user_data_tiktok.json from inside it.'}</p>`;
+          return;
+        }
+        const by = {};
+        fresh.forEach(it => { by[it.platform] = (by[it.platform] || 0) + 1; });
+        const cols = {};
+        fresh.forEach(it => (it.collections || []).forEach(c => { cols[c] = (cols[c] || 0) + 1; }));
+        const colNames = Object.keys(cols);
+        sum.innerHTML = `<div class="si-sum">
+          <b>${fresh.length} new save${fresh.length === 1 ? '' : 's'}</b>
+          <span>${Object.entries(by).map(([k, n]) => `${n} ${HOWTO[k].n}`).join(' · ') || '—'}${dup ? ` · ${dup} already in your swipe file` : ''}</span>
+          ${colNames.length ? `<label class="si-col"><input type="checkbox" id="si-cols" checked>
+            Make folders from your ${colNames.length} collection${colNames.length === 1 ? '' : 's'}
+            <small>${colNames.slice(0, 6).map(c => `${esc(c)} (${cols[c]})`).join(', ')}${colNames.length > 6 ? '…' : ''}
+              — those are already sorted, so they skip the Inbox</small></label>` : ''}
+        </div>`;
+        go.disabled = !fresh.length;
+        go.textContent = fresh.length ? `Add ${fresh.length} to the Inbox` : 'Nothing new';
+      });
+
+      sh.addEventListener('click', async e => {
+        if(e.target.closest('[data-cancel]')) return busy ? null : App.closeSheet();
+        if(!e.target.closest('[data-go]') || busy || !fresh.length) return;
+        busy = true; go.disabled = true;
+        const useCols = !!(sh.querySelector('#si-cols') || {}).checked;
+        const fid = {};
+        if(useCols && window.SwipeFolders){
+          for(const c of new Set(fresh.flatMap(it => it.collections || []))){
+            const f = await SwipeFolders.create(c, '📁');
+            if(f) fid[c] = f.id;
+          }
+        }
+        const now = Date.now(), ids = [];
+        let inbox = 0;
+        for(let i = 0; i < fresh.length; i++){
+          const it = fresh[i];
+          const folders = useCols ? (it.collections || []).map(c => fid[c]).filter(Boolean) : [];
+          const rec = { id: uid() + i.toString(36), url: it.url, source: PLAT_SRC[it.platform] || detectSource(it.url),
+            title:'Untitled swipe', hook:'', beats:[], why:'', transferable:'', myAngle:'',
+            intent:'Education', channels:[], targets:[], author: it.author || '',
+            savedAt: it.savedAt || null, importedFrom: it.platform,
+            createdAt: it.savedAt || (now - i), inbox: !folders.length };
+          if(folders.length) rec.folders = folders; else inbox++;
+          await Store.put('swipes', rec);
+          ids.push(rec.id);
+          if(i % 25 === 0) go.textContent = `Adding… ${i + 1}/${fresh.length}`;
+        }
+        App.closeSheet();
+        U.toast(`Added ${fresh.length}${inbox !== fresh.length ? ` · ${inbox} in the Inbox, ${fresh.length - inbox} in folders` : ' to the Inbox'}`);
+        /* titles and previews come in behind, one at a time */
+        queueFetch(ids, onTick, async () => { await loadThumbs(); onEnd && onEnd(); });
+        after && after();
+      });
+    });
+  }
+
   /* ---------- entry ---------- */
   async function mountEntry(el, params){
     let s;
@@ -722,6 +896,8 @@
           : `<div class="thumb" style="aspect-ratio:16/9;border-radius:var(--r);background-size:cover;
                background-position:center;background-color:#221F1A;border:1px solid #2B2822;margin:0 0 12px;
                background-image:${coverFor(s)}"></div>`}
+        ${s.inbox ? `<div class="ib-line"><span>📥 In your Inbox — put it in a folder below, or</span>
+          <button class="btn-sm" data-a="sorted">Mark sorted</button></div>` : ''}
         <div class="metaline">
           <button class="btn-sm" data-a="thumb">${thumbs[s.id] ? 'Change cover' : 'Add cover'}</button>
           ${s.url ? `<button class="btn-sm" data-a="open">↗ Open source</button>` : ''}
@@ -863,6 +1039,7 @@
       if(fo){
         const id = fo.dataset.fold;
         s.folders = (s.folders || []).includes(id) ? s.folders.filter(x => x !== id) : (s.folders || []).concat(id);
+        if(s.folders.length) s.inbox = false;
         await save(); return render();
       }
       if(e.target.closest('[data-a="foldnew"]')){
@@ -870,6 +1047,7 @@
         if(!n) return;
         const f = await SwipeFolders.create(n, '📁');
         s.folders = [...new Set((s.folders || []).concat(f.id))];
+        s.inbox = false;
         await save(); U.toast(`Added to ${f.name}`); return render();
       }
 
@@ -899,6 +1077,7 @@
 
       const a = e.target.closest('[data-a]');
       if(!a) return;
+      if(a.dataset.a === 'sorted'){ s.inbox = false; await save(); U.toast('Out of the Inbox'); return render(); }
       if(a.dataset.a === 'addbeat'){
         const input = el.querySelector('#beat');
         const v = input.value.trim();
@@ -1074,7 +1253,7 @@
   /* Other screens (a clip's references, a task's references) borrow the same
      covers and Instagram previews the swipe file uses. */
   window.SwipeView = { SOURCES, SHORT, coverFor, igId, loadThumbs, mountIgEmbed,
-                       hasThumb: id => !!thumbs[id] };
+                       hasThumb: id => !!thumbs[id], enrich, needsDetails, markSorted };
 
   /* folders: tiles, the open folder's header, the icon picker, the extra bar button */
   (function folderCSS(){
@@ -1105,7 +1284,24 @@
     .fd-emoji button{width:42px;height:42px;font-size:21px;border:1px solid var(--line);border-radius:var(--r);
       background:none;cursor:pointer}
     .fd-emoji button[aria-pressed="true"]{border-color:var(--orange);background:rgba(251,105,0,.12)}
-    .selbar .sb-extra{background:var(--surface-2);color:var(--cream)}`;
+    .selbar .sb-extra{background:var(--surface-2);color:var(--cream)}
+    .ib-n{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:9px;background:var(--orange);
+      color:#fff;font-size:11.5px;line-height:18px;font-weight:700}
+    .ib-head{margin:0 0 12px}
+    .ib-head .btn-primary{display:flex;flex-direction:column;align-items:center;gap:2px;height:auto;padding:11px 14px}
+    .ib-head .btn-primary small{font-weight:500;font-size:12px;opacity:.85}
+    .ib-line{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px;padding:9px 12px;
+      border:1px solid rgba(251,105,0,.35);border-radius:var(--r);background:rgba(251,105,0,.08);font-size:13.5px;color:var(--cream)}
+    .si-how{margin:0 0 6px;border:1px solid var(--line);border-radius:var(--r);padding:8px 11px}
+    .si-how summary{cursor:pointer;font-size:14px;color:var(--cream)}
+    .si-how p{margin:8px 0 2px;font-size:13.5px;line-height:1.6;color:var(--muted)}
+    .si-how b{color:var(--cream)}
+    .si-sum{display:flex;flex-direction:column;gap:4px;margin:0 0 14px;padding:11px 12px;border:1px solid var(--line);
+      border-radius:var(--r);background:var(--surface-2);font-size:14px}
+    .si-sum span{color:var(--muted);font-size:13px}
+    .si-col{display:block;margin-top:8px;font-size:14px;line-height:1.45}
+    .si-col input{width:18px;height:18px;vertical-align:-3px;margin-right:6px}
+    .si-col small{display:block;margin:3px 0 0 24px;color:var(--muted);font-size:12.5px}`;
     document.head.appendChild(st);
   })();
 

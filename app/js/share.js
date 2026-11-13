@@ -27,12 +27,13 @@
     if(u.includes('tiktok')) return 'tiktok';
     if(u.includes('youtube') || u.includes('youtu.be')) return u.includes('shorts') ? 'ytshort' : 'ytlong';
     if(u.includes('instagram')) return 'reel';
+    if(u.includes('facebook.com') || u.includes('fb.watch')) return 'facebook';
     if(u.includes('linkedin')) return 'linkedin';
     if(u.includes('twitter') || u.includes('x.com')) return 'x';
     return 'reel';
   }
 
-  const LABEL = { tiktok:'TikTok', ytshort:'YouTube Short', ytlong:'YouTube',
+  const LABEL = { tiktok:'TikTok', ytshort:'YouTube Short', ytlong:'YouTube', facebook:'Facebook',
                   reel:'Instagram', linkedin:'LinkedIn', x:'X' };
 
   /* ---- where it can go ---- */
@@ -81,6 +82,8 @@
       source: sourceOf(share.url),
       hook:'', beats:[], why:'', transferable:'', myAngle:'',
       intent:'Education', channels:[], targets:[],
+      /* not in a folder yet, so it waits in the Inbox with the rest */
+      inbox: true,
       createdAt: Date.now()
     };
     await Store.put('swipes', rec);

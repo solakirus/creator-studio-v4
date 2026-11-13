@@ -61,8 +61,13 @@
     let n = 0;
     for(const id of ids){
       const s = await Store.get('swipes', id);
-      if(!s || (s.folders || []).includes(fid)) continue;
-      await Store.put('swipes', { ...s, folders:(s.folders || []).concat(fid) });
+      if(!s) continue;
+      if((s.folders || []).includes(fid)){
+        if(s.inbox) await Store.put('swipes', { ...s, inbox:false });
+        continue;
+      }
+      /* filed means sorted: it leaves the Inbox */
+      await Store.put('swipes', { ...s, folders:(s.folders || []).concat(fid), inbox:false });
       n++;
     }
     return n;
