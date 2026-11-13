@@ -131,6 +131,7 @@ const SIGNIN = {
   'twitter.com': ['https://x.com/i/flow/login', 'auth_token'],
   'threads.net': ['https://www.threads.net/login', 'sessionid']
 };
+const isSignedIn = url => available() ? signedIn(session(), url) : Promise.resolve(false);
 async function signedIn(ses, url) {
   const s = SIGNIN[hostOf(url)];
   if (!s) return true;
@@ -147,15 +148,57 @@ async function signInPage(win, ses, url, job) {
   try { await win.loadURL(s[0]); } catch (e) {}
   try { win.setTitle(`Sign in to ${name} — then this closes by itself`); } catch (e) {}
   win.show(); win.focus(); win.__shown = true;
+  const closed = watchClose(win);
   const t0 = Date.now();
-  while (Date.now() - t0 < SIGNIN_WAIT_MS && !job.stopped) {
+  let left = 0;
+  while (Date.now() - t0 < SIGNIN_WAIT_MS && !job.stopped && !closed.yes) {
     await wait(1500);
-    if (await signedIn(ses, url)) break;
+    if (await signedIn(ses, url) && !(await checking(win))) { if (++left >= 2) break; } else left = 0;
   }
+  closed.off();
   win.hide();
   if (!(await signedIn(ses, url))) { job.emit(`  ✗ Not signed in to ${name}, so only the posts it shows signed out were found.`); return false; }
   job.emit(`  ✓ signed in to ${name} — the app remembers it`);
   return true;
+}
+
+/* still mid sign-in: the picture puzzle, "confirm it's you", a code */
+const CHECKING = `/\\/(challenge|checkpoint|two_factor|auth_platform|accounts\\/login|login|i\\/flow)/i.test(location.pathname)`;
+const checking = async win => { try { return !!(await win.webContents.executeJavaScript(CHECKING)); } catch (e) { return false; } };
+/* closing the sign-in window means "I'm done" (or giving up): hide it
+   instead, so the scan can carry on */
+function watchClose(win) {
+  const st = { yes: false };
+  const h = e => { try { e.preventDefault(); } catch (er) {} st.yes = true; try { win.hide(); } catch (er) {} };
+  try { win.on('close', h); } catch (e) {}
+  st.off = () => { try { win.removeListener('close', h); } catch (e) {} };
+  return st;
+}
+
+/* v4: use the sign-in from Firefox, Chrome or Edge. yt-dlp reads the
+   browser's cookies into a cookies.txt; the site's own ones go into the
+   app's window, so the scan sees what that browser sees. */
+async function importCookies(url, text) {
+  if (!available()) return 0;
+  const host = hostOf(url);
+  if (!host) return 0;
+  const ses = session();
+  let n = 0;
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    const httpOnly = raw.startsWith('#HttpOnly_');
+    const line = httpOnly ? raw.slice(10) : raw;
+    if (!line || line.startsWith('#')) continue;
+    const [domain, , pth, secure, exp, name, ...rest] = line.split('\t');
+    if (!name || !domain) continue;
+    const d = domain.replace(/^\./, '');
+    if (d !== host && !d.endsWith('.' + host) && !host.endsWith('.' + d)) continue;
+    const c = { url: `https://${d}${pth || '/'}`, name, value: rest.join('\t'), path: pth || '/', secure: secure === 'TRUE',
+      httpOnly: httpOnly || /^(sessionid|ds_user_id|c_user|xs|auth_token)$/.test(name) };
+    if (domain.startsWith('.')) c.domain = domain;
+    if (+exp > 0) c.expirationDate = +exp;
+    try { await ses.cookies.set(c); n++; } catch (e) { /* one bad cookie: skip */ }
+  }
+  return n;
 }
 
 const isWalled = async win => { try { return !!(await win.webContents.executeJavaScript(WALLED)); } catch (e) { return false; } };
@@ -169,13 +212,19 @@ async function signIn(win, url, job) {
   job.emit(`  ${name} wants you signed in. Sign in once in the window that just opened — the app remembers it after that.`);
   try { win.setTitle(`Sign in to ${name} — then this closes by itself`); } catch (e) {}
   win.show(); win.focus(); win.__shown = true;
+  const closed = watchClose(win);
   const t0 = Date.now();
   let left = 0;
-  while (Date.now() - t0 < SIGNIN_WAIT_MS && !job.stopped) {
+  /* done when the site's sign-in is really there — not when the password box
+     goes away: after it come the picture puzzle and "confirm it's you" */
+  const cookie = !!SIGNIN[hostOf(url)];
+  while (Date.now() - t0 < SIGNIN_WAIT_MS && !job.stopped && !closed.yes) {
     await wait(1500);
-    if (!(await isWalled(win))) { if (++left >= 2) break; } else left = 0;
+    const done = cookie ? await signedIn(win.webContents.session || session(), url) && !(await checking(win)) : !(await isWalled(win));
+    if (done) { if (++left >= 2) break; } else left = 0;
   }
-  if (await isWalled(win)) { win.hide(); job.emit(`  ✗ Not signed in to ${name}, so its posts can't be seen.`); return false; }
+  closed.off();
+  if (cookie ? !(await signedIn(win.webContents.session || session(), url)) : await isWalled(win)) { win.hide(); job.emit(`  ✗ Not signed in to ${name}, so its posts can't be seen.`); return false; }
   job.emit(`  ✓ signed in to ${name} — the app remembers it`);
   try { await win.loadURL(url); } catch (e) {}
   win.hide();
@@ -568,5 +617,5 @@ async function pageLinks(job, url) {
   } catch (e) { return null; } finally { try { win.destroy(); } catch (e) {} }
 }
 
-module.exports = { available, grabPage, pageLinks, postLinks, postTitle, profileHandle, ownedBy, signedIn, fresh, cookieFile, mediaIn, rank, kindOf, challenged,
+module.exports = { available, grabPage, pageLinks, postLinks, postTitle, profileHandle, ownedBy, signedIn, isSignedIn, fresh, importCookies, cookieFile, mediaIn, rank, kindOf, challenged,
   SIGNIN_SITES, WALLED, POSTS, CHECK_WAIT_MS, SCROLL_MAX, MIN_SIDE, BIG_MAX };

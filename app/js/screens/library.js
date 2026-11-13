@@ -939,7 +939,7 @@
             <span>up to</span><input class="lv-in num" data-o="gifMax" type="number" min="1" max="5000" value="${s.gifMax}"></div>
           <div class="lv-row"><span>Bigger GIFs behind thumbnails</span><select class="lv-sel" data-o="bigGifs">${[['link','save each GIF, linked to its bigger GIF'],['download','save the bigger GIFs themselves (large files)'],['off','GIFs only, no bigger links (fastest)']].map(([v, l]) =>
             `<option value="${v}" ${(s.bigGifs || 'link') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-          <div class="lv-row"><span>Signed-in sites (Instagram…)</span><select class="lv-sel" data-o="cookies">${[['none','the app’s own sign-in (it asks when a site needs one)'],['firefox','use Firefox’s sign-in'],['chrome','use Chrome’s sign-in'],['edge','use Edge’s sign-in']].map(([v, l]) =>
+          <div class="lv-row"><span>Signed-in sites (Instagram…)</span><select class="lv-sel" data-o="cookies">${[['none','the app’s own sign-in (it asks when a site needs one)'],['firefox','use Firefox’s sign-in (works with Firefox open)'],['chrome','use Chrome’s sign-in (Chrome often locks it — Firefox is surer)'],['edge','use Edge’s sign-in (close Edge first)']].map(([v, l]) =>
             `<option value="${v}" ${(s.cookies || 'none') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
           <div class="lv-row"><label><input type="checkbox" data-o="keepVideo" ${s.keepVideo ? 'checked' : ''}> keep the downloaded video</label>
             <label><input type="checkbox" data-o="follow" ${s.follow ? 'checked' : ''}> also grab the pages each link points to</label></div>
@@ -973,7 +973,8 @@
         await MediaLib.setSettings({ scanUrl:url });
         fresh();
         const say = wireGrab(body, { scan:true, found:[] });
-        const r = await d.grabRun({ mode:'scan', url, max:s.scanMax, setting:s.grabber });
+        const ck = body.querySelector('[data-o="cookies"]');
+        const r = await d.grabRun({ mode:'scan', url, max:s.scanMax, setting:s.grabber, cookies:ck ? ck.value : (s.cookies || 'none') });
         if(!r.ok) return U.toast(r.why);
         setBusy(body, true);
         return say('Finding links on ' + url + '…');

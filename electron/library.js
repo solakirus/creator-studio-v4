@@ -305,7 +305,7 @@ function wire({ ipcMain, dialog, shell, net, getWin }) {
       job = { kill: () => { gstate.stopped = true; b.stop(); } };
       let work;
       if (o.mode === 'setup') work = Builtin.setup(b, t);
-      else if (o.mode === 'scan') work = Builtin.scan(b, t, o.url, Math.max(1, Math.min(2000, o.max | 0 || 200)), l => gsend('cs3:grab-link', l));
+      else if (o.mode === 'scan') work = Builtin.scan(b, t, o.url, Math.max(1, Math.min(2000, o.max | 0 || 200)), l => gsend('cs3:grab-link', l), { cookies: o.cookies });
       else {
         const s = o.opts || {};
         const out = s.out ? (path.isAbsolute(s.out) ? s.out : path.join(defaultRoot(), safeName(s.out))) : defaultRoot();

@@ -386,8 +386,37 @@ async function grab(job, t, links, outRoot, o) {
   return ok ? 0 : 1;
 }
 
-async function scan(job, t, url, max, link) {
+const BROWSERS = { firefox: 'Firefox', chrome: 'Chrome', edge: 'Edge' };
+/* v4: "use Firefox's sign-in" (or Chrome's, Edge's) for scans too: yt-dlp
+   reads that browser's cookies; the site's go into the app's window */
+async function browserSignIn(job, t, url, browser) {
+  const name = BROWSERS[browser];
+  if (!name) return false;
+  if (!t.ytdlp) { job.emit(`  Using ${name}'s sign-in needs yt-dlp — press “Install yt-dlp and ffmpeg”. Using the app's own sign-in instead.`); return false; }
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cs4-jar-'));
+  const jar = path.join(tmp, 'cookies.txt');
+  try {
+    /* a link that goes nowhere: yt-dlp still reads the browser and writes the file */
+    const r = await job.run(t.ytdlp, ['--cookies-from-browser', browser, '--cookies', jar, '--simulate', '--no-warnings', 'http://127.0.0.1:9/']);
+    const text = fs.existsSync(jar) ? fs.readFileSync(jar, 'utf8') : '';
+    const n = await Browser.importCookies(url, text);
+    const site = siteOf(url).replace(/^www\./, '');
+    if (n && await Browser.isSignedIn(url)) {
+      job.emit(`  ✓ using ${name}'s sign-in for ${site}`); return true;
+    }
+    const err = String((r && r.err) || '');
+    if (/decrypt|dpapi|app.?bound/i.test(err)) job.emit(`  ✗ ${name} keeps its sign-ins locked away, so they can't be borrowed. Firefox's can — or sign in once in the app's own window.`);
+    else if (/could not copy|database is locked|permission/i.test(err)) job.emit(`  ✗ ${name} has its sign-ins open — close ${name} and scan again, or use Firefox.`);
+    else if (/could not find|not find .*profile|no such file/i.test(err)) job.emit(`  ✗ ${name} isn't set up on this computer.`);
+    else job.emit(`  ✗ Not signed in to ${site} in ${name} — sign in there, or in the app's own window.`);
+    return false;
+  } catch (e) { return false; } finally { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) {} }
+}
+
+async function scan(job, t, url, max, link, o = {}) {
   job.emit(`Looking for links on ${url}…`);
+  if (isSocial(url) && !postLink(url) && Browser.available() && o.cookies && o.cookies !== 'none')
+    await browserSignIn(job, t, url, o.cookies);
   /* v4: a profile on Instagram, TikTok, X… — yt-dlp can't list those, and a
      plain look at the page signed out sees only its login wall. Open it in
      the app's window (signing in once if asked), scroll, keep posts and reels. */

@@ -29,7 +29,7 @@ const page = body => `<!doctype html><html><head><meta charset="utf-8"><title>In
 const NAV = `<nav><a href="/">Instagram</a><a href="/accounts/login/">Log In</a><a href="/accounts/emailsignup/">Sign Up</a>
   <a href="/bryanhynes/followers/">392K followers</a><a href="/explore/">Explore</a><a href="/bryanhynes/reels/">Reels</a></nav>`;
 const server = http.createServer((req, res) => {
-  const signed = /sessionid=ok/.test(req.headers.cookie || '');
+  const signed = /sessionid=\w/.test(req.headers.cookie || '');
   const send = (h, code) => { res.writeHead(code || 200, { 'Content-Type': 'text/html' }); res.end(h); };
   /* a tiny picture for the grid's thumbnails */
   if (req.url.startsWith('/thumb/')) { res.writeHead(200, { 'Content-Type': 'image/gif' });
@@ -74,7 +74,8 @@ const server = http.createServer((req, res) => {
 /* ---- a stand-in electron, backed by one Chromium */
 let browser, ctx;
 const shows = [];
-let scrolledShown = 0;   /* scrolling a window that was shown and hidden: Electron stops drawing those */
+let scrolledShown = 0;
+let flow = 'plain';   /* scrolling a window that was shown and hidden: Electron stops drawing those */
 class BrowserWindow {
   constructor(o){ this.o = o; this.p = null; this.webContents = {
     executeJavaScript: async js => { await this.ready(); if (this.shownEver && /scrollBy/.test(js)) scrolledShown++; return this.p.evaluate(js); },
@@ -82,17 +83,24 @@ class BrowserWindow {
   }; }
   async ready(){ if(!this.p) this.p = await ctx.newPage(); return this.p; }
   async loadURL(u){ await this.ready(); await this.p.goto(u, { waitUntil: 'domcontentloaded' }); this.title = await this.p.title(); }
+  on(ev, f){ (this.ls = this.ls || {})[ev] = f; } removeListener(ev){ if(this.ls) delete this.ls[ev]; }
   show(){ shows.push(Date.now()); this.shownEver = true;
+    /* the person gives up and closes the window */
+    if (flow === 'close') return setTimeout(() => this.ls && this.ls.close && this.ls.close({ preventDefault(){} }), 1000);
+    /* after the password: a picture puzzle on /challenge/ for a few seconds, no sign-in yet */
+    if (flow === 'challenge') setTimeout(() => this.p.goto('https://www.instagram.com/challenge/', { waitUntil: 'domcontentloaded' }), 300);
     /* the person signs in: the site sets its cookie and sends them back */
     setTimeout(async () => { await ctx.addCookies([{ name: 'sessionid', value: 'ok', domain: 'www.instagram.com', path: '/', expires: Math.floor(Date.now() / 1000) + 86400 * 90, secure: true }]);
-      await this.p.goto('https://www.instagram.com/', { waitUntil: 'domcontentloaded' }); }, 800); }
+      await this.p.goto('https://www.instagram.com/', { waitUntil: 'domcontentloaded' }); }, flow === 'challenge' ? 6000 : 800); }
   hide(){} focus(){} setTitle(t){ this.title = t; } destroy(){ if(this.p) this.p.close().catch(() => {}); }
 }
 const fakeElectron = {
   BrowserWindow,
   app: { isReady: () => true },
   session: { fromPartition: () => ({ fetch: (u, o) => { const x = new URL(u); return fetch(`http://127.0.0.1:${server.address().port}${x.pathname}`, o); }, getUserAgent: () => 'Mozilla/5.0 Chrome/131 Electron/30', setUserAgent(){},
-    cookies: { get: async ({ domain }) => (await ctx.cookies()).filter(c => c.domain.replace(/^\./, '').endsWith(domain))
+    cookies: { set: async c => ctx.addCookies([{ name: c.name, value: c.value, domain: c.domain || new URL(c.url).hostname, path: c.path || '/',
+        expires: c.expirationDate || -1, secure: !!c.secure, httpOnly: !!c.httpOnly }]),
+      get: async ({ domain }) => (await ctx.cookies()).filter(c => c.domain.replace(/^\./, '').endsWith(domain))
       .map(c => ({ ...c, expirationDate: c.expires > 0 ? c.expires : undefined, hostOnly: !c.domain.startsWith('.') })) } }) }
 };
 const resolve = Module._resolveFilename;
@@ -170,6 +178,47 @@ require.cache.electron = { id: 'electron', filename: 'electron', loaded: true, e
   const b5 = shows.length;
   await Builtin.scan(j5, { ytdlp: null }, 'https://www.instagram.com/quiet/reels/', 200, l => again2.push(l));
   ok(shows.length === b5 && again2.length === 40, 'signed in already: no window, all 40', again2.length);
+
+  console.log('\n— signing in goes on to a picture puzzle —');
+  await ctx.clearCookies(); flow = 'challenge';
+  const j6 = job(), pz = [];
+  await Builtin.scan(j6, { ytdlp: null }, 'https://www.instagram.com/quiet/reels/', 200, l => pz.push(l));
+  ok(!j6.lines.some(l => /Not signed in/.test(l)) && j6.lines.some(l => /signed in to Instagram/.test(l)), 'the window stays open through the puzzle until the sign-in is really done');
+  ok(pz.length === 40, 'then every reel is found', pz.length);
+
+  console.log('\n— closing the sign-in window —');
+  await ctx.clearCookies(); flow = 'close';
+  const j7 = job(), t7 = Date.now();
+  await Builtin.scan(j7, { ytdlp: null }, 'https://www.instagram.com/quiet/reels/', 200, () => {});
+  ok(Date.now() - t7 < 20000, 'closing it ends the wait instead of sitting there for 5 minutes', ((Date.now() - t7) / 1000).toFixed(1) + 's');
+  ok(j7.lines.some(l => /Not signed in to Instagram/.test(l)), 'and says it isn\'t signed in');
+  flow = 'plain';
+
+  console.log('\n— using Firefox\'s sign-in —');
+  const tmpd = fs.mkdtempSync(path.join(os.tmpdir(), 'fakeytdlp-'));
+  const fake = (name, body) => { const f = path.join(tmpd, name); fs.writeFileSync(f, '#!/usr/bin/env node\n' + body); fs.chmodSync(f, 0o755); return f; };
+  const goodYt = fake('yt-ok', `const a=process.argv; const jar=a[a.indexOf('--cookies')+1]; require('fs').writeFileSync(jar,
+    '# Netscape HTTP Cookie File\\n.instagram.com\\tTRUE\\t/\\tTRUE\\t' + (Math.floor(Date.now()/1000)+86400) + '\\tsessionid\\tfromfirefox\\n.google.com\\tTRUE\\t/\\tTRUE\\t' + (Math.floor(Date.now()/1000)+86400) + '\\tSID\\tgoogle\\n');
+    process.stdout.write(a.join(' ')); process.exit(1);`);
+  const lockedYt = fake('yt-locked', `console.error('ERROR: Failed to decrypt with DPAPI. See https://github.com/yt-dlp/yt-dlp/issues/10927'); process.exit(1);`);
+  await ctx.clearCookies();
+  const j8 = Builtin.makeJob(() => {}), l8 = [], ff = [];
+  j8.emit = l => l8.push(l);
+  const b8 = shows.length;
+  await Builtin.scan(j8, { ytdlp: goodYt }, 'https://www.instagram.com/quiet/reels/', 200, l => ff.push(l), { cookies: 'firefox' });
+  ok(l8.some(l => /using Firefox's sign-in for instagram\.com/.test(l)), 'it borrows Firefox\'s Instagram sign-in', l8.find(l => /Firefox/.test(l)));
+  ok(shows.length === b8 && ff.length === 40, 'so no sign-in window, and every reel', ff.length);
+  const ck = await ctx.cookies();
+  ok(ck.some(c => c.name === 'sessionid' && c.value === 'fromfirefox') && !ck.some(c => /google/.test(c.domain)), 'only Instagram\'s cookies come over, not the rest of Firefox\'s');
+
+  console.log('\n— Chrome\'s sign-ins locked away —');
+  await ctx.clearCookies();
+  const j9 = Builtin.makeJob(() => {}), l9 = [], cr = [];
+  j9.emit = l => l9.push(l);
+  const b9 = shows.length;
+  await Builtin.scan(j9, { ytdlp: lockedYt }, 'https://www.instagram.com/quiet/reels/', 200, l => cr.push(l), { cookies: 'chrome' });
+  ok(l9.some(l => /Chrome keeps its sign-ins locked away/.test(l)), 'it says Chrome\'s can\'t be borrowed and suggests Firefox', l9.find(l => /Chrome/.test(l)));
+  ok(shows.length === b9 + 1 && cr.length === 40, 'then falls back to the app\'s own sign-in window', cr.length);
 
   await browser.close(); server.close();
   console.log(`\nsocial profiles  (${pass} ok, ${fail} failed)`);
