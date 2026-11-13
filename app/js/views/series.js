@@ -21,6 +21,7 @@
     await loadChannels();
     el.className = 'view';
     const [hero, list] = await Promise.all([Data.activeSeries(), Data.seriesWithProgress()]);
+    if(global.Cover) await Cover.ready();
 
     /* channel narrows which series; stage narrows to the ones with work of that
        kind waiting, so "what needs editing" is one tap rather than a read-through */
@@ -66,6 +67,7 @@
 
     <div class="pagehead"><h1 class="page-title">Series</h1>
       <span class="headacts" style="display:flex;gap:8px;align-items:center">
+        ${global.ViewAs ? ViewAs.picker('series') : ''}
         <button class="iconbtn" data-clips aria-label="All clips" style="width:34px;height:34px">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="2"/><path d="M15.5 10.5L21.5 7.5v9l-6-3z"/></svg>
         </button>
@@ -75,7 +77,7 @@
 
     ${hero ? `
     <div class="hero2">
-      <div class="art2" style="background-image:${generatedArt(hero.id, hero.title, 360, 190)}">
+      <div class="art2" style="background-image:${global.Cover ? Cover.bg('series', hero.id, generatedArt(hero.id, hero.title, 360, 190)) : generatedArt(hero.id, hero.title, 360, 190)}">
         <span class="timer"><i></i>${u.chip}</span>
         <div class="heroText">
           <p class="caps amber" style="font-size:13px;margin:0 0 6px">Active series · ${hero.total} episodes · ${
@@ -127,9 +129,9 @@
       : stageFilter === 'raw' ? 'Waiting on an edit'
       : stageFilter === 'queued' ? 'Waiting to go out' : 'Published'}</h2>
       <div class="rule"></div><span class="alt">${shown.length}</span></div>
-    <div class="list">
+    <div class="list ${global.ViewAs ? ViewAs.cls('series') : ''}" data-lay-host="series">
       ${shown.map(s => `<article class="mediacard"><div class="card" data-open="${s.id}">
-        <div class="art" style="background-image:${generatedArt(s.id, s.title)}"></div>
+        <div class="art" style="background-image:${global.Cover ? Cover.bg('series', s.id, generatedArt(s.id, s.title)) : generatedArt(s.id, s.title)}">${global.Cover ? Cover.btn('series', s.id) : ''}</div>
         <span class="state ${s.state}">${STATE[s.state]}</span>
         <div class="body"><h3>${s.title}</h3>
           <div class="meta">${s.channel
@@ -345,6 +347,9 @@
   async function mount(el){
     root = el;
     await render(el);
+    /* a cover set from a card (cover.js) redraws the list while it is open */
+    const onCover = () => { if(!el.isConnected) return global.removeEventListener('cs-cover', onCover); render(el); };
+    global.addEventListener('cs-cover', onCover);
     /* hold a series to pick several, then delete them together */
     if(global.Select) Select.enable(el, {
       itemSelector: '.mediacard',

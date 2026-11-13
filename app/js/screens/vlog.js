@@ -99,6 +99,7 @@
     async function render(){
       const rows = (await all()).map(migrate);
       const thisWeek = await Data.currentWeek();
+      if(window.Cover) await Cover.ready();
       let unassigned = 0;
       try { unassigned = window.Research ? (await Research.unassigned()).length : 0; } catch(e){}
 
@@ -157,7 +158,7 @@
               const label = !beats.length ? 'Empty' : done === beats.length ? 'Wrapped' : 'In progress';
               /* the same card a series uses, so the three sections read alike */
               return `<article class="mediacard"><div class="card" data-open="${v.id}">
-                <div class="art" style="background-image:${U.generatedArt(v.id, v.title)}"></div>
+                <div class="art" style="background-image:${window.Cover ? Cover.bg('vlog', v.id, U.generatedArt(v.id, v.title)) : U.generatedArt(v.id, v.title)}">${window.Cover ? Cover.btn('vlog', v.id) : ''}</div>
                 <span class="state ${state}">${label}</span>
                 <div class="body"><h3>${wk ? `Ep ${wk} · ` : ''}${v.title}</h3>
                   <div class="meta">
@@ -199,6 +200,9 @@
       });
     }
     render();
+    /* a cover set from a card (cover.js) redraws the list while it is open */
+    const onCover = () => { if(!el.isConnected) return window.removeEventListener('cs-cover', onCover); render(); };
+    window.addEventListener('cs-cover', onCover);
   }
 
   /* ---------- create ---------- */

@@ -63,7 +63,7 @@
       const p = PLATFORMS[c.plat] || { name:c.plat, dot:'#888' };
       const planned = c.plan && (c.plan.hook || (c.plan.beats || []).some(b => b.trim()));
       return `<article class="mediacard"><div class="card" data-plan="${c.id}">
-        <div class="art" style="background-image:${generatedArt(c.id, c.title)}"></div>
+        <div class="art" style="background-image:${global.Cover ? Cover.bg('clip', c.id, generatedArt(c.id, c.title), ['series', c.seriesId]) : generatedArt(c.id, c.title)}">${global.Cover ? Cover.btn('clip', c.id) : ''}</div>
         <!-- The channel leads. Which of yours this belongs to is the thing you
              scan for; the platform matters once you are publishing it, and by
              then you are on the clip itself. -->
@@ -132,6 +132,10 @@
     root.className = 'view flush';
     rows = (await Data.clipsWithSeries()).sort((a,b) => b.createdAt - a.createdAt);
     try { CHANNELS = await Channels.all(); } catch(e){ CHANNELS = []; }
+    if(global.Cover) await Cover.ready();
+    /* a cover set from a card (cover.js) redraws the list while it is open */
+    const onCover = () => { if(!el.isConnected) return global.removeEventListener('cs-cover', onCover); renderList(); };
+    global.addEventListener('cs-cover', onCover);
 
     root.innerHTML = `
     <div class="pad">
