@@ -12,7 +12,7 @@
 
   let tab = 'deck';
   let kind = 'all', q = '', src = 'all', selecting = false, sel = new Set();
-  let sort = '', limit = 1500, lastTick = null;   /* v4: big-library tools */
+  let sort = '', limit = 1500, lastTick = null, deckKeys = null;   /* v4: big-library tools */
 
   async function mount(el, params){
     const embedded = !!(params && params.embedded);
@@ -84,19 +84,22 @@
           </select>
           <button class="pill" data-select aria-pressed="${selecting}">☐ Select</button>
         </div>
-        <div class="lv-selbar" ${selecting && sel.size ? '' : 'hidden'}>
+        <div class="lv-selbar" ${selecting ? '' : 'hidden'}>
           <b data-seln>${plural(sel.size, 'frame')}</b>
           <button class="lv-btn sm" data-sel="star">★ Star into…</button>
           ${inStar ? `<button class="lv-btn sm ghost" data-sel="unstar">Take out of ★ ${esc(inStar.name)}</button>` : ''}
           <button class="lv-btn sm" data-sel="board">◈ Add to board</button>
           ${t ? `<button class="lv-btn sm" data-sel="target">＋ Add to ${esc(t.label || 'template')}</button>` : ''}
           <button class="lv-btn sm ghost" data-sel="all">Select all shown</button>
+          <button class="lv-btn sm ghost" data-sel="invert" title="Tick the ones you want to keep, then Invert and Delete">Invert</button>
           <button class="lv-btn sm ghost" data-sel="clear">Clear</button>
           <button class="lv-btn sm ghost danger" data-sel="delete">Delete</button>
         </div>
         ${pp.html}
-        <div class="lv-grid lv-deck" data-drop></div>
-        <p class="hintline lv-foot">Click a frame to see it big${t ? ', ＋ adds it to ' + esc(t.label) : ''}. Drop files here to add them.</p>`;
+        <div class="lv-grid lv-deck${selecting ? ' lv-selecting' : ''}" data-drop></div>
+        <p class="hintline lv-foot">${selecting
+          ? 'Drag across frames to tick (or untick) a whole run at once · Shift-click ticks everything between two · Delete key deletes the ticked ones · Esc clears.'
+          : `Click a frame to see it big${t ? ', ＋ adds it to ' + esc(t.label) : ''}. Ctrl-click (⌘ on a Mac) starts ticking frames. Drop files here to add them.`}</p>`;
       const grid = body.querySelector('.lv-deck');
 
       async function draw(){
@@ -118,8 +121,10 @@
       }
       function selbar(){
         const bar = body.querySelector('.lv-selbar');
-        bar.hidden = !(selecting && sel.size);
-        body.querySelector('[data-seln]').textContent = plural(sel.size, 'frame');
+        /* shown the whole time you're ticking, so the frames never jump under a drag */
+        bar.hidden = !selecting;
+        body.querySelector('[data-seln]').textContent = sel.size ? plural(sel.size, 'frame') : 'Nothing ticked yet';
+        bar.querySelectorAll('[data-sel]:not([data-sel="all"]):not([data-sel="invert"])').forEach(x => { x.disabled = !sel.size; });
       }
 
       body.addEventListener('click', async e => {
@@ -134,6 +139,11 @@
           const act = a.dataset.sel;
           if(act === 'clear'){ sel.clear(); grid.querySelectorAll('.is-sel').forEach(x => x.classList.remove('is-sel')); return selbar(); }
           if(act === 'all'){ (grid._shown || []).forEach(u => sel.add(u)); grid.querySelectorAll('.lv-tile').forEach(x => x.classList.add('is-sel')); return selbar(); }
+          if(act === 'invert'){
+            (grid._shown || []).forEach(u => sel.has(u) ? sel.delete(u) : sel.add(u));
+            grid.querySelectorAll('.lv-tile[data-uid]').forEach(x => x.classList.toggle('is-sel', sel.has(x.dataset.uid)));
+            return selbar();
+          }
           if(act === 'board') return LibView.boardMenu([...sel], () => { sel.clear(); render(); });
           if(act === 'star') return LibView.starMenu([...sel], () => { sel.clear(); render(); });
           if(act === 'unstar' && inStar){ const n = await MediaLib.unstar(inStar.id, [...sel]); sel.clear(); U.toast(`Took ${plural(n, 'frame')} out — they leave the phone`); return render(); }
@@ -144,6 +154,9 @@
         if(e.target.closest('[data-moreall]')){ limit = 1e9; return draw(); }
         const tl = e.target.closest('.lv-tile[data-uid]');
         if(!tl) return;
+        if(dragged){ dragged = false; return; }            /* the end of a drag, not a click */
+        /* Ctrl/⌘-click starts ticking, with this one ticked */
+        if(!selecting && (e.ctrlKey || e.metaKey)){ selecting = true; sel.clear(); sel.add(tl.dataset.uid); lastTick = tl.dataset.uid; return render(); }
         if(selecting){
           const u = tl.dataset.uid;
           /* Shift-click ticks everything between this and the last one ticked */
@@ -176,8 +189,84 @@
       });
       body.addEventListener('contextmenu', e => {
         const tl = e.target.closest('.lv-tile[data-uid]');
-        if(tl){ e.preventDefault(); LibView.view(tl.dataset.uid); }
+        if(tl){ e.preventDefault(); if(!selecting) LibView.view(tl.dataset.uid); }
       });
+
+      /* v4: drag to tick a whole run. Press on a frame and move: every frame
+         from that one to the one under the pointer (in order, like reading)
+         takes the first one's new state — ticked, or unticked if it was
+         ticked. Near the top or bottom edge the page scrolls along. On a touch
+         screen a sideways drag ticks; an up-and-down swipe still scrolls. */
+      let dragged = false;
+      if(selecting){
+        let drag = null, scrollTimer = null;
+        const scroller = (() => { let n = grid.parentElement; while(n && n !== document.body){ const cs = getComputedStyle(n);
+          if(/(auto|scroll)/.test(cs.overflowY) && n.scrollHeight > n.clientHeight) return n; n = n.parentElement; } return document.scrollingElement; })();
+        const tileAt = (x, y) => { const el = document.elementFromPoint(x, y); return el && el.closest ? el.closest('.lv-deck .lv-tile[data-uid]') : null; };
+        const paint = () => {
+          const order = grid._shown || [];
+          const a = order.indexOf(drag.from), b = order.indexOf(drag.to);
+          if(a < 0 || b < 0) return;
+          const [lo, hi] = a < b ? [a, b] : [b, a];
+          sel.clear(); drag.before.forEach(u => sel.add(u));
+          for(let i = lo; i <= hi; i++) drag.on ? sel.add(order[i]) : sel.delete(order[i]);
+          grid.querySelectorAll('.lv-tile[data-uid]').forEach(x => x.classList.toggle('is-sel', sel.has(x.dataset.uid)));
+          selbar();
+        };
+        const edgeScroll = () => {
+          clearInterval(scrollTimer); scrollTimer = null;
+          if(!drag || !scroller) return;
+          const r = scroller === document.scrollingElement ? { top:0, bottom:innerHeight } : scroller.getBoundingClientRect();
+          const dy = drag.y < r.top + 60 ? -18 : drag.y > r.bottom - 60 ? 18 : 0;
+          if(!dy) return;
+          scrollTimer = setInterval(() => {
+            if(!drag){ clearInterval(scrollTimer); return; }
+            scroller.scrollTop += dy;
+            const t2 = tileAt(drag.x, drag.y);
+            if(t2 && t2.dataset.uid !== drag.to){ drag.to = t2.dataset.uid; paint(); }
+          }, 30);
+        };
+        grid.addEventListener('pointerdown', e => {
+          if(e.button !== 0) return;
+          const tl = e.target.closest('.lv-tile[data-uid]');
+          if(!tl) return;
+          drag = { from:tl.dataset.uid, to:tl.dataset.uid, on:!sel.has(tl.dataset.uid), before:new Set(sel), x:e.clientX, y:e.clientY, moved:false, id:e.pointerId };
+        });
+        grid.addEventListener('pointermove', e => {
+          if(!drag || e.pointerId !== drag.id) return;
+          drag.x = e.clientX; drag.y = e.clientY;
+          const t2 = tileAt(e.clientX, e.clientY);
+          if(!drag.moved){
+            if(!t2 || t2.dataset.uid === drag.from) return;
+            drag.moved = true;
+            try { grid.setPointerCapture(e.pointerId); } catch(err){}
+            grid.classList.add('lv-dragging');
+          }
+          e.preventDefault();
+          if(t2 && t2.dataset.uid !== drag.to){ drag.to = t2.dataset.uid; paint(); }
+          edgeScroll();
+        });
+        const end = e => {
+          if(!drag || (e && e.pointerId !== drag.id)) return;
+          if(drag.moved){ dragged = true; lastTick = drag.to; setTimeout(() => { dragged = false; }, 50); }
+          drag = null; clearInterval(scrollTimer); scrollTimer = null;
+          grid.classList.remove('lv-dragging');
+        };
+        grid.addEventListener('pointerup', end);
+        grid.addEventListener('pointercancel', end);
+      }
+
+      /* keys while ticking: Delete deletes, Ctrl/⌘+A ticks all shown, Esc clears */
+      if(deckKeys) document.removeEventListener('keydown', deckKeys);
+      deckKeys = e => {
+        if(!grid.isConnected){ document.removeEventListener('keydown', deckKeys); deckKeys = null; return; }
+        if(/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '') || document.querySelector('#sheet.open')) return;
+        if(!selecting) return;
+        if((e.key === 'Delete' || e.key === 'Backspace') && sel.size){ e.preventDefault(); return confirmDelete([...sel]); }
+        if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a'){ e.preventDefault(); body.querySelector('[data-sel="all"]').click(); }
+        if(e.key === 'Escape' && sel.size){ e.preventDefault(); body.querySelector('[data-sel="clear"]').click(); }
+      };
+      document.addEventListener('keydown', deckKeys);
       /* a new source redraws the page: its selection bar changes with it (a starred group's "Take out of") */
       body.querySelector('[data-src]').addEventListener('change', e => { src = e.target.value; limit = 1500; sel.clear(); render(); });
       LibView.wireStrip(body, lib);
@@ -192,6 +281,7 @@
       body.querySelector('[data-q]').addEventListener('input', e => { clearTimeout(timer); timer = setTimeout(() => { q = e.target.value; draw(); }, 200); });
       wireDrop(grid);
       await draw();
+      if(selecting) selbar();
     }
 
     async function addToTarget(uids){
@@ -203,7 +293,14 @@
     }
     const global_tpl = () => !!window.ShotTemplates;
 
-    function confirmDelete(uids){
+    async function confirmDelete(uids){
+      /* the iPad reads nastime's Shot Library without changing it: those are deleted from the laptop */
+      if(MediaLib.remote()){
+        const l = await MediaLib.load();
+        const own = uids.filter(u => { const it = MediaLib.find(l, u); return it && it.src === 'db'; });
+        if(!own.length) return U.toast('These live in the Shot Library on nastime — delete them from the laptop');
+        uids = own;
+      }
       const lib = MediaLib.disk() ? 'They’re moved into Shot Library/_Deleted when they live in a folder, so you can still get those back.' : 'They’re taken out of the app.';
       App.sheet(`<h2 style="margin:0 0 10px">Delete ${plural(uids.length, 'frame')}?</h2>
         <p class="hintline" style="margin:0 0 6px">${lib} Boards and templates that use them show an empty spot.</p>

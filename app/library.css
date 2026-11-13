@@ -404,3 +404,10 @@ html[data-mode="light"] .lv-btn:not(.ghost){color:#fff}
 .lv-getone{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:3;white-space:nowrap}
 .lv-pcard{user-select:none}
 .lv-pcard:focus-visible .lv-pthumb{border-color:var(--orange-hi,#ff8a33)}
+/* v4: ticking many frames at once */
+.lv-selecting .lv-tile{touch-action:pan-y;user-select:none;-webkit-user-select:none;cursor:pointer}
+.lv-selecting .lv-tile img,.lv-selecting .lv-tile video{-webkit-user-drag:none;pointer-events:none}
+.lv-dragging{cursor:crosshair}
+/* ticked frames tinted, so a run reads at a glance */
+.lv-tile.is-sel::after{content:"";position:absolute;inset:0;background:rgba(255,106,0,.28);pointer-events:none;z-index:1}
+.lv-tile .lv-check{z-index:2}
