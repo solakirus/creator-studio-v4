@@ -76,7 +76,6 @@
             ${lib.collections.length ? `<optgroup label="Libraries">${lib.collections.map(c =>
               `<option value="col:${esc(c.key)}" ${src === 'col:' + c.key || (srcPage && usePgSel && colNow === c.key) ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</optgroup>` : ''}
           </select>
-          ${pp.html}
           <input class="lv-in" type="search" data-q placeholder="Search names, labels, pages…" value="${esc(q)}">
           <button class="pill" data-play aria-pressed="${s.play !== false}">▶ Play GIFs</button>
           <select class="lv-sel" data-sort aria-label="Sort">
@@ -95,6 +94,7 @@
           <button class="lv-btn sm ghost" data-sel="clear">Clear</button>
           <button class="lv-btn sm ghost danger" data-sel="delete">Delete</button>
         </div>
+        ${pp.html}
         <div class="lv-grid lv-deck" data-drop></div>
         <p class="hintline lv-foot">Click a frame to see it big${t ? ', ＋ adds it to ' + esc(t.label) : ''}. Drop files here to add them.</p>`;
       const grid = body.querySelector('.lv-deck');
@@ -180,8 +180,13 @@
       });
       /* a new source redraws the page: its selection bar changes with it (a starred group's "Take out of") */
       body.querySelector('[data-src]').addEventListener('change', e => { src = e.target.value; limit = 1500; sel.clear(); render(); });
-      const pgSel = body.querySelector('[data-pgsel]');
-      if(pgSel) pgSel.addEventListener('change', e => { src = e.target.value || pp.back(); limit = 1500; sel.clear(); render(); });
+      LibView.wireStrip(body, lib);
+      body.addEventListener('click', e => {
+        const c = e.target.closest('[data-pgcard]');
+        if(!c) return;
+        e.stopPropagation();
+        src = c.dataset.pgcard || pp.back(); limit = 1500; sel.clear(); render();
+      }, true);
       body.querySelector('[data-sort]').addEventListener('change', e => { sort = e.target.value; draw(); });
       let timer;
       body.querySelector('[data-q]').addEventListener('input', e => { clearTimeout(timer); timer = setTimeout(() => { q = e.target.value; draw(); }, 200); });

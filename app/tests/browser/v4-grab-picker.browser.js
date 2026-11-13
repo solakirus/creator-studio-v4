@@ -113,22 +113,26 @@ const head = s => console.log(`\n— ${s} —`);
   await p.click('.lv-tabs [data-tab="deck"]'); await p.waitForTimeout(700);
   const tiles = () => p.$$eval('.lv-deck .lv-tile', x => x.length);
   ok(await tiles() === 6, 'Everything shows all six', String(await tiles()));
-  let opts = await p.$$eval('[data-pgsel] option', x => x.map(o => o.textContent.trim()));
-  ok(opts.length === 4 && opts.some(o => /Morning Routine \(3\)/.test(o)) && opts.some(o => /Desk Setup \(2\)/.test(o)), 'the picker lists every video or page with its count', JSON.stringify(opts));
-  const groups = await p.$$eval('[data-pgsel] optgroup', x => x.map(o => o.label));
-  ok(groups.includes('Riza') && groups.includes('Mine'), 'grouped by library', JSON.stringify(groups));
-  await p.selectOption('[data-pgsel]', { label: 'Morning Routine (3)' }); await p.waitForTimeout(700);
-  ok(await tiles() === 3, 'picking one shows just its frames', String(await tiles()));
-  ok(/Riza/.test(await p.$eval('[data-src]', s => s.options[s.selectedIndex].textContent)), 'the left picker shows its library');
-  opts = await p.$$eval('[data-pgsel] option', x => x.map(o => o.textContent.trim()));
-  ok(opts.length === 3 && /All its/.test(opts[0]), 'the picker narrows to that library\'s videos', JSON.stringify(opts));
+  const cards = (sc = '') => p.$$eval(sc + ' .lv-pstrip .lv-pcard', x => x.map(c => c.querySelector('b').textContent.trim() + (c.querySelector('small') ? ' / ' + c.querySelector('small').textContent.trim() : '') + ' (' + c.querySelector('.lv-pn').textContent.trim() + ')'));
+  const card = (name, sc = '') => p.click(`${sc} .lv-pstrip .lv-pcard:has(b:text-is("${name}"))`);
+  let opts = await cards();
+  ok(opts.length === 4 && opts.includes('Morning Routine / Riza (3)') && opts.includes('Desk Setup / Riza (2)') && /^Every video/.test(opts[0]),
+    'a row of cards across the top: every video or page, its library and count', JSON.stringify(opts));
+  const thumbs = await p.$$eval('.lv-pstrip .lv-pcard:not(.lv-pall) .lv-media', x => x.filter(m => m.querySelector('img,canvas,video')).length);
+  ok(thumbs === 3, 'each card shows its first frame', String(thumbs));
+  await card('Morning Routine'); await p.waitForTimeout(700);
+  ok(await tiles() === 3, 'tapping one shows just its frames', String(await tiles()));
+  ok(/Riza/.test(await p.$eval('[data-src]', s => s.options[s.selectedIndex].textContent)), 'the menu on the left shows its library');
+  opts = await cards();
+  ok(opts.length === 3 && /^All of it/.test(opts[0]) && await p.$eval('.lv-pstrip .lv-pcard[aria-pressed="true"] b', b => b.textContent) === 'Morning Routine',
+    'the row narrows to that library, with the chosen card lit', JSON.stringify(opts));
   await p.screenshot({ path: path.join(out, 'deck-one-video.png') });
-  await p.selectOption('[data-pgsel]', { label: 'Desk Setup (2)' }); await p.waitForTimeout(700);
+  await card('Desk Setup'); await p.waitForTimeout(700);
   ok(await tiles() === 2, 'switching to another video', String(await tiles()));
-  await p.selectOption('[data-pgsel]', ''); await p.waitForTimeout(700);
-  ok(await tiles() === 5, '"All its videos" goes back to the whole library', String(await tiles()));
+  await card('All of it'); await p.waitForTimeout(700);
+  ok(await tiles() === 5, '"All of it" goes back to the whole library', String(await tiles()));
   await p.selectOption('[data-src]', 'all'); await p.waitForTimeout(700);
-  ok(await tiles() === 6 && (await p.$$eval('[data-pgsel] option', x => x.length)) === 4, 'Everything brings the full list back');
+  ok(await tiles() === 6 && (await cards()).length === 4, 'Everything brings the full row back');
 
   head('the frame picker');
   const opened = p.evaluate(() => LibView.pick({ title:'Pick a frame for shot 1' }).then(u => window.__picked = u));
@@ -136,15 +140,15 @@ const head = s => console.log(`\n— ${s} —`);
   const sizes = await p.$$eval('.lv-pgrid .lv-tile', x => x.slice(0, 3).map(t => { const r = t.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }));
   ok(sizes.length && sizes.every(([w, h]) => h > w * 0.5), 'its tiles keep their shape', JSON.stringify(sizes));
   ok(await p.$('.lv-pscroll .lv-pgrid') && await p.$eval('.lv-pscroll', e => getComputedStyle(e).overflowY === 'auto'), 'the grid scrolls inside a wrapper, not squeezed by a fixed height');
-  ok((await p.$$eval('.lv-picker [data-pgsel] option', x => x.length)) === 4, 'it has the one-video picker too');
-  await p.selectOption('.lv-picker [data-pgsel]', { label: 'Desk Setup (2)' }); await p.waitForTimeout(600);
+  ok((await cards('.lv-picker')).length === 4, 'it has the row of videos too');
+  await card('Desk Setup', '.lv-picker'); await p.waitForTimeout(600);
   ok((await p.$$eval('.lv-pgrid .lv-tile', x => x.length)) === 2, 'picking a video shows just its frames');
   ok(/Riza/.test(await p.$eval('.lv-picker [data-src]', s => s.options[s.selectedIndex].textContent)), 'and its library on the left');
   await p.screenshot({ path: path.join(out, 'picker-one-video.png') });
   await p.click('.lv-pgrid .lv-tile'); await opened; await p.waitForTimeout(200);
   ok(!!(await p.evaluate(() => window.__picked)), 'a click picks the frame');
   p.evaluate(() => LibView.pick({ title:'Again' }).then(u => window.__picked2 = u)); await p.waitForTimeout(800);
-  ok(/Desk Setup/.test(await p.$eval('.lv-picker [data-pgsel]', s => s.options[s.selectedIndex].textContent)) && (await p.$$eval('.lv-pgrid .lv-tile', x => x.length)) === 2,
+  ok(await p.$eval('.lv-picker .lv-pcard[aria-pressed="true"]:not(.lv-pall) b', b => b.textContent) === 'Desk Setup' && (await p.$$eval('.lv-pgrid .lv-tile', x => x.length)) === 2,
     'the next pick opens on the same video');
   await p.click('.lv-picker [data-close]'); await p.waitForTimeout(200);
 

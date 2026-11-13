@@ -224,24 +224,48 @@
   /* ------------------------------------------------------------ the picker
      Shotline's picking opens the whole Deck: click picks; with `multi` you tick
      as many as you like and press Add. Returns the chosen uids. */
-  /* v4: the second picker — one grabbed video or page (or batch you added)
-     at a time, scoped to the library picked in the first. Used by the Deck
-     and by the frame picker. */
+  /* v4: one grabbed video or page (or batch you added) at a time — a row of
+     cards across the top: its first frame, its name, how many. Scoped to the
+     library picked in the first menu; with Everything it shows them all,
+     grouped by library, newest first. Used by the Deck and by the picker. */
+  function firstFrames(lib){
+    if(lib._firstOf) return lib._firstOf;
+    const m = new Map();
+    for(const it of lib.items) if(!m.has(it.page) || (m.get(it.page).kind !== 'gif' && it.kind === 'gif')) m.set(it.page, it);
+    return (lib._firstOf = m);
+  }
   function pagePicker(lib, src, hidden){
     const hid = hidden instanceof Set ? hidden : new Set(hidden || []);
     const srcPage = src && src.startsWith('page:') ? lib.pageIdx.get(src.slice(5)) : null;
     const colNow = srcPage ? srcPage.colKey : src && src.startsWith('col:') ? src.slice(4) : '';
     const n = p => p.counts.reduce((a, b) => a + b, 0);
-    const opt = uid => { const p = lib.pageIdx.get(uid); if(!p || hid.has(uid) || !n(p)) return '';
-      return `<option value="page:${esc(uid)}" ${src === 'page:' + uid ? 'selected' : ''}>${esc(MediaLib.pageLabel(p))} (${n(p)})</option>`; };
+    const first = firstFrames(lib);
     const cols = lib.collections.filter(c => !colNow || c.key === colNow);
-    const opts = cols.length === 1 ? cols[0].pages.map(opt).join('')
-      : cols.map(c => { const o = c.pages.map(opt).join(''); return o ? `<optgroup label="${esc(c.name)}">${o}</optgroup>` : ''; }).join('');
-    const show = !!opts && (!src || src === 'all' || !!colNow);
+    const cards = [];
+    for(const c of cols) for(const uid of c.pages){
+      const p = lib.pageIdx.get(uid);
+      if(!p || hid.has(uid) || !n(p)) continue;
+      const f = first.get(uid);
+      cards.push(`<button type="button" class="lv-pcard" data-pgcard="page:${esc(uid)}" aria-pressed="${src === 'page:' + uid}" title="${esc(MediaLib.pageLabel(p))}">
+        <span class="lv-pthumb">${f ? `<span class="lv-media" data-media="${esc(f.uid)}"></span>` : ''}<span class="lv-pn">${n(p)}</span></span>
+        <b>${esc(MediaLib.pageLabel(p))}</b>${!colNow && cols.length > 1 ? `<small>${esc(c.name)}</small>` : ''}</button>`);
+    }
+    const show = cards.length > 0 && (!src || src === 'all' || !!colNow);
+    const total = cols.reduce((a, c) => a + c.counts[0] + c.counts[1] + c.counts[2], 0);
     return { srcPage, colNow, show,
-      html: show ? `<select class="lv-sel lv-pgsel" data-pgsel aria-label="One video or page">
-        <option value="">${colNow ? 'All its videos & pages' : 'All videos & pages'}</option>${opts}</select>` : '',
+      html: show ? `<div class="lv-pstrip" role="group" aria-label="One video or page at a time">
+        <button type="button" class="lv-pcard lv-pall" data-pgcard="" aria-pressed="${!srcPage}">
+          <span class="lv-pthumb"><span class="lv-pallt">All</span><span class="lv-pn">${total}</span></span>
+          <b>${colNow ? 'All of it' : 'Every video'}</b></button>${cards.join('')}</div>` : '',
       back: () => colNow ? 'col:' + colNow : 'all' };
+  }
+  /* fill the cards' pictures, and bring the chosen one into view */
+  function wireStrip(box, lib){
+    const strip = box.querySelector('.lv-pstrip');
+    if(!strip) return;
+    hydrate(strip, lib, { play:false });
+    const on = strip.querySelector('.lv-pcard[aria-pressed="true"]:not(.lv-pall)');
+    if(on) requestAnimationFrame(() => { strip.scrollLeft = Math.max(0, on.offsetLeft - strip.clientWidth / 2 + on.offsetWidth / 2); });
   }
 
   let pickSrc = 'all';   /* the picker opens where you last picked from */
@@ -269,6 +293,7 @@
           <span class="lv-psrc"></span>
           <input class="lv-in" data-q placeholder="Search…" type="search">
         </div>
+        <div class="lv-pstripbox"></div>
         <div class="lv-pscroll"><div class="lv-grid lv-pgrid"></div></div>
         ${o.multi ? `<div class="lv-pfoot"><span data-n>Nothing ticked</span>
           <button class="lv-btn" data-add disabled>Add</button></div>` : ''}
@@ -280,7 +305,7 @@
       document.addEventListener('keydown', key, true);
 
       /* where to look: Everything / a board / a library, then one video or page */
-      const srcBox = box.querySelector('.lv-psrc');
+      const srcBox = box.querySelector('.lv-psrc'), stripBox = box.querySelector('.lv-pstripbox');
       function drawSrc(){
         const pp = pagePicker(lib0, src, s.hidden);
         const colSel = k => src === 'col:' + k || (pp.srcPage && pp.show && pp.colNow === k);
@@ -288,13 +313,18 @@
             <option value="all">Everything</option>
             ${boards.length ? `<optgroup label="Boards">${boards.map(b => `<option value="board:${b.id}" ${src === 'board:' + b.id ? 'selected' : ''}>◈ ${esc(b.name)}</option>`).join('')}</optgroup>` : ''}
             ${lib0.collections.length ? `<optgroup label="Libraries">${lib0.collections.map(c => `<option value="col:${esc(c.key)}" ${colSel(c.key) ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</optgroup>` : ''}
-          </select>${pp.html}`;
-        srcBox._back = pp.back;
+          </select>`;
+        stripBox.innerHTML = pp.html;
+        stripBox._back = pp.back;
+        wireStrip(stripBox, lib0);
       }
       const setSrc = v => { src = pickSrc = v; drawSrc(); draw(); };
       srcBox.addEventListener('change', e => {
         if(e.target.matches('[data-src]')) return setSrc(e.target.value);
-        if(e.target.matches('[data-pgsel]')) return setSrc(e.target.value || srcBox._back());
+      });
+      stripBox.addEventListener('click', e => {
+        const c = e.target.closest('[data-pgcard]');
+        if(c) setSrc(c.dataset.pgcard || stripBox._back());
       });
       drawSrc();
 
@@ -330,5 +360,5 @@
     });
   }
 
-  global.LibView = { tile, hydrate, view, pick, pagePicker, boardMenu, boardDialog, starMenu, esc, plural };
+  global.LibView = { tile, hydrate, view, pick, pagePicker, wireStrip, boardMenu, boardDialog, starMenu, esc, plural };
 })(window);
