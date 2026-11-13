@@ -32,7 +32,7 @@ const server = http.createServer((req, res) => {
   const signed = /sessionid=\w/.test(req.headers.cookie || '');
   const send = (h, code) => { res.writeHead(code || 200, { 'Content-Type': 'text/html' }); res.end(h); };
   /* a tiny picture for the grid's thumbnails */
-  if (req.url.startsWith('/thumb/')) { res.writeHead(200, { 'Content-Type': 'image/gif' });
+  if (req.url.startsWith('/thumb/') || /^\/p\/[\w-]+\/media\//.test(req.url)) { res.writeHead(200, { 'Content-Type': 'image/gif' });
     return res.end(Buffer.from('R0lGODlhAQABAIAAAP///wAAACwAAAAAAQABAAACAkQBADs=', 'base64')); }
   /* a Reels tab like Instagram's now: no words on the tiles, only counters
      ("37.1K38KPinned post iconView Count Icon628K"), the picture as a
@@ -208,6 +208,7 @@ require.cache.electron = { id: 'electron', filename: 'electron', loaded: true, e
   await Builtin.scan(j8, { ytdlp: goodYt }, 'https://www.instagram.com/quiet/reels/', 200, l => ff.push(l), { cookies: 'firefox' });
   ok(l8.some(l => /using Firefox's sign-in for instagram\.com/.test(l)), 'it borrows Firefox\'s Instagram sign-in', l8.find(l => /Firefox/.test(l)));
   ok(shows.length === b8 && ff.length === 40, 'so no sign-in window, and every reel', ff.length);
+  ok(ff.every(l => /^data:image\//.test(l.thumb || '')), 'tiles with no picture of their own get Instagram\'s small one (/p/CODE/media/)');
   const ck = await ctx.cookies();
   ok(ck.some(c => c.name === 'sessionid' && c.value === 'fromfirefox') && !ck.some(c => /google/.test(c.domain)), 'only Instagram\'s cookies come over, not the rest of Firefox\'s');
 

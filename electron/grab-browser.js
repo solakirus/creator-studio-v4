@@ -265,7 +265,12 @@ const POSTS = `(() => [...document.querySelectorAll('a[href]')].map(a => {
   let u = ''; try { u = new URL(a.getAttribute('href'), location.href).href; } catch (e) {}
   const im = a.querySelector('img');
   /* the grid's picture: an <img>, or a background-image on a box inside the link */
-  let thumb = im ? (im.currentSrc || im.src || '') : '';
+  /* a real picture, not a blank placeholder (data: or a 1px spacer) */
+  let thumb = '';
+  for (const i of a.querySelectorAll('img')) {
+    const u = i.currentSrc || i.src || '';
+    if (u && !/^data:/.test(u) && !(i.naturalWidth && i.naturalWidth < 20)) { thumb = u; break; }
+  }
   if (!thumb) for (const el of a.querySelectorAll('div,span')) {
     const bg = getComputedStyle(el).backgroundImage;
     const m = bg && /url\\(["']?([^"')]+)/.exec(bg);
@@ -338,7 +343,13 @@ async function postLinks(job, url, keep, max) {
     let list = [...found.values()];
     if (list.some(x => x.own)) list = list.filter(x => x.own);
     list = list.slice(0, max);
-    for (const x of list) { x.thumb = await thumbData(ses, x.thumb); delete x.own; }
+    for (const x of list) {
+      x.thumb = await thumbData(ses, x.thumb);
+      /* Instagram hands out a small picture of any post at /p/CODE/media/ */
+      const code = !x.thumb && /instagram\.com$/.test(hostOf(x.url)) && (/\/(?:p|reel|tv)\/([\w-]+)/.exec(x.url) || [])[1];
+      if (code) x.thumb = await thumbData(ses, `https://www.instagram.com/p/${code}/media/?size=t`);
+      delete x.own;
+    }
     return list;
   } catch (e) { return null; } finally { try { win.destroy(); } catch (e) {} }
 }
@@ -360,7 +371,8 @@ async function thumbData(ses, u) {
   if (!u || !/^https?:/.test(u)) return u && u.startsWith('data:') && u.length < 300000 ? u : '';
   try {
     const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 6000);
-    const r = await ses.fetch(u, { signal: ctl.signal }); clearTimeout(t);
+    let ref = ''; try { ref = new URL(u).origin + '/'; } catch (e) {}
+    const r = await ses.fetch(u, { signal: ctl.signal, headers: { Referer: /cdninstagram|fbcdn|instagram/.test(u) ? 'https://www.instagram.com/' : ref } }); clearTimeout(t);
     if (!r.ok) return '';
     const type = (r.headers.get('content-type') || 'image/jpeg').split(';')[0];
     if (!/^image\//.test(type)) return '';

@@ -840,13 +840,11 @@
       if(o.scan){
         const found = o.found || [];
         const box = body.querySelector('[data-found]');
-        const draw = () => {
-          if(!box.isConnected) return;
-          box.innerHTML = foundHtml(found);
-          box._found = found;
-        };
+        box._found = null;
+        let queued = false;
+        const draw = () => { queued = false; if(box.isConnected) showFound(box, found); };
         if(found.length) draw();
-        grabOff.push(d.onGrab('link', l => { found.push(l); draw(); }));
+        grabOff.push(d.onGrab('link', l => { found.push(l); if(!queued){ queued = true; requestAnimationFrame(draw); } }));
       }
       grabOff.push(d.onGrab('done', async r => {
         say(r.code === 0 ? '— finished —' : `— stopped${r.code == null ? '' : ` (code ${r.code})`} —`);
@@ -857,16 +855,41 @@
       return say;
     }
     /* v4: what a scan found — the post's picture, a readable name and where
-       it lives, so you can tell which reels you're ticking */
-    function foundHtml(found){
+       it lives, so you can tell which reels you're ticking. A page at a time
+       (FOUND_PAGE), with Show more / Show all: a profile can have 300+.
+       Ticks are kept on the box, so they survive more links arriving and
+       paging, and Tick all ticks every link, shown or not. */
+    const FOUND_PAGE = 25;
+    function showFound(box, found){
+      if(box._found !== found){ box._found = found; box._ticked = new Set(); box._limit = FOUND_PAGE; }
+      box.innerHTML = foundHtml(found, box._ticked, box._limit);
+      if(!box._wired){
+        box._wired = true;
+        box.addEventListener('change', e => {
+          const c = e.target.closest('[data-fl]');
+          if(!c) return;
+          c.checked ? box._ticked.add(+c.dataset.fl) : box._ticked.delete(+c.dataset.fl);
+          const n = box.querySelector('[data-fcount]');
+          if(n) n.textContent = box._ticked.size ? `${box._ticked.size} ticked` : '';
+        });
+      }
+    }
+    function foundHtml(found, ticked, limit){
       const shortUrl = u => String(u || '').replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
-      return `<p class="hintline">${plural(found.length, 'link')} found — tick the ones to grab
-          ${found.length > 1 ? '<button class="lv-btn sm ghost" data-tickfound>Tick all</button>' : ''}</p>` +
-        found.map((x, i) => `<label class="lv-row lv-found"><input type="checkbox" data-fl="${i}">
+      const shown = found.slice(0, limit);
+      const left = found.length - shown.length;
+      const all = found.length && ticked.size === found.length;
+      return `<p class="hintline lv-fhead">${plural(found.length, 'link')} found — tick the ones to grab
+          ${found.length > 1 ? `<button class="lv-btn sm ghost" data-tickfound>${all ? 'Untick all' : `Tick all ${found.length}`}</button>` : ''}
+          <b data-fcount>${ticked.size ? `${ticked.size} ticked` : ''}</b></p>` +
+        shown.map((x, i) => `<label class="lv-row lv-found"><input type="checkbox" data-fl="${i}" ${ticked.has(i) ? 'checked' : ''}>
           ${x.thumb ? `<img class="lv-fthumb" src="${esc(x.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
           <span class="lv-ftext"><span class="lv-pt">${esc(x.title || shortUrl(x.url))}</span>
           <small class="lv-furl">${esc(shortUrl(x.url))}</small></span>
           <span class="pill sm">${esc(x.kind || '')}</span></label>`).join('') +
+        (found.length > FOUND_PAGE ? `<div class="lv-row lv-fmore"><span class="hintline" style="margin:0">Showing ${shown.length} of ${found.length}</span>
+          ${left ? `<button class="lv-btn sm ghost" data-fmore>Show ${Math.min(FOUND_PAGE, left)} more</button><button class="lv-btn sm ghost" data-fall>Show all</button>`
+            : `<button class="lv-btn sm ghost" data-fless>Show fewer</button>`}</div>` : '') +
         `<button class="lv-btn sm" data-addfound>Add ticked to the links list</button>`;
     }
     /* v4: sign in by copying the sign-in from a browser you're already signed
@@ -930,9 +953,7 @@
         setBusy(body, true);
         wireGrab(body, { scan:st.mode === 'scan', found:found || [], setup:st.mode === 'setup' });
       } else if(found && found.length){
-        const box = body.querySelector('[data-found]');
-        box.innerHTML = foundHtml(found);
-        box._found = found;
+        showFound(body.querySelector('[data-found]'), found);
       }
       if(st.running) body.querySelector('[data-log]').closest('.lv-card').scrollIntoView({ block:'nearest' });
     }
@@ -1023,16 +1044,21 @@
         setBusy(body, true);
         return say('Finding links on ' + url + '…');
       }
-      if(e.target.closest('[data-tickfound]')){
-        e.preventDefault();
-        const boxes = [...body.querySelectorAll('[data-found] [data-fl]')];
-        const on = boxes.some(x => !x.checked);
-        boxes.forEach(x => { x.checked = on; });
-        return;
+      const fbox = e.target.closest('[data-found]');
+      if(fbox && fbox._found){
+        if(e.target.closest('[data-tickfound]')){
+          e.preventDefault();
+          fbox._ticked = fbox._ticked.size === fbox._found.length ? new Set() : new Set(fbox._found.map((x, i) => i));
+          return showFound(fbox, fbox._found);
+        }
+        if(e.target.closest('[data-fmore]')){ fbox._limit += FOUND_PAGE; return showFound(fbox, fbox._found); }
+        if(e.target.closest('[data-fall]')){ fbox._limit = fbox._found.length; return showFound(fbox, fbox._found); }
+        if(e.target.closest('[data-fless]')){ fbox._limit = FOUND_PAGE; showFound(fbox, fbox._found); return fbox.scrollIntoView({ block:'start' }); }
       }
       if(e.target.closest('[data-addfound]')){
         const box = body.querySelector('[data-found]');
-        const ticked = [...box.querySelectorAll('[data-fl]:checked')].map(x => box._found[+x.dataset.fl].url);
+        const ticked = [...(box._ticked || [])].sort((a, b) => a - b).map(i => box._found[i] && box._found[i].url).filter(Boolean);
+        if(!ticked.length) return U.toast('Tick some links first');
         const ta = body.querySelector('[data-links]');
         const have = new Set(ta.value.split(/\s+/));
         ta.value = (ta.value.trim() + '\n' + ticked.filter(u => !have.has(u)).join('\n')).trim() + '\n';

@@ -112,6 +112,35 @@ const head = s => console.log(`\n— ${s} —`);
   await p.evaluate(() => { __G.emit('done', { code: 0 }); }); await p.waitForTimeout(200);
   ok(/Grab finished/.test(await p.evaluate(() => (document.querySelector('.toast') || {}).textContent || '')), 'a grab that ends while you\'re elsewhere says so');
 
+  head('300 links, a page at a time');
+  await p.evaluate(() => { __G.st.running = false; });
+  await toLib();
+  if(await p.$eval('.lv-tabs [data-tab="add"]', e => e.getAttribute('aria-selected')) !== 'true'){ await p.click('.lv-tabs [data-tab="add"]'); await p.waitForTimeout(600); }
+  await p.fill('[data-scanurl]', 'https://www.instagram.com/big/reels/');
+  await p.click('[data-scan]'); await p.waitForTimeout(300);
+  await p.evaluate(() => { for(let i = 0; i < 312; i++) __G.emit('link', { url:'https://www.instagram.com/reel/R' + i + '/', title:'Reel R' + i, kind:'video' }); });
+  await p.waitForTimeout(400);
+  const rows = () => p.$$eval('[data-found] [data-fl]', x => x.length);
+  ok(await rows() === 25, 'only the first 25 of 312 are listed', String(await rows()));
+  ok(/Showing 25 of 312/.test(await p.textContent('[data-found]')), 'and it says how many there are');
+  await p.click('[data-found] [data-fl="3"]');
+  await p.click('[data-fmore]'); await p.waitForTimeout(150);
+  ok(await rows() === 50 && await p.$eval('[data-found] [data-fl="3"]', e => e.checked), 'Show 25 more adds the next 25, and the tick stays');
+  await p.evaluate(() => __G.emit('link', { url:'https://www.instagram.com/reel/LATE/', title:'late', kind:'video' })); await p.waitForTimeout(200);
+  ok(await p.$eval('[data-found] [data-fl="3"]', e => e.checked) && await rows() === 50, 'a link arriving later keeps the ticks and the page');
+  await p.click('[data-fall]'); await p.waitForTimeout(200);
+  ok(await rows() === 313, 'Show all lists every one', String(await rows()));
+  await p.click('[data-fless]'); await p.waitForTimeout(150);
+  ok(await rows() === 25, 'Show fewer goes back to 25');
+  await p.click('[data-tickfound]'); await p.waitForTimeout(150);
+  ok(/313 ticked/.test(await p.textContent('[data-found]')), 'Tick all ticks all 313, not just the 25 shown');
+  await p.evaluate(() => { const t = document.querySelector('[data-links]'); t.value = ''; });
+  await p.click('[data-addfound]'); await p.waitForTimeout(250);
+  ok((await p.$eval('[data-links]', e => e.value.trim().split(/\s+/).length)) === 313, 'and all 313 go to the links list');
+  await p.click('[data-tickfound]'); await p.waitForTimeout(150);
+  ok(!/ticked/.test(await p.textContent('[data-fcount]')), 'pressed again, it unticks them all');
+  await p.click('[data-stop]').catch(() => {}); await p.evaluate(() => __G.emit('done', { code: 0 })); await p.waitForTimeout(300);
+
   head('pasting a sign-in from Chrome');
   await toLib();
   if(await p.$eval('.lv-tabs [data-tab="add"]', e => e.getAttribute('aria-selected')) !== 'true'){ await p.click('.lv-tabs [data-tab="add"]'); await p.waitForTimeout(600); }
