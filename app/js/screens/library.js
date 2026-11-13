@@ -32,7 +32,7 @@
         <div class="pagehead"><h1 class="page-title">Library</h1><span class="count">${lib.items.length}</span>
           <div class="headacts"><button class="headbtn" data-go="add">＋ ADD</button></div></div>
         <div class="segrow lv-tabs" role="tablist">
-          ${[['deck','Deck'],['starred','★ Starred'],['boards','Boards'],['folders','Folders'],['add','Add & grab']].map(([k, l]) =>
+          ${[['deck','Deck'],['starred','★ Starred'],['boards','Boards'],['folders', MediaLib.phone() ? 'On this phone' : 'Folders'],['add', MediaLib.phone() ? 'Add' : 'Add & grab']].map(([k, l]) =>
             `<button class="seg" role="tab" data-tab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}
         </div>
         ${t ? `<div class="lv-target"><span>＋ adds to <b>${esc(t.label || 'a template')}</b></span>
@@ -44,7 +44,7 @@
       const body = host.querySelector('#libBody');
       if(tab === 'boards') return boardsPage(body, lib);
       if(tab === 'starred') return starredPage(body, lib);
-      if(tab === 'folders') return foldersPage(body, lib, s);
+      if(tab === 'folders') return MediaLib.phone() ? phonePage(body, lib) : foldersPage(body, lib, s);
       if(tab === 'add') return addPage(body, lib, s);
       return deckPage(body, lib, s, t);
     }
@@ -83,6 +83,7 @@
               `<option value="${v}" ${sort === v ? 'selected' : ''}>${l}</option>`).join('')}
           </select>
           <button class="pill" data-select aria-pressed="${selecting}">☐ Select</button>
+          ${MediaLib.phone() ? '' : `<button class="pill" data-forphone title="Makes a file of what's shown here, to import on the phone">⇩ For the phone</button>`}
         </div>
         <div class="lv-selbar" ${selecting ? '' : 'hidden'}>
           <b data-seln>${plural(sel.size, 'frame')}</b>
@@ -92,6 +93,7 @@
           ${t ? `<button class="lv-btn sm" data-sel="target">＋ Add to ${esc(t.label || 'template')}</button>` : ''}
           <button class="lv-btn sm ghost" data-sel="all">Select all shown</button>
           <button class="lv-btn sm ghost" data-sel="invert" title="Tick the ones you want to keep, then Invert and Delete">Invert</button>
+          ${MediaLib.phone() ? '' : `<button class="lv-btn sm ghost" data-sel="forphone" title="A file of the ticked frames, to import on the phone">⇩ For the phone</button>`}
           <button class="lv-btn sm ghost" data-sel="clear">Clear</button>
           <button class="lv-btn sm ghost danger" data-sel="delete">Delete</button>
         </div>
@@ -132,6 +134,12 @@
         if(k){ kind = k.dataset.k; body.querySelectorAll('[data-k]').forEach(x => x.setAttribute('aria-pressed', String(x === k))); return draw(); }
         if(e.target.closest('[data-play]')){ await MediaLib.setSettings({ play:!(s.play !== false) }); return render(); }
         if(e.target.closest('[data-select]')){ selecting = !selecting; sel.clear(); return render(); }
+        if(e.target.closest('[data-forphone]')){
+          const { list } = await MediaLib.deck({ kind, q, src, sort });
+          const pg = src.startsWith('page:') ? lib.pageIdx.get(src.slice(5)) : null;
+          const col = src.startsWith('col:') ? lib.collections.find(c => 'col:' + c.key === src) : null;
+          return forPhone(list, pg ? MediaLib.pageLabel(pg) : col ? col.name : 'Shot Library');
+        }
         const plus = e.target.closest('[data-plus]');
         if(plus){ e.stopPropagation(); return addToTarget([plus.dataset.plus]); }
         const a = e.target.closest('[data-sel]');
@@ -149,6 +157,7 @@
           if(act === 'unstar' && inStar){ const n = await MediaLib.unstar(inStar.id, [...sel]); sel.clear(); U.toast(`Took ${plural(n, 'frame')} out — they leave the phone`); return render(); }
           if(act === 'target'){ await addToTarget([...sel]); sel.clear(); return render(); }
           if(act === 'delete') return confirmDelete([...sel]);
+          if(act === 'forphone'){ const l = await MediaLib.load(); return forPhone([...sel].map(u => MediaLib.find(l, u)).filter(Boolean), plural(sel.size, 'frame')); }
         }
         if(e.target.closest('[data-more]')){ limit += 1500; return draw(); }
         if(e.target.closest('[data-moreall]')){ limit = 1e9; return draw(); }
@@ -282,6 +291,112 @@
       wireDrop(grid);
       await draw();
       if(selecting) selbar();
+    }
+
+    /* v4: a .cs4lib file of these frames, for "Import a file" on the phone */
+    async function forPhone(items, title){
+      if(!items.length) return U.toast('Nothing to put in the file');
+      const mb = items.reduce((a, it) => a + (it.bytes || 0), 0) / 1048576;
+      if(mb > 1500 && !confirm(`That's about ${Math.round(mb)} MB — big for one file. Make it anyway?`)) return;
+      U.toast(`Making the file — ${plural(items.length, 'frame')}…`);
+      try {
+        const r = await PhoneLib.exportFile(items, title, (i, n) => { if(i % 25 === 0) U.toast(`Making the file… ${i} of ${n}`); });
+        U.toast(`Saved “${r.name}” (${plural(r.count, 'frame')}, ${Math.max(1, Math.round(r.bytes / 1048576))} MB). Move it to the phone and Import it there.`);
+      } catch(err){ U.toast('Couldn’t make the file — ' + (err.message || err)); }
+    }
+
+    /* ---------------------------------------------------------- On this phone
+       What the phone keeps (phonelib.js): from nastime by itself, or from a
+       file the laptop makes. */
+    async function phonePage(body, lib){
+      const k = await PhoneLib.keepList();
+      const here = await PhoneLib.onPhone();
+      const mb = b => b >= 1048576 ? Math.round(b / 1048576) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+      const total = here.reduce((a, l) => a + l.pages.reduce((x, p) => x + p.bytes, 0), 0);
+      const keptPages = k.pages.map(d => d.split('/').slice(1).join(' / ') || d);
+      body.innerHTML = `
+        <div class="lv-card">
+          <h3>On this phone <small style="color:var(--muted);font-weight:500">· ${mb(total)}</small></h3>
+          <p class="hintline" style="margin:0 0 10px">These GIFs are kept on the phone and work anywhere, offline. What you keep from nastime stays up to date by itself whenever the phone can reach nastime.</p>
+          ${k.libs.length || k.pages.length ? `<div class="lv-keeps">
+            ${k.libs.map(l => `<div class="lv-row"><span>📚 <b>${esc(l)}</b> <small>— the whole library</small></span><button class="lv-btn sm ghost" data-unkeep-lib="${esc(l)}">Stop keeping</button></div>`).join('')}
+            ${k.pages.map((d, i) => `<div class="lv-row"><span>🎞 <b>${esc(keptPages[i])}</b> <small>${esc(d.split('/')[0])}</small></span><button class="lv-btn sm ghost" data-unkeep-dir="${esc(d)}">Stop keeping</button></div>`).join('')}
+          </div>
+          <div class="lv-row" style="margin-top:8px"><button class="lv-btn sm" data-keepnow>⟳ Update now</button><small data-keepstate></small></div>`
+          : '<p class="hintline">Nothing kept from nastime yet — pick below.</p>'}
+          ${here.length ? `<details class="lv-opts" style="margin-top:10px"><summary>Everything on the phone (${here.reduce((a, l) => a + l.pages.reduce((x, p) => x + p.count, 0), 0)} frames)</summary>
+            ${here.map(l => `<p class="lv-group">${esc(l.library)}</p>${l.pages.map(p => `<div class="lv-row"><span class="lv-pt">${esc(p.page)}</span><small>${p.count} · ${mb(p.bytes)}</small></div>`).join('')}`).join('')}
+          </details>` : ''}
+        </div>
+        <div class="lv-card">
+          <h3>Keep more from nastime</h3>
+          <p class="hintline" style="margin:0 0 10px">Tick a whole library or single videos. They download now and stay up to date.</p>
+          <div data-cat><button class="lv-btn sm" data-showcat>Show what’s on nastime</button></div>
+        </div>
+        <div class="lv-card">
+          <h3>Import a file from the laptop</h3>
+          <p class="hintline" style="margin:0 0 10px">On the laptop or the Linux desktop: Library → Deck → <b>⇩ For the phone</b> makes a .cs4lib file of what's shown (a video, a library, or the frames you ticked). Move it to the phone — Syncthing, Drive or a cable — and pick it here. Works without nastime.</p>
+          <input type="file" data-importfile accept=".cs4lib,.zip,application/zip" hidden>
+          <div class="lv-row"><button class="lv-btn" data-import>Import a file…</button><small data-importstate></small></div>
+        </div>`;
+      const state = body.querySelector('[data-keepstate]');
+      body.addEventListener('click', async e => {
+        const ul = e.target.closest('[data-unkeep-lib]'), ud = e.target.closest('[data-unkeep-dir]');
+        if(ul || ud){
+          const what = ul ? ul.dataset.unkeepLib : ud.dataset.unkeepDir.split('/').slice(1).join(' / ');
+          if(!confirm(`Stop keeping “${what}”? Its GIFs leave the phone (they stay on nastime and the laptop).`)) return;
+          const n = await PhoneLib.drop(ul ? { lib:ul.dataset.unkeepLib } : { dir:ud.dataset.unkeepDir });
+          U.toast(`${plural(n, 'GIF')} taken off the phone`); return render();
+        }
+        if(e.target.closest('[data-keepnow]')){
+          if(state) state.textContent = ' looking…';
+          const r = await PhoneLib.update({ onProgress:(i, n) => { if(state) state.textContent = ` downloading ${i + 1} of ${n}…`; } });
+          if(state) state.textContent = r.offline ? ' nastime can’t be reached' : ` ${r.got} new`;
+          return r.got ? render() : null;
+        }
+        if(e.target.closest('[data-import]')) return body.querySelector('[data-importfile]').click();
+        if(e.target.closest('[data-showcat]')) return showCatalogue();
+      });
+      body.querySelector('[data-importfile]').addEventListener('change', async e => {
+        const f = e.target.files && e.target.files[0];
+        if(!f) return;
+        const st = body.querySelector('[data-importstate]');
+        try {
+          const r = await PhoneLib.importFile(f, (i, n) => { st.textContent = ` ${i + 1} of ${n}…`; });
+          U.toast(`${plural(r.got, 'GIF')} added${r.same ? ` · ${r.same} were already here` : ''}${r.title ? ` from “${r.title}”` : ''}`);
+          render();
+        } catch(err){ st.textContent = ''; U.toast(err.message || 'Couldn’t read that file'); }
+      });
+      async function showCatalogue(){
+        const box = body.querySelector('[data-cat]');
+        box.innerHTML = '<p class="hintline">Asking nastime…</p>';
+        let cat;
+        try { cat = await PhoneLib.catalogue(); }
+        catch(err){ box.innerHTML = `<p class="hintline" style="color:var(--red)">Can’t reach nastime — ${esc(err.message)}. At home on Wi-Fi with nastime on, try again.</p>
+          <button class="lv-btn sm" data-showcat>Try again</button>`; return; }
+        const kk = await PhoneLib.keepList();
+        box.innerHTML = cat.map(l => {
+          const libOn = kk.libs.includes(l.name);
+          const n = l.pages.reduce((a, p) => a + p.items.length, 0), b = l.pages.reduce((a, p) => a + p.items.reduce((x, it) => x + (it.bytes || 0), 0), 0);
+          return `<details class="lv-col"><summary><input type="checkbox" data-klib="${esc(l.name)}" ${libOn ? 'checked' : ''}>
+              <b>${esc(l.name)}</b><small>${plural(l.pages.length, 'video')} · ${n} frames · ${mb(b)}</small></summary>
+            ${l.pages.map(p => `<label class="lv-row lv-page"><input type="checkbox" data-kdir="${esc(p.dir)}" ${libOn || kk.pages.includes(p.dir) ? 'checked' : ''} ${libOn ? 'disabled' : ''}>
+              <span class="lv-pt">${esc(p.name)}</span><small>${p.items.length} · ${mb(p.items.reduce((x, it) => x + (it.bytes || 0), 0))}</small></label>`).join('')}
+          </details>`;
+        }).join('') + `<div class="lv-row" style="margin-top:10px"><button class="lv-btn" data-keepsave>Keep the ticked ones on this phone</button></div>`;
+        box.addEventListener('change', e => {
+          const c = e.target.closest('[data-klib]');
+          if(c) c.closest('details').querySelectorAll('[data-kdir]').forEach(x => { x.checked = c.checked; x.disabled = c.checked; });
+        });
+        box.querySelector('[data-keepsave]').addEventListener('click', async () => {
+          const libs = [...box.querySelectorAll('[data-klib]:checked')].map(x => x.dataset.klib);
+          const pages = [...box.querySelectorAll('[data-kdir]:checked:not(:disabled)')].map(x => x.dataset.kdir);
+          await PhoneLib.setKeep({ libs, pages });
+          U.toast('Downloading to the phone…');
+          const r = await PhoneLib.update({ onProgress:(i, n) => { if(i % 10 === 0) U.toast(`Downloading ${i + 1} of ${n}…`); } });
+          if(!r.offline) render();
+        });
+      }
     }
 
     async function addToTarget(uids){

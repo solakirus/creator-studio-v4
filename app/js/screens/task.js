@@ -1,7 +1,7 @@
 /* One task, opened up: its steps, its timing, and whatever it is attached to. */
 (function(){
   /* a Library on this device: the laptop's folders, or nastime's on the iPad */
-  const hasLib = () => !!(window.MediaLib && MediaLib.hasLibrary());
+  const hasLib = () => !!(window.MediaLib && MediaLib.hasLibrary() && !(MediaLib.phone && MediaLib.phone()));   /* the phone keeps its taps and starred-frame picks */
   const { ICON } = U;
   const CADENCES = ['Daily','Weekly','Shoot day','One-off'];
   const PRI = [['low','Low'],['med','Medium'],['high','High']];

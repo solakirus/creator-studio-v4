@@ -46,8 +46,12 @@
     if(on !== remoteOn){ remoteOn = on; diskCache = null; cache = null; libListeners.forEach(f => { try { f(on); } catch(e){} }); }
     return on;
   }
-  /* is there a Library on this device — the laptop's folders, or nastime's */
-  const hasLibrary = () => !!disk() || remoteOn;
+  /* v4: the phone app keeps its own copies of the libraries and videos you
+     pick (phonelib.js) — its Library is what it keeps */
+  const phoneApp = () => !disk() && !!(global.Capacitor && global.Capacitor.isNativePlatform &&
+    global.Capacitor.isNativePlatform() && global.Capacitor.getPlatform && global.Capacitor.getPlatform() === 'android');
+  /* is there a Library on this device — the laptop's folders, nastime's, or the phone's own */
+  const hasLibrary = () => !!disk() || remoteOn || phoneApp();
   const uidOf = rec => 'db:' + rec.id;
   const newId = () => 'li_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
@@ -107,7 +111,10 @@
       return { uid:uidOf(r), id:r.id, src:'db', kind:r.kind, name:r.name || 'file', label:r.label || '',
                caption:r.caption || '', link:r.link || '', page:pageUid, bytes:r.bytes || 0,
                createdAt:r.createdAt || 0, mime:r.mime || '',
-               big:r.big || '', source:r.source || '', tags:r.tags || [], from:r.from || '' };
+               big:r.big || '', source:r.source || '', tags:r.tags || [], from:r.from || '',
+               /* v4: a copy of a Shot Library frame (the phone's, frameget's) keeps its
+                  path there, so templates and tasks find it whichever device made them */
+               path:r.path || '' };
     });
     items.sort((a, b) => (b.createdAt - a.createdAt) || (a.name < b.name ? -1 : 1));
     return { items, pages:[...pages.values()] };
@@ -313,13 +320,14 @@
   async function addBlob(blob, o){
     const kind = o.kind || kindOf(o.name, blob.type);
     if(!kind || !blob) return null;
-    if(o.from){
-      const have = (await Store.all('lib-items').catch(() => ({ values:[] }))).values.find(r => r.from === o.from);
+    if(o.from || o.path){
+      const have = (await Store.all('lib-items').catch(() => ({ values:[] }))).values
+        .find(r => (o.from && r.from === o.from) || (o.path && r.path === o.path));
       if(have) return uidOf(have);
     }
     const id = newId();
     const rec = { id, kind, name:o.name || 'frame', label:o.label || '', caption:o.caption || '', link:o.link || '',
-                  source:o.source || '', tags:o.tags || [], from:o.from || '',
+                  source:o.source || '', tags:o.tags || [], from:o.from || '', path:o.path || '',
                   library:o.library || 'From other devices', page:o.page || 'Fetched',
                   bytes:blob.size || 0, mime:blob.type || '', createdAt:Date.now() };
     if(kind === 'video'){
@@ -676,7 +684,7 @@
     allBoards, saveBoard, deleteBoard, addToBoard, importShotline,
     allStars, saveStar, deleteStar, starInto, unstar, starredSet,
     deck, search, target, setTarget, disk, videoPoster,
-    hasLibrary, remote: () => remoteOn && !disk(), probeRemote,
+    hasLibrary, remote: () => remoteOn && !disk(), probeRemote, phone: phoneApp,
     onLibraryChange: f => { if(typeof f === 'function') libListeners.add(f); },
     copyNow, setCopy, copyProblem,
     rescan: () => { diskCache = null; cache = null; return load(true); }

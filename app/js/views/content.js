@@ -39,8 +39,11 @@
      The phone gets what they put on tasks and videos (taskframes.js), not the
      Library itself. window.CS3Lib is the laptop's disk bridge (electron/preload.js). */
   /* the laptop, or the iPad reading nastime's Shot Library (medialib.js) */
-  const onLaptop = () => !!global.CS3Lib || !!(global.MediaLib && MediaLib.hasLibrary());
-  const shown = () => NAV.filter(n => (!n.laptop || onLaptop()) && (!n.phone || !onLaptop()));
+  const onLaptop = () => !!global.CS3Lib || !!(global.MediaLib && MediaLib.hasLibrary() && !MediaLib.phone());
+  /* v4: the phone keeps its own Library too (phonelib.js): Library and Starred, no Templates */
+  const onPhone = () => !!(global.MediaLib && MediaLib.phone && MediaLib.phone());
+  const shown = () => NAV.filter(n => onPhone() ? n.v !== 'templates'
+    : (!n.laptop || onLaptop()) && (!n.phone || !onLaptop()));
 
   let view = 'clips';
 

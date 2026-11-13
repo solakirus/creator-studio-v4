@@ -6,7 +6,7 @@
    Checks: Content shows Library and Templates; the Deck lists the folder's
    GIFs and they load from nastime; the one-video picker; a template shot gets
    a frame from the picker; starring works; a task using a frame gets its copy
-   for the phone; the phone app (Capacitor) never reads nastime's Library.
+   for the phone; the phone app (Capacitor) never reads nastime's Library live.
 
      node app/tests/browser/v4-ipad-library.browser.js [out folder]
    Needs caddy on PATH or CADDY=/path/to/caddy. */
@@ -101,7 +101,7 @@ const head = s => console.log(`\n— ${s} —`);
     await phone.addInitScript(() => { window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: {} }; });
     const ph = await phone.newPage();
     await ph.goto(base); await ph.waitForFunction(() => window.App && window.MediaLib, null, { timeout: 15000 }); await ph.waitForTimeout(2000);
-    ok(!(await ph.evaluate(() => MediaLib.hasLibrary())), 'Capacitor (the phone app): no Library');
+    ok(await ph.evaluate(() => MediaLib.phone() && !MediaLib.remote()), 'the phone app keeps its own copies (phonelib.js) and never reads nastime\'s Library live');
   } catch(e){ ok(false, 'ran to the end', e.message); }
   ok(!errs.length, 'no page errors', errs.join(' | '));
   await b.close(); caddy.kill(); helper.kill(); fs.rmSync(T, { recursive: true, force: true });

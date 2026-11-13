@@ -116,6 +116,8 @@
   /* copy what is wanted and not kept yet — only where the Library is */
   async function keep(want){
     if(!global.MediaLib) return { copied:0, tooBig:0, missing:0 };
+    /* the phone's Library is copies of the laptop's: it never makes copies for the others */
+    if(MediaLib.phone && MediaLib.phone()) return { copied:0, tooBig:0, missing:0 };
     want = want || await wanted();
     const have = new Set((await all(STORE)).map(r => r.uid));
     const need = [...want].filter(u => !have.has(u));

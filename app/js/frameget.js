@@ -30,7 +30,8 @@
     try { let d = localStorage.getItem(DEV_KEY); if(!d){ d = 'd' + Math.random().toString(36).slice(2, 10); localStorage.setItem(DEV_KEY, d); } return d; }
     catch(e){ return 'here'; }
   };
-  const can = () => !!(global.MediaLib && MediaLib.hasLibrary());
+  /* the laptop and the iPad; the phone keeps what you pick (phonelib.js) instead */
+  const can = () => !!(global.MediaLib && MediaLib.hasLibrary() && !(MediaLib.phone && MediaLib.phone()));
   const all = async store => { try { return (await Store.all(store)).values || []; } catch(e){ return []; } };
 
   /* in this device's own Library? (a kept copy doesn't count) */
