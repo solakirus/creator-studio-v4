@@ -285,7 +285,12 @@
                  ...mU.map(x => ({ x, what:'Month', name:x.rec.name })),
                  ...eU.map(x => ({ x, what:'Episode', name:x.rec.title })),
                  ...iU.map(x => ({ x, what:'Video', name:x.rec.title, series:true }))];
-    ups.forEach(u => { u.x.apply = !u.x.edited; });
+    /* Add (keep everything, add the new parts) or Replace (the plan wins) */
+    const upsHTML = () => ups.map((u, i) => u.x.empty ? '' : `<label class="pi-up" ${u.series ? 'data-series-up' : ''} style="display:flex;gap:10px;align-items:flex-start;margin:8px 0 0;font-size:14px;cursor:pointer">
+          <input type="checkbox" data-pi-up="${i}" ${u.x.apply ? 'checked' : ''} style="width:18px;height:18px;margin:2px 0 0;flex:none">
+          <span><small style="color:var(--muted)">${u.what}</small> <b style="color:var(--cream)">${esc(u.name || '')}</b> — ${u.x.changes.map(esc).join(', ')}${
+            u.x.edited && pv.mode === 'replace' ? `<br><small style="color:var(--orange)">You’ve changed this one in the app — tick to replace yours with the plan’s</small>` : ''}</span></label>`).join('')
+        || `<p class="hintline" style="margin:6px 0 0">${pv.mode === 'add' ? 'Nothing new to add to what’s there.' : 'Nothing to change.'}</p>`;
     const LBL = { title:'title', hook:'hook', notes:'idea', tags:'tags', stage:'stage', plat:'platform', day:'shoot day', shotList:'shots',
       name:'name', topic:'topic', throughline:'throughline', challenge:'challenge', reward:'reward', quarterTheme:'theme',
       skill:'skill', weeklyChallenge:'challenge', passLine:'pass line', acts:'sequences' };
@@ -303,11 +308,11 @@
       <p style="margin:0 0 12px;color:var(--muted);font-size:14px;line-height:1.5">${[esc(pv.obj.project || pv.obj.plan || ''),
         pv.obj.phase ? `Phase ${esc(pv.obj.phase)}` : ''].filter(Boolean).join(' · ')}${pv.obj.project || pv.obj.plan || pv.obj.phase ? ' — ' : ''}nothing is written until you tap Import.</p>
       <div class="mo-facts" style="margin:0 0 12px">
-        ${(pv.quarters || []).length ? `<div><small>Quarter</small><b>${qU.length ? qU.length + ' to update' : 'unchanged'}</b></div>` : ''}
-        ${pv.months.length ? `<div><small>Months</small><b>${mC.length} new · ${mU.length} to update · ${mS.length} unchanged</b></div>` : ''}
-        ${pv.episodes.length ? `<div><small>Weekly vlogs</small><b>${eC.length} new · ${eU.length} to update · ${eS.length} unchanged</b></div>` : ''}
+        ${(pv.quarters || []).length ? `<div><small>Quarter</small><b>${qU.length ? 'already here' : 'unchanged'}</b></div>` : ''}
+        ${pv.months.length ? `<div><small>Months</small><b>${mC.length} new · ${mU.length} already here · ${mS.length} unchanged</b></div>` : ''}
+        ${pv.episodes.length ? `<div><small>Weekly vlogs</small><b>${eC.length} new · ${eU.length} already here · ${eS.length} unchanged</b></div>` : ''}
         ${hasSeries ? `<div><small>Channel series</small><b>${sC.length} new · ${sS.length} already here</b></div>
-        <div><small>Videos</small><b>${iC.length} new · ${iU.length} to update · ${iS.length} unchanged</b></div>` : ''}
+        <div><small>Videos</small><b>${iC.length} new · ${iU.length} already here · ${iS.length} unchanged</b></div>` : ''}
       </div>
       ${hasSeries ? `<label style="display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:14.5px;cursor:pointer">
         <input type="checkbox" id="pi-series" checked style="width:20px;height:20px">
@@ -331,10 +336,13 @@
       ${iC.length ? `<p style="margin:12px 0 0;font-weight:800;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
         color:var(--muted)">New videos</p>${list(iC, x => `<li>${esc(x.rec.title)}${(x.rec.shotList || []).length ? ` · ${x.rec.shotList.length} shot${x.rec.shotList.length === 1 ? '' : 's'}` : ''}</li>`)}` : ''}
       ${ups.length ? `<div id="pi-ulist"><p style="margin:12px 0 0;font-weight:800;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
-        color:var(--muted)">Updates</p>${ups.map((u, i) => `<label class="pi-up" ${u.series ? 'data-series-up' : ''} style="display:flex;gap:10px;align-items:flex-start;margin:8px 0 0;font-size:14px;cursor:pointer">
-          <input type="checkbox" data-pi-up="${i}" ${u.x.apply ? 'checked' : ''} style="width:18px;height:18px;margin:2px 0 0;flex:none">
-          <span><small style="color:var(--muted)">${u.what}</small> <b style="color:var(--cream)">${esc(u.name || '')}</b> — ${u.x.changes.map(k => LBL[k] || k).join(', ')}${
-            u.x.edited ? `<br><small style="color:var(--orange)">You’ve changed this one in the app — tick to replace yours with the plan’s</small>` : ''}</span></label>`).join('')}</div>` : ''}
+        color:var(--muted)">Already in the Planner</p>
+        <div class="pi-mode" role="radiogroup" style="display:flex;flex-direction:column;gap:6px;margin:8px 0 4px">
+          <label style="display:flex;gap:10px;align-items:flex-start;font-size:14px;cursor:pointer"><input type="radio" name="pi-mode" value="add" ${pv.mode === 'add' ? 'checked' : ''} style="width:18px;height:18px;margin:2px 0 0">
+            <span><b style="color:var(--cream)">Add to what’s there</b><br><small style="color:var(--muted)">Keeps everything you’ve written; adds the new shots, sequences, days and notes, fills what’s empty, and updates only what an earlier plan wrote that you haven’t touched</small></span></label>
+          <label style="display:flex;gap:10px;align-items:flex-start;font-size:14px;cursor:pointer"><input type="radio" name="pi-mode" value="replace" ${pv.mode === 'replace' ? 'checked' : ''} style="width:18px;height:18px;margin:2px 0 0">
+            <span><b style="color:var(--cream)">Replace with the plan</b><br><small style="color:var(--muted)">The plan’s version wins (frames and ticks on shots with the same name stay)</small></span></label>
+        </div><div data-pi-ups>${upsHTML()}</div></div>` : ''}
       <div class="sheetcta">
         <button class="btn-primary" data-go></button>
         <button class="btn-ghost" data-cancel>Cancel</button>
@@ -357,7 +365,11 @@
         const sl = sheetEl.querySelector('#pi-slist'); if(sl) sl.style.opacity = withSeries() ? '1' : '.4';
       }
       if(cb) cb.addEventListener('change', label);
-      sheetEl.addEventListener('change', e => { const u = e.target.closest('[data-pi-up]'); if(u){ ups[+u.dataset.piUp].x.apply = u.checked; label(); } });
+      sheetEl.addEventListener('change', e => {
+        const u = e.target.closest('[data-pi-up]'); if(u){ ups[+u.dataset.piUp].x.apply = u.checked; label(); return; }
+        const md = e.target.closest('[name="pi-mode"]');
+        if(md){ PlanImport.setMode(pv, md.value); sheetEl.querySelector('[data-pi-ups]').innerHTML = upsHTML(); label(); }
+      });
       label();
       sheetEl.addEventListener('click', async e => {
         if(e.target.closest('[data-cancel]')) return App.closeSheet();
@@ -597,7 +609,7 @@
       const stray = eps.filter(v => !placed.has(v.id));
 
       el.innerHTML = Screens.bar({ kicker:'Month', title:esc(m.name) || 'Month',
-        actions:`<button class="btn-sm" data-plan-claude='${esc(JSON.stringify({ kind:'month', monthStart:m.startDate, monthEnd:m.endDate, title:m.name || '',
+        actions:`<button class="btn-sm" data-plan-claude='${esc(JSON.stringify({ kind:'month', extend:{ kind:'month', id:m.id }, monthStart:m.startDate, monthEnd:m.endDate, title:m.name || '',
           idea:[m.name, m.challenge ? 'Challenge: ' + m.challenge : '', m.notes].filter(Boolean).join('\n') }))}'>✦ Plan with Claude</button>
           <button class="btn-sm" data-a="edit">Edit</button>` }) + `
       <div class="view">

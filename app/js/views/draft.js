@@ -95,6 +95,57 @@
     return out;
   }
 
+  /* ---------------------------------------------------------- what's already there
+     A draft can add to something already in the Planner: picked from its
+     page (✦ Plan), or found by what the draft is for — the week's episode, the
+     month on that Sunday, the series of that name, the quarter picked. Claude
+     sees it, keeps it, and adds; the import adds to it (Add to what's there). */
+  async function existingFor(d, cal){
+    const ex = d.extend || null;
+    try {
+      if(d.kind === 'vlog'){
+        const v = ex && ex.kind === 'vlog' ? cal.episodes.find(x => x.id === ex.id)
+          : (cal.weeks.find(w => w.sun === d.weekOf) || {}).ep;
+        if(v) return { kind:'vlog', id:v.id, label:`the episode "${v.title || 'Week ' + v.week}"`, text: episodeText(v) };
+      }
+      if(d.kind === 'month'){
+        const m = ex && ex.kind === 'month' ? cal.months.find(x => x.id === ex.id) : cal.months.find(x => x.startDate === d.monthStart);
+        if(m){
+          const eps = cal.episodes.filter(v => v.monthId === m.id).sort((a, b) => (a.week || 0) - (b.week || 0));
+          return { kind:'month', id:m.id, label:`the month "${m.name || 'Untitled'}"`, text:[`Month: ${m.name || ''}`, m.challenge ? `Challenge: ${m.challenge}` : '',
+            m.reward ? `Reward: ${m.reward}` : '', m.notes ? `Notes: ${m.notes}` : '',
+            eps.length ? 'Weekly episodes:\n' + eps.map(v => `- week ${v.week}: ${v.title || ''}${v.weeklyChallenge ? ' — ' + v.weeklyChallenge : ''}`).join('\n') : ''].filter(Boolean).join('\n') };
+        }
+      }
+      if(d.kind === 'quarter'){
+        const q = cal.quarters.find(x => x.id === (ex && ex.kind === 'quarter' ? ex.id : d.quarterId));
+        if(q && (q.topic || q.challenge || q.throughline || cal.months.some(m => m.quarterId === q.id))){
+          const ms = cal.months.filter(m => m.quarterId === q.id);
+          return { kind:'quarter', id:q.id, label:`the quarter "${q.name || ''}"`, text:[q.topic ? `Topic: ${q.topic}` : '', q.throughline ? `Throughline: ${q.throughline}` : '',
+            q.challenge ? `Challenge: ${q.challenge}` : '', ms.length ? 'Months:\n' + ms.map(m => `- ${m.name}${m.challenge ? ' — ' + m.challenge : ''}`).join('\n') : ''].filter(Boolean).join('\n') };
+        }
+      }
+      if(d.kind === 'series' && (d.series || (ex && ex.kind === 'series'))){
+        const all = await Data.series();
+        const sr = ex && ex.kind === 'series' ? all.find(x => x.id === ex.id) : all.find(x => sameName(x.title, d.series));
+        if(sr){
+          const parts = global.ClipFlow ? await ClipFlow.parts(sr.id) : [];
+          return { kind:'series', id:sr.id, label:`the series "${sr.title}"`, text:[`Series: ${sr.title}`,
+            parts.length ? 'Episodes so far:\n' + parts.map((c, i) => `${i + 1}. ${c.title}${c.plan && c.plan.hook ? ' — hook: ' + c.plan.hook : ''}`).join('\n') : 'No episodes yet'].join('\n') };
+        }
+      }
+    } catch(e){}
+    return null;
+  }
+  const sameName = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+  function episodeText(v){
+    const real = b => !(/^Sequence \d+$/.test(b.title || '') && !(b.shots || []).length && !b.purpose && !b.script);
+    const days = (v.acts || []).map(a => ({ a, bs:(a.beats || []).filter(real) })).filter(x => x.bs.length);
+    return [`Episode: ${v.title || ''}`, v.weeklyChallenge ? `Challenge: ${v.weeklyChallenge}` : '', v.passLine ? `Pass line: ${v.passLine}` : '',
+      days.length ? 'Days and sequences:\n' + days.map(x => `- ${x.a.title}: ` + x.bs.map(b => `${b.title}${(b.shots || []).length ? ` (${b.shots.map(s => s.text).join('; ')})` : ''}`).join(' | ')).join('\n')
+        : 'No sequences yet'].filter(Boolean).join('\n');
+  }
+
   /* ---------------------------------------------------------- prompts */
   function where(d, cal){
     const L = [];
@@ -125,27 +176,37 @@
     month: `THE MONTH (one line)\nTHE CHALLENGE (what he commits to this month)\nWHY IT WORKS\nTHE WEEKS (one line per week: episode title — that week's challenge)\nREWARD AND STAKES\nOPEN QUESTIONS (or "None")`,
     quarter: `THE QUARTER (one line)\nTOPIC\nTHROUGHLINE (what ties the 13 weeks together)\nTHE CHALLENGE\nTHE MONTHS (one line each: name — challenge)\nOPEN QUESTIONS (or "None")`
   };
+  /* the thread since the last "start over" (the older overviews are kept) */
+  const live = d => { const i = d.thread.map(x => x.role).lastIndexOf('reset'); return i < 0 ? d.thread : d.thread.slice(i + 1); };
   function gistPrompt(d, cal){
-    const notes = d.thread.filter(x => x.role === 'note');
-    const last = d.thread.filter(x => x.role === 'gist').pop();
+    const th = live(d);
+    const last = th.filter(x => x.role === 'gist').pop();
+    const notes = last ? th.slice(th.lastIndexOf(last) + 1).filter(x => x.role === 'note') : [];
+    const earlier = last ? th.filter(x => x.role === 'note' && th.indexOf(x) < th.lastIndexOf(last)) : th.filter(x => x.role === 'note');
+    const ex = d.__existing;
     const auto = d.kind === 'auto';
     return `You're helping Kris, a solo content creator documenting a long personal journey on a weekly vlog plus channel series, plan ${auto ? 'something' : 'a ' + kindLabel(d.kind).toLowerCase()} before it goes into his planner app. Work from what he gives you; don't invent facts about him or his life. Big ideas first — this is the overview, not the detail.
 
 ${where(d, cal)}
 
+${ex ? `Already in his planner — ${ex.label}. Keep all of it; your overview builds on it and says what's new:
+<<<
+${ex.text}
+>>>
+` : ''}
 What he has:
 <<<
 ${d.idea.trim() || '(nothing yet)'}
 >>>
-${last ? `
+${!last && earlier.length ? `\nMore he added:\n${earlier.map(n => '- ' + n.text).join('\n')}\n` : ''}${last ? `
 Your last overview:
 <<<
 ${last.text}
 >>>
 
-His changes (newest last):
+His changes and additions (newest last):
 ${notes.map(n => '- ' + n.text).join('\n')}
-Rewrite the overview with his changes in. Keep what he didn't ask to change.
+Rewrite the overview with these in. Keep everything he didn't ask to change — add to it, don't start over.
 ` : ''}
 ${auto ? `First decide what this is. Start your reply with one line:
 KIND: vlog | series | video | month | quarter
@@ -158,11 +219,12 @@ Under 320 words. No JSON, no tables.`;
 
   const SHOT = `{ "text": "short shot name", "framing": one of ${JSON.stringify(FRAMING)}, "movement": one of ${JSON.stringify(MOVEMENT)} or "", "note": "one short tip or \\"\\"", "lines": [ { "k": "vo" | "cam" | "txt", "t": "what is said or shown" } ] }`;
   function planPrompt(d, cal){
-    const last = d.thread.filter(x => x.role === 'gist').pop();
+    const last = live(d).filter(x => x.role === 'gist').pop();
+    const ex = d.__existing;
     const head = `Turn this agreed overview into a plan for Kris's planner app.
 
 ${where(d, cal)}
-
+${ex ? `\nAlready in the planner — ${ex.label} (it is kept; the import only adds what's new, so include the new parts, and repeat existing names exactly where you add to them):\n<<<\n${ex.text}\n>>>\n` : ''}
 The overview:
 <<<
 ${last ? last.text : d.idea}
@@ -219,7 +281,8 @@ Rules: exactly these ${ms.length} months with these dates. No weekly episodes ye
     "order": 1,
     "hook": "the best hook",
     "idea": "two or three lines: the idea and the beats in order",
-    ${d.day ? `"day": ${JSON.stringify(d.day)},\n    ` : ''}"tags": [],
+    ${d.day ? `"day": ${JSON.stringify(d.day)},\n    ` : ''}"postDay": "YYYY-MM-DD when it goes out, if the overview says (else leave it out)",
+    "tags": [],
     "shots": [ ${SHOT} ]
   } ]
 }
@@ -440,16 +503,18 @@ Rules: exactly ${n} video${n === 1 ? '' : 's'}${n > 1 ? ', in order, one per epi
             <div class="drf-kinds" role="group" aria-label="What it is">${KINDS.map(k => `<button data-kind="${k.k}" aria-pressed="${cur.kind === k.k}">${k.label}</button>`).join('')}</div>
             <textarea class="drf-box" data-idea placeholder="Describe it — the idea, notes, a reference link, how you want it to feel…">${esc(cur.idea)}</textarea>
             <div class="drf-row">${fields(cur)}</div>
+            ${cur._ex ? `<div class="drf-parent" data-existing>Adds to ${esc(cur._ex.label)} — already in the Planner. Claude keeps what's there and builds on it; importing adds the new parts.</div>` : ''}
             <div class="drf-acts">
               ${busy ? `<span class="drf-busy">${esc(busy)}</span>`
                 : `<button class="btn-primary" data-gist>${last ? 'Start the gist over' : 'Get the gist'}</button>
                    <button class="btn-ghost" data-del>Delete draft</button>`}
             </div>
             ${gists.length > 1 ? `<details class="drf-old"><summary>${gists.length - 1} earlier overview${gists.length === 2 ? '' : 's'}</summary>
-              ${cur.thread.slice(0, cur.thread.lastIndexOf(last)).map(t => t.role === 'gist' ? `<div class="drf-card">${gistHTML(t.text)}</div>`
-                : `<div class="drf-note">You: ${esc(t.text)}</div>`).join('')}</details>` : ''}
+              ${cur.thread.slice(0, cur.thread.lastIndexOf(last)).map(threadItem).join('')}</details>` : ''}
             ${last ? `<div class="drf-card" data-gistcard>${gistHTML(last.text)}</div>
-              ${cur.thread.slice(cur.thread.lastIndexOf(last) + 1).map(t => `<div class="drf-note">You: ${esc(t.text)}</div>`).join('')}
+              ${cur.thread.slice(cur.thread.lastIndexOf(last) + 1).map(threadItem).join('')}
+              ${cur.thread.slice(cur.thread.lastIndexOf(last) + 1).some(t => t.role === 'note') ? `<p class="drf-sub" style="margin:8px 0 0">Waiting to go in — press <b>Refine the gist</b> to fold ${
+                cur.thread.slice(cur.thread.lastIndexOf(last) + 1).filter(t => t.role === 'note').length === 1 ? 'it' : 'them'} in.</p>` : ''}
               <textarea class="drf-box" data-change style="min-height:80px;margin-top:14px" placeholder="What to change — “hook 2 but punchier”, “drop week 3”, answers to its questions…"></textarea>
               ${busy ? '' : `<div class="drf-acts"><button class="btn-ghost" data-refine>Refine the gist</button>
                 <button class="btn-primary" data-plan>${cur.plan ? 'Make the plan again' : 'Make the plan →'}</button></div>`}` : ''}
@@ -465,6 +530,17 @@ Rules: exactly ${n} video${n === 1 ? '' : 's'}${n > 1 ? ', in order, one per epi
       }
 
       async function save(){ const cur = d(); if(!cur) return; cur.updatedAt = Date.now(); await persist(); }
+      const threadItem = t => t.role === 'gist' ? `<div class="drf-card">${gistHTML(t.text)}</div>`
+        : t.role === 'reset' ? `<p class="drf-sub" style="margin:12px 0 0">— started over —</p>`
+        : `<div class="drf-note">${t.added ? 'Added' : 'You'}: ${esc(t.text)}</div>`;
+      /* what this draft adds to, shown under its fields */
+      async function noteExisting(){
+        const cur = d(); if(!cur) return;
+        const ex = await existingFor(cur, cal);
+        const was = cur._ex ? cur._ex.id : null;
+        cur._ex = ex ? { kind:ex.kind, id:ex.id, label:ex.label } : null;
+        if((ex ? ex.id : null) !== was) draw();
+      }
       async function ask(prompt, label){
         const cur = d();
         busy = label; draw();
@@ -488,6 +564,7 @@ Rules: exactly ${n} video${n === 1 ? '' : 's'}${n > 1 ? ', in order, one per epi
         if(f === 'monthEnd' && cur.monthEnd) cur.monthEnd = Months.snapSaturday(cur.monthEnd);
         await save();
         if(['channel', 'monthStart', 'monthEnd'].includes(f)) draw();
+        noteExisting();
       };
       el.onclick = async e => {
         const t = e.target;
@@ -498,23 +575,26 @@ Rules: exactly ${n} video${n === 1 ? '' : 's'}${n > 1 ? ', in order, one per epi
           const box = el.querySelector('[data-idea]'); if(box) box.focus();
           return;
         }
-        if(t.closest('[data-dump]')) return brainDump(() => draw());
+        if(t.closest('[data-dump]')) return brainDump(() => { draw(); noteExisting(); }, cal);
         const op = t.closest('[data-open]');
-        if(op){ current = op.dataset.open; return draw(); }
+        if(op){ current = op.dataset.open; draw(); return noteExisting(); }
         const cur = d(); if(!cur) return;
         const kb = t.closest('[data-kind]');
-        if(kb){ cur.kind = kb.dataset.kind; defaults(cur); cur.plan = null; cur.planned = null; await save(); return draw(); }
+        if(kb){ cur.kind = kb.dataset.kind; defaults(cur); cur.plan = null; cur.planned = null; await save(); draw(); return noteExisting(); }
         if(t.closest('[data-del]')){
           if(!confirm('Delete this draft? What was imported stays in the Planner.')) return;
           drafts = drafts.filter(x => x.id !== cur.id); current = drafts[0] ? drafts[0].id : null; await persist(); return draw();
         }
         if(t.closest('[data-gist]')){
           if(!cur.idea.trim()) return U.toast('Describe it first');
-          cur.thread = [];
+          /* starting over keeps the old overviews (under "earlier") */
+          if(cur.thread.some(x => x.role === 'gist')) cur.thread.push({ role:'reset', at:Date.now() });
+          cur.__existing = await existingFor(cur, cal);
           const a = await ask(gistPrompt(cur, cal), 'Getting the gist…');
+          delete cur.__existing;
           if(a){
             const k = cur.kind === 'auto' ? kindFrom(a) : null;
-            if(k){ cur.kind = k; defaults(cur); }
+            if(k){ cur.kind = k; defaults(cur); noteExisting(); }
             cur.thread.push({ role:'gist', text:a, at:Date.now() }); cur.plan = null; cur.planned = null; await save();
           }
           return draw();
@@ -522,12 +602,16 @@ Rules: exactly ${n} video${n === 1 ? '' : 's'}${n > 1 ? ', in order, one per epi
         if(t.closest('[data-refine]')){
           const box = el.querySelector('[data-change]');
           const note = box ? box.value.trim() : '';
-          if(!note) return U.toast('Say what to change first');
-          cur.thread.push({ role:'note', text:note, at:Date.now() });
+          const lastG = cur.thread.map(x => x.role).lastIndexOf('gist');
+          const waiting = cur.thread.slice(lastG + 1).some(x => x.role === 'note');
+          if(!note && !waiting) return U.toast('Say what to change or add first');
+          if(note) cur.thread.push({ role:'note', text:note, at:Date.now() });
           await save();
+          cur.__existing = await existingFor(cur, cal);
           const a = await ask(gistPrompt(cur, cal), 'Refining…');
+          delete cur.__existing;
           if(a){ cur.thread.push({ role:'gist', text:a, at:Date.now() }); cur.plan = null; cur.planned = null; }
-          else cur.thread.pop();     /* nothing came back: the note waits in the box */
+          else if(note) cur.thread.pop();     /* nothing came back: the note waits in the box */
           await save(); draw();
           if(!a){ const b2 = el.querySelector('[data-change]'); if(b2) b2.value = note; }
           return;
@@ -537,7 +621,9 @@ Rules: exactly ${n} video${n === 1 ? '' : 's'}${n > 1 ? ', in order, one per epi
           if(box && box.value.trim()) return U.toast('Refine the gist with your change first — or clear the box');
           if(cur.kind === 'auto') cur.kind = 'video';
           defaults(cur);
+          cur.__existing = await existingFor(cur, cal);
           const a = await ask(planPrompt(cur, cal), 'Making the plan…');
+          delete cur.__existing;
           if(!a) return draw();
           try {
             cur.plan = JSON.stringify(readPlan(a, cur, cal), null, 2);
@@ -569,29 +655,46 @@ Rules: exactly ${n} video${n === 1 ? '' : 's'}${n > 1 ? ', in order, one per epi
         if(t.closest('[data-where]')) return App.go(['vlog', 'month', 'quarter'].includes(cur.kind) ? 'weekly' : 'series');
         if(t.closest('[data-send]')) return App.sendToPhone && App.sendToPhone(t.closest('[data-send]'));
       };
-      ViewDraft._draw = draw;
-      draw();
+      ViewDraft._draw = () => { draw(); noteExisting(); };
+      draw(); noteExisting();
     }
   };
 
-  /* Brain dump: a pile of ideas in, one draft per idea out — sorted and
-     labelled, nothing planned yet */
-  function brainDump(after){
+  /* Brain dump: a pile of ideas in. Each idea either adds to something that's
+     already there — a draft you have, or a month, series, quarter or week's
+     episode in the Planner — or becomes a new draft. Nothing is planned and
+     nothing is wiped: an idea for a draft lands under it, waiting for Refine. */
+  function brainDump(after, cal){
     App.sheet(`
       <h2>Brain dump</h2>
-      <p class="hintline" style="margin:0 0 10px">Everything on your mind — vlog ideas, series, one-offs, what next month is about. Claude only sorts it into
-        separate drafts, each labelled; nothing gets planned until you open one.</p>
+      <p class="hintline" style="margin:0 0 10px">Everything on your mind — vlog ideas, series, one-offs, what next month is about. An idea that belongs with
+        something you already have is added to it; the rest become new drafts. Nothing gets planned until you open one.</p>
       <textarea id="drf-dump" rows="10" style="width:100%;background:var(--bg);border:1px solid var(--line);border-radius:var(--r);color:var(--cream);font:inherit;font-size:14.5px;padding:10px;resize:vertical"
         placeholder="One idea per line, or just write…"></textarea>
-      <div class="sheetcta"><button class="btn-primary" data-sort>Sort into drafts</button><button class="btn-ghost" data-cancel>Cancel</button></div>`, sh => {
+      <div class="sheetcta"><button class="btn-primary" data-sort>Sort it</button><button class="btn-ghost" data-cancel>Cancel</button></div>`, sh => {
       sh.addEventListener('click', async e => {
         if(e.target.closest('[data-cancel]')) return App.closeSheet();
         if(!e.target.closest('[data-sort]')) return;
         const text = sh.querySelector('#drf-dump').value.trim();
         if(!text) return U.toast('Write something first');
         App.closeSheet();
-        const a = await ShotAI.askText(`Sort Kris's brain dump into separate ideas for his content planner. Don't plan anything, don't add ideas, keep his words.
+        await load();
+        let series = []; try { series = await Data.series(); } catch(err){}
+        const now = Date.now();
+        const have = [
+          ...drafts.slice(0, 40).map(x => `draft ${x.id} · ${kindLabel(x.kind)} · ${titleOf(x)}`),
+          ...(cal.months || []).filter(m => m.endDate && Months.ts(m.endDate) >= now - 864e5 * 7).map(m => `month ${m.id} · ${m.name}${m.challenge ? ' — ' + m.challenge : ''}`),
+          ...(cal.quarters || []).filter(q => q.endDate >= now && (q.topic || q.challenge)).map(q => `quarter ${q.id} · ${q.name}${q.topic ? ' — ' + q.topic : ''}`),
+          ...series.slice(0, 40).map(x => `series ${x.id} · ${x.title}`),
+          ...(cal.weeks || []).filter(w => w.ep).map(w => `episode ${w.ep.id} · week of ${w.sun} · ${w.ep.title || ''}`)
+        ];
+        const a = await ShotAI.askText(`Sort Kris's brain dump for his content planner. Don't plan anything, don't add ideas, keep his words.
 Kinds: vlog (one week's episode of his weekly vlog), series (a run of videos for a channel series), video (one video), month (a month's challenge), quarter (a 13-week block).
+
+What he already has (type id · what it is):
+${have.length ? have.join('\n') : '(nothing yet)'}
+
+If an idea clearly belongs with one of those, add it there: set "addTo" to that type and id. Otherwise leave "addTo" out and it becomes a new draft.
 
 The brain dump:
 <<<
@@ -599,18 +702,41 @@ ${text}
 >>>
 
 Reply with ONLY a JSON array, no prose, no code fences:
-[ { "kind": "vlog" | "series" | "video" | "month" | "quarter", "title": "a few words", "idea": "his words for this idea" } ]`, 'Sorting your ideas…', 3000);
+[ { "kind": "vlog" | "series" | "video" | "month" | "quarter", "title": "a few words", "idea": "his words for this idea", "addTo": { "type": "draft" | "month" | "quarter" | "series" | "episode", "id": "…" } } ]`, 'Sorting your ideas…', 3000);
         if(!a) return;
         let arr = null;
         try { const raw = a.replace(/```(?:json)?/gi, ''); arr = JSON.parse(raw.slice(raw.indexOf('['), raw.lastIndexOf(']') + 1)); } catch(err){}
         if(!Array.isArray(arr) || !arr.length) return U.toast('That answer wasn’t a list of ideas — try again');
         await load();
-        const made = arr.filter(x => x && (x.idea || x.title)).slice(0, 30).map(x => blank({
-          kind: KINDS.some(k => k.k === x.kind) ? x.kind : 'auto', title:String(x.title || '').slice(0, 70), idea:String(x.idea || x.title || '') }));
-        drafts.unshift(...made);
-        if(made.length) current = made[0].id;
+        const KIND_OF = { month:'month', quarter:'quarter', series:'series', episode:'vlog' };
+        let made = 0, added = 0, firstId = null;
+        for(const x of arr.filter(y => y && (y.idea || y.title)).slice(0, 40)){
+          const words = String(x.idea || x.title || '').trim();
+          const to = x.addTo && typeof x.addTo === 'object' ? x.addTo : null;
+          /* an idea for a draft you have: under it, waiting for Refine */
+          let target = to && to.type === 'draft' ? drafts.find(dd => dd.id === to.id) : null;
+          /* for something in the Planner: the draft already adding to it, or a new one that does */
+          if(!target && to && KIND_OF[to.type]) target = drafts.find(dd => dd.extend && dd.extend.id === to.id) || null;
+          if(target){
+            target.idea = (target.idea.trim() ? target.idea.trim() + '\n\n' : '') + words;
+            if(target.thread.some(t => t.role === 'gist')) target.thread.push({ role:'note', text:words, added:true, at:Date.now() });
+            target.updatedAt = Date.now(); added++; firstId = firstId || target.id;
+            continue;
+          }
+          const seed = { kind: KINDS.some(k => k.k === x.kind) ? x.kind : 'auto', title:String(x.title || '').slice(0, 70), idea:words };
+          if(to && KIND_OF[to.type]){
+            seed.kind = KIND_OF[to.type]; seed.extend = { kind:seed.kind, id:to.id };
+            if(to.type === 'month'){ const m = (cal.months || []).find(mm => mm.id === to.id); if(m){ seed.monthStart = m.startDate; seed.monthEnd = m.endDate; } }
+            if(to.type === 'quarter') seed.quarterId = to.id;
+            if(to.type === 'series'){ const sr = series.find(ss => ss.id === to.id); if(sr){ seed.series = sr.title; seed.channel = sr.channel || ''; } }
+            if(to.type === 'episode'){ const w = (cal.weeks || []).find(ww => ww.ep && ww.ep.id === to.id); if(w) seed.weekOf = w.sun; }
+          }
+          const nd = blank(seed);
+          drafts.unshift(nd); made++; firstId = firstId || nd.id;
+        }
+        if(firstId) current = firstId;
         await persist();
-        U.toast(`${made.length} draft${made.length === 1 ? '' : 's'} — open one when you're ready`);
+        U.toast([made ? `${made} new draft${made === 1 ? '' : 's'}` : '', added ? `${added} added to what you have` : ''].filter(Boolean).join(' · ') || 'Nothing to sort');
         if(after) after();
       });
     });
@@ -649,5 +775,5 @@ Reply with ONLY a JSON array, no prose, no code fences:
   });
 
   global.ViewDraft = ViewDraft;
-  global.PlanDraft = { start, gistPrompt, planPrompt, readPlan, gistHTML, kindFrom, children, quarterMonths, monthEndFor, brainDump, KINDS };
+  global.PlanDraft = { start, gistPrompt, planPrompt, readPlan, gistHTML, kindFrom, children, quarterMonths, monthEndFor, brainDump, existingFor, KINDS };
 })(window);

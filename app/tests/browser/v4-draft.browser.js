@@ -24,6 +24,13 @@ const FAKE = () => {
       __prompts.push(prompt);
       await new Promise(r => setTimeout(r, 60));
       if(/Reply with exactly: ready/.test(prompt)) return { ok: true, text: 'ready' };
+      if(/brain dump/i.test(prompt) && /SECOND DUMP/.test(prompt)){
+        const dr = (/draft (\S+) · Month · /.exec(prompt) || [])[1], ep = (/episode (\S+) · week of/.exec(prompt) || [])[1];
+        return { ok: true, text: JSON.stringify([
+          { kind: 'month', title: 'No phone in bed', idea: 'no phone in bed all month', addTo: { type: 'draft', id: dr } },
+          { kind: 'vlog', title: 'Evening wind-down', idea: 'add an evening wind-down to the alarm week', addTo: { type: 'episode', id: ep } },
+          { kind: 'video', title: 'Lens test', idea: 'test my new lens' }]) };
+      }
       if(/brain dump/i.test(prompt)) return { ok: true, text: JSON.stringify([
         { kind: 'vlog', title: 'Cold plunge week', idea: 'a week of cold plunges' },
         { kind: 'series', title: 'Garage builds', idea: 'build things in the garage, one per video' },
@@ -44,6 +51,11 @@ const FAKE = () => {
           const weeks = [...prompt.matchAll(/"filmStart": "([0-9-]{10})"/g)].map(m => m[1]);
           return { ok: true, text: '```json\n' + JSON.stringify({ plan: 'Discipline', months: [{ name: 'Discipline', startDate: s, endDate: e2, challenge: 'Up at 5 every day', reward: 'New lens', notes: 'Simple' }],
             episodes: weeks.map((w, i) => ({ title: `Discipline week ${i + 1}`, filmStart: w, weeklyChallenge: `Challenge ${i + 1}`, skill: 'Waking', isVerdict: i === weeks.length - 1 })) }) + '\n```' };
+        }
+        if(/"episodes": \[ \{\s*"title": "the episode's title"/.test(prompt) && /Already in the planner[\s\S]*First 5am/.test(prompt)){
+          const w = between(prompt, '"filmStart": "');
+          return { ok: true, text: JSON.stringify({ plan: 'Wind-down', episodes: [{ title: 'Alarm across the room', filmStart: w,
+            acts: [{ title: 'Monday', sequences: [{ title: 'First 5am', shots: ['Dark hallway', 'Bed at 9'] }, { title: 'Evening wind-down', setup: 'phone', shots: ['Lamp off', 'Book'] }] }] }] }) };
         }
         if(/"episodes": \[ \{\s*"title": "the episode's title"/.test(prompt)){
           const w = between(prompt, '"filmStart": "');
@@ -158,6 +170,43 @@ const FAKE = () => {
   await p.fill('#drf-dump', 'cold plunge week\ngarage builds series\ndesk tour'); await p.click('[data-sort]'); await p.waitForTimeout(900);
   const items = await p.$$eval('.drf-item', x => x.map(e => e.textContent.replace(/\s+/g, ' ')));
   ok(items.length === before + 3 && items.some(t => /Cold plunge week.*Weekly vlog · Idea/.test(t)), 'three new drafts, labelled, nothing planned', items.slice(0, 3).join(' | '));
+
+  head('more ideas later: they add to what you have');
+  const nDrafts = await p.$$eval('.drf-item', x => x.length);
+  await p.click('[data-dump]'); await p.waitForTimeout(300);
+  await p.fill('#drf-dump', 'SECOND DUMP\nno phone in bed\nevening wind-down for the alarm week\nlens test'); await p.click('[data-sort]'); await p.waitForTimeout(900);
+  const dp = await p.evaluate(() => __prompts.find(x => /SECOND DUMP/.test(x)) || '');
+  ok(/draft \S+ · Month · /.test(dp) && /episode \S+ · week of/.test(dp), 'Claude sees your drafts and what\'s in the Planner');
+  ok((await p.$$eval('.drf-item', x => x.length)) === nDrafts + 2, 'one idea joins the month draft; the other two become drafts', `${nDrafts} → ${await p.$$eval('.drf-item', x => x.length)}`);
+  const md = await p.evaluate(async () => (await Store.get('settings', 'plan-drafts')).find(x => x.kind === 'month' && /discipline month/.test(x.idea)));
+  ok(md && /no phone in bed all month/.test(md.idea) && md.thread.filter(t => t.role === 'gist').length >= 2 && md.thread.slice(-1)[0].added, 'the month draft keeps its overviews and gets the idea, waiting to go in');
+
+  head('a draft that adds to an episode already planned');
+  const wd = await p.evaluate(async () => (await Store.get('settings', 'plan-drafts')).find(x => x.extend && x.kind === 'vlog'));
+  ok(!!wd, 'the wind-down idea became a draft that adds to the alarm episode');
+  await p.click(`[data-open="${wd.id}"]`); await p.waitForTimeout(700);
+  ok(/Adds to the episode "Alarm across the room"/.test(await txt('[data-existing]')), 'the draft says what it adds to');
+  await p.click('[data-gist]'); await p.waitForTimeout(800);
+  ok(/Already in his planner — the episode "Alarm across the room"[\s\S]*First 5am \(Dark hallway; Alarm off\)/.test(await lastPrompt()), 'Claude is shown the episode\'s sequences and shots, to keep');
+  await p.click('[data-plan]'); await p.waitForTimeout(800);
+  const go5 = await importIt();
+  const ep2 = await p.evaluate(async () => (await Store.all('vlogs')).values.find(v => v.title === 'Alarm across the room'));
+  const mon = ep2 && ep2.acts.find(a => a.title === 'Monday');
+  ok(/update 1/.test(go5), 'the import adds to the episode', go5);
+  ok(ep2 && ep2.acts.length === 2 && ep2.acts[0].title === 'Sunday' && ep2.acts[0].beats[0].title === 'The setup', 'Sunday and its sequence are still there');
+  ok(mon && mon.beats.map(b => b.title).join('|') === 'First 5am|Coffee|Evening wind-down', 'Monday keeps its sequences and gets the new one after them', mon && mon.beats.map(b => b.title).join('|'));
+  ok(mon && mon.beats[0].shots.map(x => x.text).join('|') === 'Dark hallway|Alarm off|Bed at 9' && mon.beats[0].shots[1].lines[0].t === 'Day one.', 'a sequence keeps its shots and lines and gets the new shot');
+
+  head('Refine folds the added idea in; starting over keeps the old overviews');
+  await p.click(`[data-open="${md.id}"]`); await p.waitForTimeout(700);
+  ok(/Waiting to go in/.test(await txt('.drf-main')), 'the added idea shows, waiting to go in');
+  await p.click('[data-refine]'); await p.waitForTimeout(800);
+  ok(/His changes and additions[\s\S]*no phone in bed all month[\s\S]*add to it, don't start over/.test(await lastPrompt()), 'Refine with an empty box sends the waiting idea, to add to the overview');
+  const before2 = await p.evaluate(async () => (await Store.get('settings', 'plan-drafts')).find(x => x.id === document.querySelector('.drf-item[aria-current]').dataset.open).thread.filter(t => t.role === 'gist').length);
+  await p.click('[data-gist]'); await p.waitForTimeout(800);
+  const th = await p.evaluate(async () => (await Store.get('settings', 'plan-drafts')).find(x => x.id === document.querySelector('.drf-item[aria-current]').dataset.open).thread);
+  ok(th.filter(t => t.role === 'gist').length === before2 + 1 && th.some(t => t.role === 'reset'), 'Start the gist over keeps the old overviews', `${before2} → ${th.filter(t => t.role === 'gist').length}`);
+  ok(!/Your last overview/.test(await lastPrompt()), 'and the new gist starts from the description');
 
   head('from a month\'s page');
   await p.click('.tabbar [data-tab="weekly"]'); await p.waitForTimeout(600);

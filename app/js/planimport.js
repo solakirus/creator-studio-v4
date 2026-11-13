@@ -117,6 +117,10 @@
       const d = pi.day !== undefined ? pi.day : pi.date !== undefined ? pi.date : pi.shootDay;
       f.day = isDay(d) ? d : null;
     }
+    /* v4: the post day — the clip's place on the publishing calendar (scheduledAt);
+       "2026-12-03" or "2026-12-03 18:00" */
+    const pd = pi.postDay !== undefined ? pi.postDay : pi.post !== undefined ? pi.post : pi.publish;
+    if(pd !== undefined){ const m = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{1,2}):(\d{2}))?/.exec(String(pd || '')); f.post = m ? m[1] + (m[2] ? ` ${m[2].padStart(2, '0')}:${m[3]}` : '') : null; }
     if(Array.isArray(pi.shots) && global.ShotList) f.shotList = ShotList.norm(pi.shots);
     /* a shoot day makes it planned (Videos.schedule does the same) */
     if(f.day && (f.stage || 'idea') === 'idea') f.stage = 'planned';
@@ -136,14 +140,15 @@
     if(k === 'shotList') return shotKey(listOf(v)) === shotKey(f.shotList);
     if(k === 'tags') return JSON.stringify(v.tags || []) === JSON.stringify(f.tags);
     if(k === 'day') return dayOf(v) === (f.day == null ? null : f.day);
+    if(k === 'post') return (v.post || null) === (f.post || null);
     return str(v[k]) === str(f[k]);
   };
-  const LABEL = { title:'title', hook:'hook', notes:'idea', tags:'tags', stage:'stage', plat:'platform', day:'shoot day', shotList:'shots' };
+  const LABEL = { title:'title', hook:'hook', notes:'idea', tags:'tags', stage:'stage', plat:'platform', day:'shoot day', post:'post day', shotList:'shots' };
   function changed(v, f){ return Object.keys(LABEL).filter(k => k in f && !same(k, v, f)); }
   /* a fingerprint of the planned fields as they stand, kept on the video at
      import: if it no longer matches, the video was changed in the app */
   function sigOf(v){
-    const t = [v.title, v.hook, v.notes, JSON.stringify(v.tags || []), v.stage, v.plat, v.day || '', shotKey(listOf(v))].join('\u0001');
+    const t = [v.title, v.hook, v.notes, JSON.stringify(v.tags || []), v.stage, v.plat, v.day || '', shotKey(listOf(v))].join('\u0001') + (v.post ? '\u0001' + v.post : '');
     let h = 5381; for(let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0;
     return (h >>> 0).toString(36);
   }
@@ -205,6 +210,157 @@
     : changes.some(k => k === 'acts' ? (r.acts || []).some(a => (a.beats || []).some(b => (b.shots || []).length || b.purpose || b.script))
       : str(r[k]).trim() !== '' && !((k === 'name' || k === 'title') && AUTO.test(str(r[k]).trim())));
 
+  /* ---- v4: two ways to bring a plan over what's there ----
+     'add' (the default): keep everything you have and add the new parts — a
+       blank field is filled, the idea is added under yours, new tags, new
+       shots after yours, new days and sequences after yours (a day that only
+       has the empty "Sequence 1/2/3" takes the plan's instead). Nothing of
+       yours is changed or removed.
+     'replace': the plan's version of each field wins (frames and ticks of a
+       shot or sequence with the same name are still kept). */
+  const blankish = (k, v) => !str(v).trim() || ((k === 'name' || k === 'title') && (AUTO.test(str(v).trim()) || /^Untitled/i.test(str(v).trim())));
+  const sameText = (a, b) => str(a).trim().toLowerCase() === str(b).trim().toLowerCase();
+  const emptyBeat = b => /^Sequence \d+$/.test(str(b.title)) && !(b.shots || []).length && !str(b.purpose).trim() && !str(b.script).trim() && !b.clipId;
+  function addShots(old, next){
+    const out = (old || []).slice();
+    (next || []).forEach(s => { if(!out.some(o => sameText(o.text, s.text))) out.push(s); });
+    return out;
+  }
+  function mergeActsAdd(old, next){
+    /* days the plan doesn't name that hold only the empty "Sequence 1/2/3" go:
+       there's nothing in them, and the plan's days are the plan */
+    const named = a => (next || []).some(na => sameText(na.title, a.title));
+    const out = (old || []).filter(a => named(a) || a.day != null || !(a.beats || []).every(emptyBeat)).map(a => ({ ...a, beats:(a.beats || []).slice() }));
+    for(const na of next || []){
+      const oa = out.find(a => sameText(a.title, na.title));
+      if(!oa){ out.push(na); continue; }
+      if((na.beats || []).length && oa.beats.length && oa.beats.every(emptyBeat)) oa.beats = [];
+      for(const nb of na.beats || []){
+        const i = oa.beats.findIndex(b => sameText(b.title, nb.title));
+        if(i < 0){ oa.beats.push(nb); continue; }
+        const ob = oa.beats[i];
+        oa.beats[i] = { ...ob, purpose: str(ob.purpose).trim() ? ob.purpose : nb.purpose, script: str(ob.script).trim() ? ob.script : nb.script,
+          shots: addShots(ob.shots, nb.shots) };
+      }
+    }
+    return out;
+  }
+  const countSeq = acts => (acts || []).reduce((n, a) => n + (a.beats || []).filter(b => !emptyBeat(b)).length, 0);
+  const countShots = acts => (acts || []).reduce((n, a) => n + (a.beats || []).reduce((m, b) => m + (b.shots || []).length, 0), 0);
+  /* the fields a plan adds to a record without changing what's there. `fresh`:
+     the record is still as a plan left it (nothing of yours in it), so the
+     plan's words may refine it; lists still only grow */
+  function addPatch(cur, f, keys, fresh){
+    const p = {};
+    for(const k of keys){
+      if(!(k in f)) continue;
+      if(fresh && !['tags', 'shotList', 'acts', 'day', 'post', 'stage'].includes(k)){ if(str(cur[k]) !== str(f[k]) && str(f[k]).trim()) p[k] = f[k]; continue; }
+      if(k === 'notes'){
+        const a = str(cur.notes).trim(), b = str(f.notes).trim();
+        if(b && !a) p.notes = b; else if(b && !a.toLowerCase().includes(b.toLowerCase())) p.notes = a + '\n\n' + b;
+      } else if(k === 'tags'){
+        const t = (cur.tags || []).slice(); (f.tags || []).forEach(x => { if(!t.some(y => sameText(y, x))) t.push(x); });
+        if(t.length !== (cur.tags || []).length) p.tags = t;
+      } else if(k === 'shotList'){
+        const l = addShots(listOf(cur), f.shotList); if(l.length !== listOf(cur).length) p.shotList = l;
+      } else if(k === 'acts'){
+        const m = mergeActsAdd(cur.acts, f.acts); if(actsKey(m) !== actsKey(cur.acts)) p.acts = m;
+      } else if(k === 'day'){
+        if(f.day && !dayOf(cur)) p.day = f.day;
+      } else if(k === 'post'){
+        if(f.post && !cur.post) p.post = f.post;
+      } else if(k === 'stage'){
+        if((cur.stage || 'idea') === 'idea' && f.stage && f.stage !== 'idea') p.stage = f.stage;
+      } else if(blankish(k, cur[k]) && str(f[k]).trim() && str(cur[k]) !== str(f[k])) p[k] = f[k];
+    }
+    return p;
+  }
+  /* what a patch does, in words: "hook, +3 shots, +2 sequences" */
+  const NAMES = { title:'title', hook:'hook', notes:'idea', tags:'tags', stage:'stage', plat:'platform', day:'shoot day', shotList:'shots',
+    name:'name', topic:'topic', throughline:'throughline', challenge:'challenge', reward:'reward', quarterTheme:'theme',
+    skill:'skill', weeklyChallenge:'challenge', passLine:'pass line', acts:'sequences', post:'post day' };
+  function says(cur, patch, mode){
+    return Object.keys(patch).map(k => {
+      if(mode === 'add' && k === 'shotList'){ const n = patch.shotList.length - listOf(cur).length; return `+${n} shot${n === 1 ? '' : 's'}`; }
+      if(mode === 'add' && k === 'acts'){
+        const q = countSeq(patch.acts) - countSeq(cur.acts), sh = countShots(patch.acts) - countShots(cur.acts);
+        return [q ? `+${q} sequence${q === 1 ? '' : 's'}` : '', sh ? `+${sh} shot${sh === 1 ? '' : 's'}` : ''].filter(Boolean).join(', ') || 'sequences';
+      }
+      if(mode === 'add' && k === 'notes' && str(cur.notes).trim()) return 'adds to the idea';
+      if(mode === 'add' && k === 'tags') return 'new tags';
+      return NAMES[k] || k;
+    });
+  }
+  /* both ways, for one record */
+  function bothWays(cur, f, keys, replaceChanges, fresh){
+    const replace = {}; replaceChanges.forEach(k => { replace[k] = f[k]; });
+    const add = addPatch(cur, f, keys, fresh);
+    return { add:{ patch:add, changes:says(cur, add, 'add') }, replace:{ patch:replace, changes:says(cur, replace, 'replace') } };
+  }
+
+  /* ---- v4: a series' videos (and one-offs) are clips (clipflow.js) ----
+     A plan's video is looked for among the clips — by id ('cv_' + the plan's
+     id, as ClipFlow names a video's clip), or by title in its series — and a
+     new one is made as a clip. These are the planned fields as a clip holds them. */
+  const tagsOf = t => String(t || '').split(/[\s,]+/).map(x => x.replace(/^#/, '')).filter(Boolean);
+  async function clipViews(){
+    let clips = [];
+    try { clips = await Data.clips(); } catch(e){}
+    const out = [];
+    for(const c of clips){
+      let day = null;
+      if(c.shootTaskId){
+        try { const t = await Store.get('tasks', c.shootTaskId); if(t && t.day != null && t.view !== 'done') day = Months.iso(await Data.dayToDate(t.day)); } catch(e){}
+      }
+      const pl = c.plan || {};
+      const at = c.scheduledAt ? new Date(c.scheduledAt) : null;
+      const post = at ? Months.iso(at.getTime()) + (at.getHours() || at.getMinutes() ? ` ${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}` : '') : null;
+      out.push({ post, id:c.id, fromVideo:c.fromVideo || null, title:c.title || '', hook:pl.hook || '', notes:pl.notes || '', tags:tagsOf(pl.tags),
+        stage:c.stage || 'idea', plat:c.plat || '', day, seriesId:c.seriesId || null, shotList:Array.isArray(c.shotList) ? c.shotList : (c.shots || []),
+        imported:c.imported || null, order:c.order || 0, channel:c.channel || '', createdAt:c.createdAt || 0 });
+    }
+    return out;
+  }
+  const clipIdFor = id => !id ? null : (String(id).startsWith('cv_') || String(id).startsWith('c_') || String(id).startsWith('clip') ? String(id) : 'cv_' + id);
+  /* a patch in the plan's terms onto the clip itself */
+  async function patchClip(id, patch){
+    const c = await Store.get('clips', id);
+    if(!c) return null;
+    const n = { ...c, plan:{ ...(c.plan || {}) } };
+    if('title' in patch) n.title = patch.title;
+    if('hook' in patch){ n.plan.hook = patch.hook; n.plan.hookT = Date.now(); }
+    if('notes' in patch) n.plan.notes = patch.notes;
+    if('tags' in patch) n.plan.tags = patch.tags.map(t => '#' + String(t).replace(/^#/, '')).join(' ');
+    if('stage' in patch) n.stage = patch.stage;
+    if('plat' in patch) n.plat = patch.plat;
+    if('post' in patch){
+      if(patch.post){ const [d, hm] = patch.post.split(' '); const t = new Date(Months.ts(d)); if(hm){ const [h, mi] = hm.split(':'); t.setHours(+h, +mi, 0, 0); } n.scheduledAt = t.getTime(); }
+      else delete n.scheduledAt;
+    }
+    if('shotList' in patch){
+      /* a shot that stays keeps its frame, its tick and its id */
+      const old = listOf(c);
+      n.shotList = patch.shotList.map(s => { const o = old.find(y => sameText(y.text, s.text));
+        return o ? { ...o, ...s, id:o.id, item:s.item || o.item, done:o.done } : s; });
+      n.shots = n.shotList.map(s => s.text || 'Shot');
+    }
+    if('day' in patch){
+      if(patch.day){
+        const t = await ShotList.putOnDay({ taskId:n.shootTaskId, day: await Data.dateToDay(Months.ts(patch.day)), title:n.title,
+          shots:n.shotList || n.shots || [], page:n.page || null, pageFrom:n.pageFrom, morePages:n.morePages, beatNames:n.plan.beats, extra:{ clipId:n.id } });
+        n.shootTaskId = t.id; if((n.stage || 'idea') === 'idea') n.stage = 'planned';
+      } else if(n.shootTaskId){ try { await Store.del('tasks', n.shootTaskId); } catch(e){} n.shootTaskId = null; }
+    }
+    await Data.saveClip(n);
+    if(Data.invalidate){ Data.invalidate('clips'); Data.invalidate('tasks'); }
+    return n;
+  }
+  async function stampClip(id){
+    const c = (await clipViews()).find(x => x.id === id);
+    const r = await Store.get('clips', id);
+    if(c && r){ await Data.saveClip({ ...r, imported:{ at:Date.now(), sig:sigOf(c) } }); if(Data.invalidate) Data.invalidate('clips'); }
+  }
+
   /* Work out what would happen, without writing anything. */
   async function preview(obj){
     const existingMonths = await Months.all();
@@ -227,7 +383,8 @@
       if(!q){ quarters.push({ action:'skip', plan:pq, rec:{ name:str(pq.name) || 'A quarter' }, reason:'no quarter on those dates' }); continue; }
       const changes = Q_KEYS.filter(k => k in f && str(q[k]) !== str(f[k]));
       if(!changes.length){ quarters.push({ action:'skip', plan:pq, rec:q, reason:'no changes' }); continue; }
-      quarters.push({ action:'update', kind:'quarter', plan:pq, rec:q, patch:f, changes, edited:editedSince(q, Q_KEYS, changes) });
+      const qe = editedSince(q, Q_KEYS, changes);
+      quarters.push({ action:'update', kind:'quarter', plan:pq, rec:q, modes:bothWays(q, f, Q_KEYS, changes, !!q.imported && !qe), edited:qe });
     }
 
     /* months: a new one, or the one already starting that Sunday is updated */
@@ -252,7 +409,8 @@
         const f = pick(pm, M_KEYS);
         const changes = M_KEYS.filter(k => k in f && str(same[k]) !== str(f[k]));
         if(!changes.length) return { action:'skip', plan:pm, rec:same, reason:`${same.name || 'A month'} already starts ${Months.label(rec.startDate)}` };
-        return { action:'update', kind:'month', plan:pm, rec:same, patch:f, changes, edited:editedSince(same, M_KEYS, changes) };
+        const me = editedSince(same, M_KEYS, changes);
+        return { action:'update', kind:'month', plan:pm, rec:same, modes:bothWays(same, f, M_KEYS, changes, !!same.imported && !me), edited:me };
       }
       rec.id = pm.id || ('mo_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
       monthIdMap[key] = rec.id;
@@ -305,8 +463,8 @@
         const changes = E_KEYS.filter(k => k in f && str(have[k]) !== str(f[k]));
         if(acts && actsKey(have.acts) !== actsKey(acts)) changes.push('acts');
         if(!changes.length){ episodes.push({ action:'skip', plan:pe, rec:have, reason:'no changes' }); continue; }
-        episodes.push({ action:'update', kind:'episode', plan:pe, rec:have, patch:f, changes,
-          edited:editedSince(have, E_KEYS.concat('acts'), changes) });
+        const ee = editedSince(have, E_KEYS.concat('acts'), changes);
+        episodes.push({ action:'update', kind:'episode', plan:pe, rec:have, modes:bothWays(have, f, E_KEYS.concat('acts'), changes, !!have.imported && !ee), edited:ee });
         continue;
       }
       if(week !== null) byWeek.set(week, rec);   /* two plan episodes in one week: the first wins */
@@ -322,7 +480,7 @@
        a video with the same title. */
     let existingSeries = [], existingVideos = [], channels = [];
     try { existingSeries = await Data.series(); } catch(e){}
-    try { existingVideos = await Videos.all(); } catch(e){}
+    existingVideos = await clipViews();
     let chanList = [];
     try { chanList = await Channels.all(); channels = chanList.map(c => c.n); } catch(e){}
     const low = t => String(t || '').trim().toLowerCase();
@@ -362,7 +520,8 @@
 
     const ideas = [];
     const byKey = new Map(existingVideos.map(v => [(v.seriesId || '') + '|' + low(v.title), v]));
-    const byId = new Map(existingVideos.map(v => [v.id, v]));
+    const byId = new Map();
+    existingVideos.forEach(v => { byId.set(v.id, v); if(v.fromVideo) byId.set('cv_' + v.fromVideo, v); });
     const now = Date.now();
     for(const pi of planIdeas){
       const sid = seriesIdMap[pi.seriesId] || null;
@@ -376,19 +535,33 @@
       const key = (sid || '') + '|' + low(rec.title);
       /* v4: the same video again (its id, or its title in that series): an
          update, so a plan refined in chat can be pasted back over itself */
-      const have = (rec.id && byId.get(rec.id)) || byKey.get(key);
+      const have = (rec.id && (byId.get(rec.id) || byId.get(clipIdFor(rec.id)))) || byKey.get(key);
       if(have){
         const changes = changed(have, pf);
         if(!changes.length){ ideas.push({ action:'skip', plan:pi, rec:have, reason:'no changes' }); continue; }
-        /* changed here since it came in (or made here by hand): yours wins unless you tick it */
+        /* changed here since it came in (or made here by hand): in Replace, yours wins unless you tick it */
         const edited = !have.imported || have.imported.sig !== sigOf(have);
-        ideas.push({ action:'update', plan:pi, rec:have, pf, changes, edited }); continue;
+        ideas.push({ action:'update', plan:pi, rec:have, pf, modes:bothWays(have, pf, Object.keys(LABEL), changes, !!have.imported && !edited), edited }); continue;
       }
-      byKey.set(key, rec); if(rec.id) byId.set(rec.id, rec);
+      byKey.set(key, rec); if(rec.id) byId.set(clipIdFor(rec.id), rec);
       ideas.push({ action:'create', plan:pi, rec, pf });
     }
 
-    return { obj, quarters, months, episodes, series, ideas, warnings };
+    /* every update says what it does in the mode picked (Add by default) */
+    const pv = { obj, quarters, months, episodes, series, ideas, warnings, mode:'add' };
+    setMode(pv, 'add');
+    return pv;
+  }
+  /* switch Add / Replace: each update's words and whether it goes ahead —
+     Add never loses anything, so all go; Replace leaves what you changed here */
+  function setMode(pv, mode){
+    pv.mode = mode === 'replace' ? 'replace' : 'add';
+    [pv.quarters || [], pv.months, pv.episodes, pv.ideas || []].forEach(list => list.filter(x => x.action === 'update').forEach(x => {
+      const m = x.modes[pv.mode];
+      x.changes = m.changes; x.patch = m.patch; x.empty = !m.changes.length;
+      x.apply = !x.empty && (pv.mode === 'add' || !x.edited);
+    }));
+    return pv;
   }
 
   /* Write what preview said it would create — nothing else. */
@@ -423,7 +596,7 @@
     for(const x of pv.episodes.filter(y => y.action === 'update' && y.apply)){
       const v = await Store.get('vlogs', x.rec.id); if(!v) continue;
       const patch = { ...x.patch };
-      if(patch.acts) patch.acts = mergeActs(v.acts, patch.acts);
+      if(patch.acts && pv.mode === 'replace') patch.acts = mergeActs(v.acts, patch.acts);
       const nv = { ...v, ...patch }; nv.imported = { at:Date.now(), sig:recSig(nv, E_KEYS.concat('acts')) };
       await Store.put('vlogs', nv); made.updated++;
     }
@@ -440,43 +613,25 @@
         made.series++;
       }
       for(const x of (pv.ideas || []).filter(y => y.action === 'create')){
-        if(x.rec.id && await Videos.get(x.rec.id)) continue;
         const day = x.rec.day; delete x.rec.day;
-        let v = await Videos.save({ ...x.rec, id: x.rec.id || null });
-        if(day && Videos.schedule){ try { v = (await Videos.schedule(v, day)) || v; } catch(e){} }
-        await stamp(v.id);
+        const vidId = x.rec.id ? String(x.rec.id).replace(/^cv_/, '') : 'vid_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        const c = ClipFlow.fromVideo({ ...x.rec, id: vidId });
+        delete c.fromVideo;
+        if(await Store.get('clips', c.id)) continue;
+        await Data.saveClip(c);
+        if(Data.invalidate) Data.invalidate('clips');
+        if(day || x.rec.post) await patchClip(c.id, { ...(day ? { day } : {}), ...(x.rec.post ? { post:x.rec.post } : {}) });
+        await stampClip(c.id);
         made.ideas++;
       }
       for(const x of (pv.ideas || []).filter(y => y.action === 'update' && y.apply)){
-        const v = await Videos.get(x.rec.id);
-        if(!v) continue;
-        const f = stored(x.pf);
-        /* a shot that stays keeps its frame, its tick and its id */
-        if(f.shotList){
-          const old = listOf(v);
-          f.shotList = f.shotList.map(s => { const o = old.find(y => y.text.toLowerCase() === s.text.toLowerCase());
-            return o ? { ...s, id:o.id, item:s.item || o.item, done:o.done } : s; });
-          f.shots = f.shotList.map(s => s.text || 'Shot');
-        }
-        const day = 'day' in f ? f.day : undefined; delete f.day;
-        let nv = await Videos.save({ ...v, ...f });
-        if(day !== undefined && day !== dayOf(v)){
-          if(day && Videos.schedule){ try { nv = (await Videos.schedule(nv, day)) || nv; } catch(e){} }
-          else if(!day) nv = await Videos.save({ ...nv, day:null });
-        }
-        await stamp(nv.id);
+        const nv = await patchClip(x.rec.id, x.patch);
+        if(!nv) continue;
+        await stampClip(nv.id);
         made.updated++;
       }
     }
     return made;
-  }
-  /* remember how a video looked when it came in, so the next import can tell
-     whether you've changed it since */
-  async function stamp(id){
-    const v = await Videos.get(id);
-    if(!v) return;
-    await Store.put('videos', { ...v, imported:{ at:Date.now(), sig:sigOf(v) } });
-    if(global.Data && Data.invalidate) Data.invalidate('videos');
   }
 
   /* ---- v4: the plan as it stands, to paste into chat and refine there ----
@@ -485,7 +640,7 @@
   async function exportPlan(o = {}){
     let series = [], videos = [];
     try { series = await Data.series(); } catch(e){}
-    try { videos = await Videos.all(); } catch(e){}
+    videos = await clipViews();
     if(!o.published) videos = videos.filter(v => v.stage !== 'published');
     if(o.seriesId) videos = videos.filter(v => v.seriesId === o.seriesId);
     const used = new Set(videos.map(v => v.seriesId).filter(Boolean));
@@ -510,6 +665,7 @@
           r.stage = v.stage || 'idea';
           if(v.plat) r.platform = v.plat;
           if(v.day) r.day = v.day;
+          if(v.post) r.postDay = v.post;
           r.hook = v.hook || '';
           r.idea = v.notes || '';
           if((v.tags || []).length) r.tags = v.tags;
@@ -520,5 +676,5 @@
     return out;
   }
 
-  global.PlanImport = { FORMAT, parse, parseAny, fromCSV, preview, apply, exportPlan, sigOf };
+  global.PlanImport = { FORMAT, parse, parseAny, fromCSV, preview, apply, exportPlan, sigOf, setMode, clipViews, mergeActsAdd };
 })(window);
