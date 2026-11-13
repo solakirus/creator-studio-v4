@@ -247,17 +247,17 @@
       const p = lib.pageIdx.get(uid);
       if(!p || hid.has(uid) || !n(p)) continue;
       const f = first.get(uid);
-      cards.push(`<button type="button" class="lv-pcard" data-pgcard="page:${esc(uid)}" aria-pressed="${src === 'page:' + uid}" title="${esc(MediaLib.pageLabel(p))}">
+      cards.push(`<div role="button" tabindex="0" class="lv-pcard" data-pgcard="page:${esc(uid)}" aria-pressed="${src === 'page:' + uid}" title="${esc(MediaLib.pageLabel(p))}">
         <span class="lv-pthumb">${f ? `<span class="lv-media" data-media="${esc(f.uid)}"></span>` : ''}<span class="lv-pn">${n(p)}</span></span>
-        <b>${esc(MediaLib.pageLabel(p))}</b>${!colNow && cols.length > 1 ? `<small>${esc(c.name)}</small>` : ''}</button>`);
+        <b>${esc(MediaLib.pageLabel(p))}</b>${!colNow && cols.length > 1 ? `<small>${esc(c.name)}</small>` : ''}</div>`);
     }
     const show = cards.length > 0 && (!src || src === 'all' || !!colNow);
     const total = cols.reduce((a, c) => a + c.counts[0] + c.counts[1] + c.counts[2], 0);
     return { srcPage, colNow, show,
       html: show ? `<div class="lv-pstrip" role="group" aria-label="One video or page at a time">
-        <button type="button" class="lv-pcard lv-pall" data-pgcard="" aria-pressed="${!srcPage}">
+        <div role="button" tabindex="0" class="lv-pcard lv-pall" data-pgcard="" aria-pressed="${!srcPage}">
           <span class="lv-pthumb"><span class="lv-pallt">All</span><span class="lv-pn">${total}</span></span>
-          <b>${colNow ? 'All of it' : 'Every video'}</b></button>${cards.join('')}</div>` : '',
+          <b>${colNow ? 'All of it' : 'Every video'}</b></div>${cards.join('')}</div>` : '',
       back: () => colNow ? 'col:' + colNow : 'all' };
   }
   /* fill the cards' pictures, and bring the chosen one into view */
@@ -265,6 +265,9 @@
     const strip = box.querySelector('.lv-pstrip');
     if(!strip) return;
     hydrate(strip, lib, { play:false });
+    strip.addEventListener('keydown', e => {
+      if((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-pgcard]')){ e.preventDefault(); e.target.click(); }
+    });
     const on = strip.querySelector('.lv-pcard[aria-pressed="true"]:not(.lv-pall)');
     if(on) requestAnimationFrame(() => { strip.scrollLeft = Math.max(0, on.offsetLeft - strip.clientWidth / 2 + on.offsetWidth / 2); });
   }
