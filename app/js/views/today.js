@@ -801,7 +801,22 @@
         if(a === 'mode'){ mode = mode === 'time' ? 'list' : 'time'; render(); return; }
         if(a === 'paper'){ Screens.push('paper', { onChange: () => App.refreshTab && App.refreshTab() }); return; }
         if(a === 'clips'){ Screens.push('clips-screen', {}); return; }
-        if(a === 'open'){ filter = 'todo'; render(); return; }
+        /* "Still to do today": it only re-drew the list, so on To-do it looked
+           like a load that went nowhere. Now it takes you to what's left. */
+        if(a === 'open'){
+          filter = 'todo'; if(mode === 'time') mode = 'list';
+          render();
+          const left = tasks.filter(t => t.day === day && t.view === 'todo');
+          const hab = left.filter(t => t.habitId).length, rest = left.length - hab;
+          const pl = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+          U.toast(!left.length ? 'Nothing left today' : [rest ? pl(rest, 'task') : '', hab ? pl(hab, 'habit') : ''].filter(Boolean).join(' and ') + ' still to do');
+          requestAnimationFrame(() => {
+            const seg = root.querySelector('.segrow');
+            if(seg && seg.scrollIntoView) seg.scrollIntoView({ behavior:'smooth', block:'start' });
+            root.querySelectorAll('#todayList .mediacard[data-id]').forEach(c => { c.classList.add('flash'); setTimeout(() => c.classList.remove('flash'), 1300); });
+          });
+          return;
+        }
         if(a === 'streak'){ Screens.push('streak', { onChange:() => render() }); return; }
         if(a === 'profile'){ Screens.push('profile', {}); return; }
         if(a === 'settings'){ Screens.push('settings'); return; }

@@ -4242,3 +4242,7 @@ html.spl-open,html.spl-open body{overflow:hidden}
   cursor:pointer;white-space:nowrap}
 .spl-chip i{width:7px;height:7px;border-radius:50%;display:inline-block}
 .spl-chip[aria-pressed="true"]{background:var(--cream);border-color:var(--cream);color:#151515;font-weight:700}
+
+/* Today: "Still to do" chip points at what's left */
+@keyframes cs-flash{0%{box-shadow:0 0 0 0 rgba(251,105,0,0)}30%{box-shadow:0 0 0 2px var(--orange)}100%{box-shadow:0 0 0 0 rgba(251,105,0,0)}}
+.mediacard.flash{animation:cs-flash 1.2s ease-out}
