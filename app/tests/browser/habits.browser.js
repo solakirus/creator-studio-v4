@@ -46,21 +46,28 @@ const path = require('path');
   await p.waitForTimeout(1500);
 
   console.log('\nToday');
-  const tiles = await p.locator('.hb-tile').count();
-  ok(tiles === 4, 'a tile per habit', tiles);
+  const tiles = await p.locator('.hb-row').count();
+  ok(tiles === 4, 'a slim row per habit', tiles);
   const water = await p.evaluate(async () => (await Data.tasks()).filter(t => t.habitId).length);
   ok(water === 7, 'Drink water stocked a week of its own tasks', water);
   const tags = await p.evaluate(() => [...document.querySelectorAll('.hb-tag b')].map(x => x.textContent));
   ok(tags.includes('Workout'), 'the workout card wears the Workout tag', tags);
-  ok(tags.includes('Drink water'), 'the water card wears its tag', tags);
+  ok(!tags.includes('Drink water') && !(await p.evaluate(() => [...document.querySelectorAll('.mediacard h3, .mediacard .title')].some(x => /Drink water/.test(x.textContent)))), 'water is a row in the strip, not a full card', tags);
   ok(await p.locator('[data-hb-bump]').count() === 1, 'water has a +1 button');
   await shot('1-today');
+  /* tick an own habit in its row; fold the strip to one line */
+  await p.evaluate(() => localStorage.setItem('cs4-hb-open', '1'));
+  console.log('\nslim and foldable');
+  await p.locator('[data-hb-fold] p').click(); await p.waitForTimeout(900);
+  ok(await p.locator('.hb-strip.shut').count() === 1 && await p.locator('.hb-row').count() === 0 && await p.locator('.hb-mini s').count() === 4, 'the strip folds to one line with a dot per habit');
+  await p.locator('[data-hb-fold] p').click(); await p.waitForTimeout(900);
+  ok(await p.locator('.hb-row').count() === 4, 'and opens again');
 
   await p.locator('[data-hb-bump]').click();
   await p.waitForTimeout(900);
   const wt = await p.evaluate(async () => { const d = await Data.currentDay(); return (await Data.tasks()).find(t => t.habitId && t.day === d).prog; });
   ok(wt === '1 / 8 cups', '+1 adds a cup', wt);
-  ok(await p.evaluate(() => [...document.querySelectorAll('.hb-tile small')].some(x => x.textContent.includes('1 / 8'))), 'the tile shows 1 / 8');
+  ok(await p.evaluate(() => [...document.querySelectorAll('.hb-row small')].some(x => x.textContent.includes('1 / 8'))), 'its row shows 1 / 8');
 
   console.log('\nthe year');
   await p.locator('[data-hb-year]').first().click();
@@ -130,7 +137,7 @@ const path = require('path');
   console.log('\nback on Today');
   await p.evaluate(() => Screens.pop());
   await p.waitForTimeout(1200);
-  ok(await p.locator('.hb-tile').count() === 5, 'Today shows five tiles now');
+  ok(await p.locator('.hb-row').count() === 5, 'Today shows five rows now');
 
   console.log('\ndelete');
   await p.evaluate(async () => { const r = (await Habits.all()).find(h => h.name === 'Read'); Screens.push('habit', { id: r.id }); });

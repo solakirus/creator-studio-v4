@@ -124,6 +124,24 @@
       .hb-tile .n b{font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .hb-tile small{font-size:11px;color:var(--muted)}
       .hb-tile.done small{color:var(--hb);font-weight:700}
+      .hb-strip .h{cursor:pointer;gap:8px}
+      .hb-strip .h .fcv{width:14px;height:14px;flex:0 0 14px;color:var(--amber);transition:transform .15s}
+      .hb-strip.shut{padding:9px 12px}
+      .hb-strip.shut .h{margin:0}
+      .hb-strip.shut .h .fcv{transform:rotate(-90deg)}
+      .hb-mini{display:flex;gap:4px;margin-left:4px}
+      .hb-mini s{width:9px;height:9px;border-radius:3px}
+      .hb-rows{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px 12px}
+      .hb-row{display:flex;align-items:center;gap:9px;min-height:36px;padding:0 2px;border-bottom:1px solid var(--line);min-width:0}
+      .hb-row .hb-tick{width:22px;height:22px;flex:0 0 22px;padding:0;border-radius:6px;border:2px solid var(--hb);background:transparent;color:#151515;font-weight:900;font-size:13px;line-height:1;cursor:pointer}
+      .hb-row.done .hb-tick{background:var(--hb)}
+      .hb-row .hb-dot{width:10px;height:10px;flex:0 0 10px;margin:0 6px;border-radius:3px;background:var(--hb)}
+      .hb-row .hb-nm{flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;padding:6px 0;background:none;border:0;color:var(--cream);font:inherit;text-align:left;cursor:pointer}
+      .hb-row .hb-nm b{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .hb-row .hb-nm small{margin-left:auto;flex:0 0 auto;font-size:12px;color:var(--muted)}
+      .hb-row.done .hb-nm b{color:var(--muted);text-decoration:line-through}
+      .hb-row.done .hb-nm small{color:var(--hb);font-weight:700}
+      .hb-row .bump{height:26px;padding:0 9px;border-radius:var(--r);border:1px solid var(--line);background:var(--surface-2);color:var(--cream);font-weight:700;font-size:12.5px;cursor:pointer}
       .hb-strip.empty{display:flex;align-items:center;gap:10px;padding:12px;cursor:pointer;color:var(--cream);
         border:0;width:100%;text-align:left;font:inherit}
       .hb-strip.empty span{font-size:14px}
@@ -603,6 +621,7 @@
     const live = new Map((tasks || []).map(t => [t.id, t]));
 
     let doneN = 0;
+    const rows = [];
     const tiles = habits.map(h => {
       const st = Habits.dayStatus(h, k, idx, tk);
       let word;
@@ -617,12 +636,29 @@
       else if(st === 'ahead') word = 'Later';
       else if(st === 'miss') word = 'Missed';
       else word = 'To do';
-      return `<button class="hb-tile${st === 'done' ? ' done' : ''}" data-hb-open="${esc(h.id)}" style="--hb:${h.color}">
-        <span class="n"><i style="background:${h.color}"></i><b>${esc(h.name)}</b></span><small>${word}</small></button>`;
+      /* v4: one slim row each. A habit of its own has today's task here —
+         ticked (or +1) right in the row, so it isn't a full card in the list
+         as well (views/today.js leaves those out); the rest are counted from
+         other work and open their page. */
+      const own = h.source.type === 'own' ? (tasks || []).find(t => t.habitId === h.id && t.day === day) : null;
+      const amt = own && Habits.amountOf(own.prog);
+      const dn = st === 'done' || (own && own.view === 'done');
+      rows.push({ h, dn });
+      return `<div class="hb-row${dn ? ' done' : ''}" style="--hb:${h.color}">
+        ${own ? `<button class="hb-tick" data-hb-tick="${own.id}" aria-pressed="${dn}" aria-label="${dn ? 'Undo' : 'Tick'} ${esc(h.name)}">${dn ? '✓' : ''}</button>` : `<i class="hb-dot"></i>`}
+        <button class="hb-nm" data-hb-open="${esc(h.id)}"><b>${esc(h.name)}</b><small>${word}</small></button>
+        ${amt && !dn ? `<button class="bump" data-hb-bump="${own.id}" aria-label="Add 1${h.source.unit ? ' ' + esc(h.source.unit) : ''}">+1</button>` : ''}
+      </div>`;
     }).join('');
-    strip.innerHTML = `<section class="hb-strip">
-      <div class="h"><p>Habits · ${doneN} of ${habits.length}</p><button data-hb-year>Year in dots ›</button></div>
-      <div class="hb-tiles">${tiles}</div></section>`;
+    doneN = rows.filter(r => r.dn).length;
+    const open = (() => { try { return localStorage.getItem('cs4-hb-open') !== '0'; } catch(e){ return true; } })();
+    strip.innerHTML = `<section class="hb-strip${open ? '' : ' shut'}">
+      <div class="h" data-hb-fold role="button" tabindex="0" aria-expanded="${open}">
+        <svg class="fcv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <p>Habits · ${doneN} of ${habits.length}</p>
+        ${open ? '' : `<span class="hb-mini">${rows.map(r => `<s style="${r.dn ? 'background:' + r.h.color : 'box-shadow:inset 0 0 0 1.5px ' + r.h.color}"></s>`).join('')}</span>`}
+        <button data-hb-year>Year in dots ›</button></div>
+      ${open ? `<div class="hb-rows">${tiles}</div>` : ''}</section>`;
 
     /* tags on the cards a habit is counting */
     root.querySelectorAll('.mediacard[data-id]').forEach(card => {
@@ -681,9 +717,30 @@
         App.refreshTab();
         return;
       }
+      const tick = e.target.closest('[data-hb-tick]');
+      if(tick){
+        e.stopPropagation(); e.preventDefault();
+        const t = await Store.get('tasks', +tick.dataset.hbTick);
+        if(!t) return;
+        const a = Habits.amountOf(t.prog);
+        if(t.view === 'done'){ t.view = 'todo'; if(a) t.prog = `0 / ${String(t.prog).replace(/^\s*[\d.]+\s*\/\s*/, '')}`; }
+        else { t.view = 'done'; if(a) t.prog = `${a.b} / ${String(t.prog).replace(/^\s*[\d.]+\s*\/\s*/, '')}`; }
+        await Store.put('tasks', t);
+        Data.invalidate('tasks');
+        App.refreshTab();
+        return;
+      }
       if(e.target.closest('[data-hb-year]')){
         e.stopPropagation(); e.preventDefault();
         Screens.push('habits', { onChange: () => App.refreshTab() });
+        return;
+      }
+      const fold = e.target.closest('[data-hb-fold]');
+      if(fold && !e.target.closest('button')){
+        e.stopPropagation(); e.preventDefault();
+        const shut = fold.getAttribute('aria-expanded') === 'true';
+        try { localStorage.setItem('cs4-hb-open', shut ? '0' : '1'); } catch(err){}
+        App.refreshTab();
         return;
       }
       const open = e.target.closest('[data-hb-open]');

@@ -129,7 +129,7 @@
   function chrome(){
     const counts = {};
     ['todo','done','skipped'].forEach(v =>
-      counts[v] = tasks.filter(t => t.day === day && t.view === v).length);
+      counts[v] = tasks.filter(t => t.day === day && t.view === v && !(v === 'todo' && t.habitId && global.HabitsUI)).length);
     counts.prod = tasks.filter(t => t.day === day && t.kind && t.view === 'todo').length;
 
     return `
@@ -346,7 +346,9 @@
     if(mode === 'time') return renderTimeline();
     const rows = filter === 'prod'
       ? tasks.filter(t => t.day === day && t.kind && t.view === 'todo')
-      : tasks.filter(t => t.day === day && t.view === filter);
+      : tasks.filter(t => t.day === day && t.view === filter
+        /* v4: a habit's own daily task is ticked in the Habits strip, not a full card here */
+        && !(filter === 'todo' && t.habitId && global.HabitsUI));
     const timed = rows.filter(t => t.at).sort(byTime);
     const untimed = rows.filter(t => !t.at);
     const extra = filter === 'todo' ? derived.slice().sort(byTime) : [];
