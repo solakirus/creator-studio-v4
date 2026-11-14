@@ -139,6 +139,7 @@
      Creator Studio 3 can bring in just its swipe file (or just anything) */
   const GROUPS = [
     { k:'swipe',    label:'Swipe file',               stores:['swipes', 'swipe-thumb'] },
+    { k:'transitions', label:'Transitions',           stores:['transitions'] },
     { k:'refs',     label:'Reference library',        stores:['refs', 'ref-img', 'ref-poster'] },
     { k:'tasks',    label:'Tasks and routines',       stores:['tasks', 'task-media', 'routines', 'templates', 'presets', 'task-frames'] },
     { k:'content',  label:'Series, clips and videos', stores:['series', 'clips', 'videos'] },

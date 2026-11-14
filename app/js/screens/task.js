@@ -95,6 +95,11 @@
       .tk-rowsbar.shut .fcv{transform:rotate(-90deg)}
       .tk-rowsbar b{font-family:var(--display),sans-serif;font-weight:900;font-size:11px;letter-spacing:.13em;text-transform:uppercase}
       .tk-rowsbar span{flex:1;min-width:0;color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .tk-trtog{display:flex;align-items:center;gap:6px;margin:0 0 6px auto;height:26px;padding:0 10px;border:1px solid var(--line);border-radius:13px;background:transparent;color:var(--dim);font:inherit;font-size:12px;cursor:pointer}
+      .tk-trtog[aria-pressed="true"]{color:var(--muted);border-color:var(--muted)}
+      .tk-trm{display:flex;align-items:center;gap:8px;height:24px;margin:-2px 0;padding:0 0 0 30px}
+      .tk-trm i{flex:1;border-top:1px dashed var(--line)}
+      .tk-trm button{max-width:60%;height:22px;padding:0 9px;border:1px solid var(--line);border-radius:11px;background:var(--bg);color:var(--dim);font:inherit;font-size:11.5px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .block.fold.tk-keep > .fbody{display:block!important}
       .block.fold.tk-keep.shut > h4 .fcv{transform:rotate(-90deg)}
       .tkp-cwrap .tkp-canvas{cursor:pointer}`;
@@ -796,6 +801,10 @@
           ${onMain() && (t.beatNames || []).length > 1 ? `<select class="tk-lbeat" data-tlbeat="${i}" aria-label="Which beat this shot is in" title="Move this shot to another beat">${t.beatNames.map((b, k) =>
             `<option value="${k}" ${beatAt()[i] === k ? 'selected' : ''}>${esc(b || 'Beat ' + (k + 1))}</option>`).join('')}</select>` : ''}</div></div>`;
     }
+    /* v4: the "Show transitions" toggle is one setting for every shot page */
+    const TR_KEY = 'cs4-show-tr';
+    const showTr = () => { try { return localStorage.getItem(TR_KEY) === '1'; } catch(e){ return false; } };
+    const trMark = tr => `<div class="tk-trm"><i></i><button data-trpeek="${esc(tr.id)}" data-trn="${esc(tr.n || '')}" title="Watch it">⇄ ${esc(tr.n || 'Transition')}</button><i></i></div>`;
     /* the beat each shot starts, when the record has a structure (structures.js) */
     function beatAt(){
       const names = t.beatNames || [];
@@ -819,6 +828,10 @@
       const canShrink = isSteps && slots.length > 1;
       const note = i => onMain() ? ((stepOf(i) || {}).note || '') : ((slots[i] || {}).note || '');
       let hidden = 0;
+      /* v4: transitions out of the shots — out of sight while shooting until asked for */
+      const nTr = onMain() ? slots.filter((_, i) => i < slots.length - 1 && (stepOf(i) || {}).tr).length : 0;
+      const trShown = nTr > 0 && showTr();
+      const trBtn = nTr ? `<button class="tk-trtog" data-a="trshow" aria-pressed="${trShown}">⇄ ${nTr} transition${nTr === 1 ? '' : 's'} · ${trShown ? 'Hide' : 'Show'}</button>` : '';
       const bAt = beatAt();
       let lastBeat = -1;
       const rows = slots.map((sl, i) => {
@@ -851,7 +864,7 @@
               <button class="mini" data-psmv="up:${i}" ${i === 0 ? 'disabled' : ''} aria-label="Move up">${UP}</button>
               <button class="mini" data-psmv="down:${i}" ${i === slots.length - 1 ? 'disabled' : ''} aria-label="Move down">${DOWN}</button>
               ${canShrink ? `<button class="mini rm" data-psdel="${i}" aria-label="Remove this shot">${CROSS}</button>` : ''}
-            </div>${lo ? linesHTML(i) : ''}`;
+            </div>${lo ? linesHTML(i) : ''}${trShown && i < slots.length - 1 && onMain() && (stepOf(i) || {}).tr ? trMark(stepOf(i).tr) : ''}`;
       }).join('');
       const others = onMain() ? (t.subs || []).map((s2, i) => [s2, i]).filter(([s2]) => !hasShotNo(s2)) : [];
       const nav = pages.length > 1 ? `
@@ -874,7 +887,7 @@
       if(shut) return `${nav}
           <div class="tkp-split${slideDir ? ' ' + slideDir : ''}"><div class="tkp-left">${bar}</div><div class="tkp-right">${pageCardHTML()}</div></div>`;
       return `${nav}
-          <div class="tkp-split${slideDir ? ' ' + slideDir : ''}"><div class="tkp-left">${bar}
+          <div class="tkp-split${slideDir ? ' ' + slideDir : ''}"><div class="tkp-left">${bar}${trBtn}
           ${slots.length ? rows : `<p style="margin:0;color:var(--muted);font-size:14.5px;line-height:1.55">This page has no shots to tick — type on it and add pictures on the right.</p>`}
           ${hidden ? `<button class="tk-hidden" data-a="hidedone">${hidden} done shot${hidden === 1 ? '' : 's'} hidden · Show</button>` : ''}
           ${canGrow ? `<button class="btn-sm tks-add" data-a="psadd">＋ Add a shot</button>` : ''}
@@ -1415,6 +1428,8 @@
     });
 
     el.addEventListener('click', async e => {
+      const pk = e.target.closest('[data-trpeek]');
+      if(pk){ e.stopPropagation(); if(window.Transitions) Transitions.peek(pk.dataset.trpeek, pk.dataset.trn); return; }
       const rm = e.target.closest('[data-rmshot]');
       if(rm){
         e.stopPropagation();
@@ -1700,6 +1715,7 @@
       if(a.dataset.a === 'addpage') return Screens.push('task-page', { id:t.id, host:H, addPage:true, onChange: async () => { await load(); render(); } });
       if(a.dataset.a === 'psadd') return shotAdd();
       if(a.dataset.a === 'rowsfold'){ setRowsFolded(rowsKey(), !rowsShut()); return render(); }
+      if(a.dataset.a === 'trshow'){ try { localStorage.setItem(TR_KEY, showTr() ? '0' : '1'); } catch(err){} return render(); }
       if(a.dataset.a === 'unmore'){
         const P = curPage();
         if(onMain() || !P) return;

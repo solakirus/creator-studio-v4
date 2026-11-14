@@ -20,10 +20,11 @@
        way from where you use it: deciding how to shoot something. */
     { v:'swipe',    label:'Swipe',    screen:'swipe-file',
       d:'M4 6h11v12H4zM17 8h3v8h-3M7.5 9.5l4 2.5-4 2.5z' },
-    /* Creator Studio 3: the canvas. Every video's board, plus free boards
-       and folders for everything that isn't one video. */
-    { v:'boards',   label:'Boards',   screen:'boards-home',
-      d:'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 16.5h7M16.5 13v7' },
+    /* v4: Eyecandy's techniques, watched by link and placed between shots
+       (screens/transitions.js). Boards left the nav here — outlines happen in
+       another app now; boards-home is still registered, and its data kept. */
+    { v:'transitions', label:'Transitions', screen:'transitions',
+      d:'M3 7h11M10.5 3.5L14 7l-3.5 3.5M21 17H10M13.5 13.5L10 17l3.5 3.5' },
     /* From Shotline: the Library of GIFs, clips and stills to plan with, and
        the Templates — shot structures, task lists, looks and notebook pages. */
     { v:'library',  label:'Library',  screen:'library', laptop:true,

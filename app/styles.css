@@ -4212,7 +4212,10 @@ html.spl-open,html.spl-open body{overflow:hidden}
 .spl-foot{text-align:center;padding-top:10px}
 .spl-title{margin:0 auto 10px;max-width:640px;font-family:var(--display),sans-serif;font-weight:900;font-size:17px;
   color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.spl-acts{display:flex;gap:8px;justify-content:center}
+.spl-acts{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.spl-own{display:contents}
+.spl [hidden]{display:none!important}
+.spl-img{display:block;height:auto;border-radius:var(--r);background:#000;object-fit:contain}
 /* a phone: the arrows sit in the foot, the player gets the width */
 @media (max-width: 599px){
   .spl-mid{position:relative}

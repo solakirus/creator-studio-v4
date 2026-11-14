@@ -42,6 +42,8 @@
     if(Array.isArray(x.lines) && x.lines.length) o.lines = x.lines.map(l => ({ k:LINE_KINDS[l.k] ? l.k : 'vo', t:String(l.t || ''), ...(l.hook ? { hook:true } : {}) }));
     if(x.editNote) o.editNote = String(x.editNote);
     if(x.beat != null && x.beat !== '' && !isNaN(+x.beat)) o.beat = +x.beat;
+    /* v4: the transition out of this shot into the next ({ id, n }: transitions.js) */
+    if(x.tr && x.tr.id) o.tr = { id:String(x.tr.id), n:String(x.tr.n || '') };
     return o;
   }
   const LINE_KINDS = { vo:'VO', cam:'On cam', txt:'Text' };

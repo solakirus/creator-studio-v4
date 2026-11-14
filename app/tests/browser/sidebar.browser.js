@@ -26,7 +26,7 @@ const { chromium } = require('playwright-core');
   await p.screenshot({ path: out + '/side-screen.png' });
   await p.click('.tab[data-tab="series"]'); await p.waitForTimeout(800);
   ok(await p.evaluate(() => Screens.depth()) === 0, 'a sidebar tab closes the screen that was open');
-  await p.click('.ctnav [data-v="boards"]'); await p.waitForTimeout(1500);
+  await p.click('.ctnav [data-v="transitions"]'); await p.waitForTimeout(1500);
   await p.screenshot({ path: out + '/side-boards.png' });
   const nav = await p.evaluate(() => { const r = document.querySelector('.ctnav').getBoundingClientRect(); return { left: Math.round(r.left), bottom: Math.round(innerHeight - r.bottom) }; });
   ok(nav.left > 92 && nav.bottom < 40, 'the section nav sits at the bottom, right of the rail', nav);

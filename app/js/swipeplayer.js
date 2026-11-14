@@ -77,6 +77,15 @@
     const room = 70 + box.querySelector('.spl-foot').offsetHeight + 20 + (opts.panel && !openGroup ? 42 : 0);
     /* a Facebook share link: followed to the video's own address first
        (opts.resolve), which is kept on the swipe as playUrl */
+    /* v4: a moving picture (Transitions: Eyecandy's clips) plays as itself */
+    if(s.img){
+      const maxW = Math.min(innerWidth, document.documentElement.clientWidth || innerWidth) - 24, maxH = Math.max(200, innerHeight - room);
+      box.querySelector('.spl-stage').innerHTML = `<img class="spl-img" src="${esc(s.img)}" alt="" referrerpolicy="no-referrer" style="width:${Math.round(Math.min(maxW, maxH * 16 / 9, 1000))}px;max-height:${maxH}px">
+        <div class="spl-none" hidden><p>This one won't load here.</p>${s.url ? `<a class="btn-primary" href="${esc(s.url)}" target="_blank" rel="noopener">Open on Eyecandy</a>` : ''}</div>`;
+      const im = box.querySelector('.spl-img');
+      im.addEventListener('error', () => { im.remove(); const n = box && box.querySelector('.spl-stage .spl-none'); if(n) n.hidden = false; }, { once:true });
+      return chrome(s, s.title || 'Untitled');
+    }
     let playUrl = s.playUrl || s.url;
     let why = '';
     if(global.Embed && Embed.facebookNeedsResolving && Embed.facebookNeedsResolving(playUrl)){
@@ -98,12 +107,19 @@
       : `<div class="spl-none" style="background-image:${cover}">
           <p>${esc(why || siteOf(s.url) + ' doesn\'t let its videos play inside other apps.')}</p>
           ${s.url ? `<a class="btn-primary" href="${esc(s.url)}" target="_blank" rel="noopener">Open on ${esc(siteOf(s.url))}</a>` : ''}</div>`;
+    chrome(s, title);
+  }
+  /* the title, the count, the arrows and the buttons under it */
+  function chrome(s, title){
     box.querySelector('.spl-title').textContent = title;
     box.querySelector('.spl-count').textContent = list.length > 1 ? `${i + 1} of ${list.length}` : '';
     box.querySelector('[data-spl="prev"]').disabled = i <= 0;
     box.querySelector('[data-spl="next"]').disabled = i >= list.length - 1;
     const src = box.querySelector('[data-spl="source"]');
-    src.hidden = !s.url; src.textContent = `↗ ${siteOf(s.url)}`;
+    src.hidden = !s.url; src.textContent = opts.sourceLabel || `↗ ${siteOf(s.url)}`;
+    box.querySelector('[data-spl="swipe"]').hidden = !opts.openSwipe;
+    const acts = box.querySelector('.spl-own');
+    acts.innerHTML = (opts.actions || []).map(a => `<button class="btn-sm" data-spla="${esc(a.k)}">${esc(typeof a.label === 'function' ? a.label(s) : a.label)}</button>`).join('');
   }
 
   function go(d){ const n = i + d; if(n < 0 || n >= list.length) return; i = n; draw(); }
@@ -121,21 +137,22 @@
     close();
     box = document.createElement('div');
     box.className = 'spl';
-    box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-label', 'Watch the swipe');
+    box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-label', 'Watch the ' + (opts.noun || 'swipe'));
     box.innerHTML = `
       <div class="spl-top">
         <span class="spl-count"></span>
         <button class="spl-x" data-spl="close" aria-label="Close">✕</button>
       </div>
       <div class="spl-mid">
-        <button class="spl-nav" data-spl="prev" aria-label="Previous swipe">‹</button>
+        <button class="spl-nav" data-spl="prev" aria-label="Previous">‹</button>
         <div class="spl-stage"></div>
-        <button class="spl-nav" data-spl="next" aria-label="Next swipe">›</button>
+        <button class="spl-nav" data-spl="next" aria-label="Next">›</button>
       </div>
       <div class="spl-foot">
         <p class="spl-title"></p>
         <div class="spl-sort"></div>
         <div class="spl-acts">
+          <span class="spl-own"></span>
           <button class="btn-sm" data-spl="swipe">Open the swipe</button>
           <button class="btn-sm" data-spl="source"></button>
         </div>
@@ -143,6 +160,8 @@
     document.body.appendChild(box);
     document.documentElement.classList.add('spl-open');
     box.addEventListener('click', e => {
+      const own = e.target.closest('[data-spla]');
+      if(own && opts.onAction){ opts.onAction(own.dataset.spla, list[i], () => { if(box) chrome(list[i], list[i].title || 'Untitled'); }); return; }
       const b = e.target.closest('[data-spl]');
       if(b){
         const a = b.dataset.spl;

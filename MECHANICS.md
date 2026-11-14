@@ -216,3 +216,14 @@ GIF, 3–9 MB), the title in `<h1>`, "Technique / Director / Original Source" li
 | Grabbed files | first "Copy grabbed files into the app" (MediaLib.bringIn): disk frames become app frames with title, links, source, tags; boards point at the copies; a frame copied before isn't copied again | person's request |
 | Android app | rebuilt from this code (npm run android:sync + gradlew assembleDebug) → dist/Creator Studio 3.apk | build.bat steps |
 | Tested | phonesync.browser.js: 11/11 (frame + file + links + board + task pages + templates arrive; second import adds nothing) | round 6 |
+## Transitions (2026-11-14): Eyecandy by link, placed between shots
+| Rule | Value | Source |
+|---|---|---|
+| Where | Content → Transitions, next to Swipe; Boards left Content's nav (screen and data kept; the clip page's Board button stays) | person's request |
+| Starter techniques | transition, crash-transition, match-cut, match-motion, match-split, whip-pan, jump-cut, flash-cut, light-flash, morphing, object-portal, pass-through, set-transition, masking, speed-ramping, freeze-frame, glitch, datamosh; any of Eyecandy's 136 can be added (settings `transition-techs`) | Eyecandy technique list (checks/eyecandy-page) |
+| Reading | laptop only: the grabber's scan (`CS3Lib.grabRun({mode:'scan'})`, the Library's Find links) on eyecannndy.com/technique/<slug>; keeps links on asset.eyecannndy.com/media/clip/ only; nothing downloaded | grab-browser.js pageLinks |
+| Record | store `transitions` { id:'ec_'+file name, img, title, tech[], page, kept? } — synced | estimated |
+| On a shot | `tr:{id,n}` = the transition out of that shot into the next (shotlist.js extras), carried to subs, beats, clips, videos, shoot tasks | person's request |
+| Shot page | hidden; "⇄ N transitions · Show" toggles faint markers (localStorage cs4-show-tr, every page) | person's request |
+| Edit cut list | a row between the cuts (Watch, Change, ×); empty gaps have "+ transition" | mockup approved 2026-11-14 |
+| Tested | v4-transitions.browser.js 42/42 | round 7 |

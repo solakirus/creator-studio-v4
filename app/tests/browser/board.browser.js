@@ -15,7 +15,8 @@ const { chromium } = require('playwright-core');
 
   // Content → Boards
   await p.click('#tabbar .tab:nth-child(4)'); await p.waitForTimeout(500);
-  await p.click('.ctnav [data-v="boards"]'); await p.waitForTimeout(400);
+  /* Boards left Content's nav (v4); the screen is still there */
+  await p.evaluate(() => Screens.push('boards-home', {})); await p.waitForTimeout(400);
   let f = await frameOf(); await p.waitForTimeout(600);
   console.log('Content → Boards:', await f.evaluate(() => ({ crumbs: document.querySelector('#crumbs').innerText.replace(/\s+/g, ' '), boardsList: !document.querySelector('#side').hidden, theme: document.documentElement.dataset.theme, cs3: document.documentElement.dataset.cs3 })));
   await p.screenshot({ path: out + '/board-content.png' });

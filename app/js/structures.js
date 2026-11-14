@@ -218,6 +218,14 @@
   .sx-foot .btn-ghost{flex:1 1 220px;margin:0}
   .sx-cut{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr) minmax(0,1fr);gap:12px;padding:10px;border-top:1px solid var(--line);align-items:start}
   .sx-cut:first-child{border-top:0}
+  /* v4: the transition out of a cut into the next (transitions.js) */
+  .sx-tr{display:flex;align-items:center;gap:10px;margin:2px 10px 8px;padding:8px 10px;border-radius:var(--r);background:rgba(167,139,250,.14);border:1px solid rgba(167,139,250,.35);color:#C9B8FF}
+  .sx-tr b{flex:1;min-width:0;font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sx-tr .ic{font-size:16px}
+  .sx-tr button{height:28px;padding:0 10px;border:1px solid rgba(167,139,250,.45);border-radius:var(--r);background:transparent;color:inherit;font:inherit;font-size:12.5px;cursor:pointer}
+  .sx-tr button.x{width:28px;padding:0;font-size:15px}
+  .sx-trgap{display:block;margin:-6px auto 2px;height:22px;padding:0 10px;border:1px dashed var(--line);border-radius:11px;background:var(--bg);color:var(--dim);font:inherit;font-size:11.5px;cursor:pointer;opacity:.75}
+  .sx-trgap:hover{opacity:1;color:var(--muted)}
   .sx-cut .who{display:flex;gap:9px;align-items:flex-start;min-width:0}
   .sx-cut .who b{display:block;font-size:14px;font-weight:600;line-height:1.3}
   .sx-cut .taken{font-size:12px;color:var(--green)}.sx-cut .taken.no{color:var(--dim)}
@@ -334,7 +342,15 @@
         <div class="said">${ls.length ? ls.map(l => `<span class="l"><span class="sx-tag ${l.k || 'vo'}">${KIND_NAME[l.k] || 'VO'}</span><span>${esc(l.t)}</span></span>`).join('')
           : '<span style="color:var(--dim);font-size:13px">No words — let it breathe</span>'}</div>
         <textarea class="sx-en" rows="1" data-en="${i}" placeholder="Note for the edit — take, trim, effect…" aria-label="Edit note for shot ${i + 1}">${esc(s2.editNote || '')}</textarea>
-      </div>`;
+      </div>${i < slots(t).length - 1 ? trRow(i, s2.tr) : ''}`;
+    }
+    /* v4: between two cuts — the transition into the next one, or a quiet way to add one */
+    function trRow(i, tr){
+      if(!global.Transitions) return '';
+      return tr && tr.id ? `<div class="sx-tr" data-trat="${i}"><span class="ic">⇄</span><b>${esc(tr.n || 'Transition')} into shot ${i + 2}</b>
+          <button data-trwatch="${esc(tr.id)}" data-trn="${esc(tr.n || '')}">▶ Watch</button><button data-trset="${i}">Change</button>
+          <button class="x" data-troff="${i}" aria-label="Take the transition off">×</button></div>`
+        : `<button class="sx-trgap" data-trset="${i}" aria-label="Add a transition between shot ${i + 1} and ${i + 2}">+ transition</button>`;
     }
 
     function draw(){
@@ -403,6 +419,17 @@
 
     container.addEventListener('click', async e => {
       e.stopPropagation();
+      const tw = e.target.closest('[data-trwatch]');
+      if(tw) return Transitions.peek(tw.dataset.trwatch, tw.dataset.trn);
+      const ts = e.target.closest('[data-trset]'), to = e.target.closest('[data-troff]');
+      if(ts || to){
+        const i = +(ts || to).dataset[ts ? 'trset' : 'troff'];
+        const cur = (stepOf(t, i) || {}).tr;
+        const r = to ? 'clear' : await Transitions.pick({ title:`Between shot ${i + 1} and ${i + 2}`, current:cur });
+        if(!r) return;
+        Transitions.setGap(t, i, r === 'clear' ? null : r);
+        return persist();
+      }
       const a = e.target.closest('[data-st]');
       if(a){
         if(a.dataset.st === 'pick') return pick({ ...opts, apply:applyTpl, saveFrom: () => ({ beats:beats().slice(), guides:guides().slice(),
