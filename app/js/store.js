@@ -2,7 +2,7 @@
    One database, one version, every store declared in one place. */
 (function(global){
   const DB_NAME = global.CS_DB_NAME || 'creator-studio-4';   /* tests set CS_DB_NAME so they never touch real data */
-  const DB_VERSION = 39;
+  const DB_VERSION = 40;
   const STORES = {
     art:            {},                  // task card images, keyed by item slug
     focal:          {},                  // {x,y} focal point per item slug
@@ -73,7 +73,9 @@
        one copies it into task-frames, and the asker saves it into its Library */
     'frame-requests': { keyPath:'uid' },
     /* v4: transitions from Eyecandy — a link to the moving picture, never the file */
-    transitions:    { keyPath:'id' }
+    transitions:    { keyPath:'id' },
+    /* a still frame of each, made on this device so the grid needn't animate (never synced) */
+    'transition-stills': {}
   };
 
   let dbp = null;

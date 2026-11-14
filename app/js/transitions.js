@@ -106,8 +106,34 @@
   /* ------------------------------------------------------------ reading Eyecandy (the laptop) */
   const canRead = () => !!(global.CS3Lib && CS3Lib.grabRun && CS3Lib.onGrab);
   const isClip = l => l && /asset\.eyecannndy\.com\/media\/clip\//i.test(l.url || '') && /\.(webp|gif|mp4|webm)(\?|$)/i.test(l.url || '');
+  /* one page of a technique; Eyecandy shows the first, loads the second as
+     you scroll, then wants "Load more" pressed — so the reader asks for
+     ?page=2, 3… itself until a page has nothing, or the same as the last
+     (custom.js: path + '?sortby=…&page=N') */
+  const MAX_PAGES = 40;
   async function readOne(slug, o){
-    const d = global.CS3Lib, links = [], url = SITE + slug;
+    const url = SITE + slug;
+    let added = 0, found = 0, last = '';
+    const seen = new Set();
+    for(let n = 1; n <= MAX_PAGES; n++){
+      if(o.stopped && o.stopped()) break;
+      if(n > 1 && o.line) o.line(`Reading ${techName(slug)} · page ${n}…`);
+      const clips = (await scanPage(n === 1 ? url : url + '?page=' + n, o)).filter(isClip);
+      const sig = clips.map(l => idFor(l.url)).sort().join('|');
+      if(!clips.length || sig === last) break;
+      last = sig;
+      for(const l of clips){
+        const id = idFor(l.url);
+        if(seen.has(id)) continue;
+        seen.add(id); found++;
+        if(await save(l.url, String(l.title || '').trim(), slug, url)) added++;
+      }
+      if(o.page) o.page(slug, n, found);
+    }
+    return { added, found };
+  }
+  async function scanPage(url, o){
+    const d = global.CS3Lib, links = [];
     const offs = [];
     const done = new Promise(res => offs.push(d.onGrab('done', res)));
     offs.push(d.onGrab('link', l => links.push(l)));
@@ -117,12 +143,7 @@
       if(!r || !r.ok) throw new Error((r && r.why) || 'The grabber couldn’t start');
       await done;
     } finally { offs.forEach(f => { try { f(); } catch(e){} }); }
-    let added = 0, found = 0;
-    for(const l of links.filter(isClip)){
-      found++;
-      if(await save(l.url, String(l.title || '').trim(), slug, url)) added++;
-    }
-    return { added, found };
+    return links;
   }
   async function read(slugs, o){
     o = o || {};
@@ -284,15 +305,78 @@
   }
 
   /* ------------------------------------------------------------ the look */
-  /* a moving picture that won't load here says so, instead of a blank box */
-  function wireImgs(root){
-    root.querySelectorAll('img[data-trimg]').forEach(im => {
-      if(im._w) return; im._w = 1;
-      im.addEventListener('error', () => { const c = im.closest('.trs-cell'); if(c) c.classList.add('bad'); }, { once:true });
+  /* A grid of a hundred animated WebPs (each 0.6–2 MB, decoded frame by
+     frame) froze the laptop. So the grid shows a still of each by default —
+     its first frame, drawn once, two at a time, then the moving picture let
+     go — kept on this device (transition-stills) so the next visit is
+     instant. "Play all" animates only the ones on screen; the player always
+     moves. */
+  const MOVE_KEY = 'cs4-tr-moving';
+  const moving = () => { try { return localStorage.getItem(MOVE_KEY) === '1'; } catch(e){ return false; } };
+  const setMoving = on => { try { localStorage.setItem(MOVE_KEY, on ? '1' : '0'); } catch(e){} };
+  const stills = new Map();
+  const W = 320, H = 180;
+  const bad = cell => cell.classList.add('bad');
+  function drawCover(cv, im){
+    const g = cv.getContext('2d'), iw = im.naturalWidth || W, ih = im.naturalHeight || H;
+    const k = Math.max(W / iw, H / ih), w = iw * k, h = ih * k;
+    g.drawImage(im, (W - w) / 2, (H - h) / 2, w, h);
+  }
+  async function stillOf(cell){
+    const id = cell.dataset.trid, src = cell.dataset.trsrc;
+    const show = url => { const im = cell.querySelector('img'); im.src = url; im.hidden = false; };
+    if(stills.has(id)) return show(stills.get(id));
+    let saved = null;
+    try { saved = await Store.get('transition-stills', id); } catch(e){}
+    if(saved){ stills.set(id, saved); return show(saved); }
+    await new Promise(done => {
+      const im = new Image();
+      im.referrerPolicy = 'no-referrer';
+      const end = () => { im.onload = im.onerror = null; im.src = ''; done(); };
+      im.onerror = () => { bad(cell); end(); };
+      im.onload = () => {
+        const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+        try { drawCover(cv, im); } catch(e){ bad(cell); return end(); }
+        let url = null;
+        /* without CORS the canvas can be shown but not saved: show it as it is */
+        try { url = cv.toDataURL('image/jpeg', 0.72); } catch(e){}
+        if(url){ stills.set(id, url); Store.put('transition-stills', url, id).catch(() => {}); show(url); }
+        else { cv.className = 'trs-cv'; const old = cell.querySelector('img'); old.hidden = true; cell.insertBefore(cv, old); }
+        end();
+      };
+      im.src = src;
     });
   }
-  const cellHTML = (r, attr) => `<button class="trs-cell${r.kept ? ' kept' : ''}" ${attr}="${esc(r.id)}" title="${esc(r.title || '')}">
-      <img data-trimg src="${esc(r.img)}" alt="" loading="lazy" referrerpolicy="no-referrer"><i>Can’t load here</i>
+  let queue = [], working = 0;
+  function pump(){
+    while(working < 2 && queue.length){
+      const c = queue.shift();
+      if(!c.isConnected) continue;
+      working++;
+      stillOf(c).catch(() => {}).then(() => { working--; pump(); });
+    }
+  }
+  const observers = new WeakMap();
+  /* fill a grid's cells: stills, or the moving pictures while on screen */
+  function wireImgs(root){
+    const cells = [...root.querySelectorAll('.trs-cell[data-trsrc]')];
+    const old = observers.get(root); if(old){ old.disconnect(); observers.delete(root); }
+    if(!moving()){
+      queue = queue.filter(c => c.isConnected).concat(cells);
+      pump();
+      return;
+    }
+    if(!('IntersectionObserver' in global)) return cells.forEach(c => { const im = c.querySelector('img'); im.src = c.dataset.trsrc; im.hidden = false; });
+    const io = new IntersectionObserver(es => es.forEach(e => {
+      const im = e.target.querySelector('img');
+      if(e.isIntersecting){ if(im.getAttribute('src') !== e.target.dataset.trsrc){ im.onerror = () => bad(e.target); im.src = e.target.dataset.trsrc; im.hidden = false; } }
+      else if(im.getAttribute('src')){ im.removeAttribute('src'); }
+    }), { rootMargin:'100px' });
+    cells.forEach(c => io.observe(c));
+    observers.set(root, io);
+  }
+  const cellHTML = (r, attr) => `<button class="trs-cell${r.kept ? ' kept' : ''}" ${attr}="${esc(r.id)}" data-trid="${esc(r.id)}" data-trsrc="${esc(r.img)}" title="${esc(r.title || '')}">
+      <img alt="" hidden referrerpolicy="no-referrer"><i>Can’t load here</i>
       <span>${r.kept ? '★ ' : ''}${esc(r.title || techName((r.tech || [])[0]))}</span></button>`;
   const CSS = `
   .trs-pills{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
@@ -303,9 +387,10 @@
   .trs-pills button[aria-pressed="true"] i{color:#555}
   .trs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
   .trs-cell{position:relative;padding:0;border:0;background:var(--surface-2);border-radius:4px;overflow:hidden;aspect-ratio:16/9;cursor:pointer}
-  .trs-cell img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+  .trs-cell img,.trs-cell .trs-cv{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+  .trs-cell img[hidden]{display:none}
   .trs-cell > i{display:none;position:absolute;inset:0;align-items:center;justify-content:center;font-style:normal;font-size:12px;color:var(--dim)}
-  .trs-cell.bad img{display:none}.trs-cell.bad > i{display:flex}
+  .trs-cell.bad img,.trs-cell.bad .trs-cv{display:none}.trs-cell.bad > i{display:flex}
   .trs-cell span{position:absolute;left:0;right:0;bottom:0;padding:14px 7px 5px;font-size:11.5px;line-height:1.25;color:#fff;text-align:left;background:linear-gradient(#0000,#000c);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .trs-cell.kept{outline:2px solid var(--orange);outline-offset:-2px}
   .trs-bar{display:flex;align-items:center;gap:8px;margin:0 0 10px;min-height:34px}
@@ -335,5 +420,5 @@
   }
 
   global.Transitions = { ALL_TECHS, STARTERS, SITE, techName, slugOf, techs, setTechs, all, get, put, keep, idFor, save, addLink,
-    canRead, read, watch, peek, hostsList, hostFor, setGap, assign, pick, cellHTML, wireImgs, css };
+    canRead, read, watch, peek, hostsList, hostFor, setGap, assign, pick, cellHTML, wireImgs, moving, setMoving, css };
 })(window);

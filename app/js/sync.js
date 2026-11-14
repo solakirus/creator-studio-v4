@@ -40,7 +40,7 @@
   const LOCAL_SETTINGS = /^(backup:|sync:|library$)/;
   /* v4: the Library stays on the laptop. Its files would fill the phone and
      the server; what a task or video uses travels as 'task-frames' instead. */
-  const LOCAL_STORES = new Set(['lib-items', 'lib-blob', 'lib-poster', 'lib-boards', 'nb-music']);
+  const LOCAL_STORES = new Set(['lib-items', 'lib-blob', 'lib-poster', 'lib-boards', 'nb-music', 'transition-stills']);
   const skip = (store, key) => LOCAL_STORES.has(store) ||
     (store === 'settings' && LOCAL_SETTINGS.test(String(key)));
 

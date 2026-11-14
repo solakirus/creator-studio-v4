@@ -32,10 +32,12 @@ const top = '.screen:last-child';
       window.CS3Lib = { onGrab: (k, cb) => { L[k].add(cb); return () => L[k].delete(cb); }, grabStop: async () => {},
         grabRun: async o => {
           window.__scans.push(o);
-          const slug = o.url.split('/').pop();
+          const u = new URL(o.url), slug = u.pathname.split('/').pop(), pg = +(u.searchParams.get('page') || 1);
+          /* page 1 shows 1–3 and (scrolled) 4–5; ?page=2 has 4–5 again plus 6; ?page=3 has 7; ?page=4 nothing */
+          const nums = { 1: [1, 2, 3, 4, 5], 2: [4, 5, 6], 3: [7] }[pg] || [];
           setTimeout(() => {
             L.line.forEach(cb => cb('  found 3 thumbnails'));
-            [1, 2, 3].forEach(n => L.link.forEach(cb => cb({ url: `https://asset.eyecannndy.com/media/clip/2024/02/28/${slug}-${n}.webp`, title: `${slug} clip ${n}`, kind: 'gif' })));
+            nums.forEach(n => L.link.forEach(cb => cb({ url: `https://asset.eyecannndy.com/media/clip/2024/02/28/${slug}-${n}.webp`, title: `${slug} clip ${n}`, kind: 'gif' })));
             L.link.forEach(cb => cb({ url: 'https://eyecannndy.com/technique/aerial', title: 'Aerial', kind: 'page' }));
             L.link.forEach(cb => cb({ url: 'https://asset.eyecannndy.com/static/images/logo.webp', title: '', kind: 'gif' }));
             L.done.forEach(cb => cb({ code: 0 }));
@@ -62,14 +64,25 @@ const top = '.screen:last-child';
     if(name === 'laptop'){
       await p.click('#trHost [data-p="crash-transition"]'); await p.waitForTimeout(300);
       ok(/Read from Eyecandy/.test(await p.textContent('#trHost .trs-bar')), 'a technique not read yet offers Read from Eyecandy');
-      await p.click('#trHost [data-a="read"]'); await p.waitForFunction(() => document.querySelectorAll('#trHost .trs-cell').length === 3, null, { timeout: 5000 }).catch(() => {});
+      await p.click('#trHost [data-a="read"]'); await p.waitForFunction(() => document.querySelectorAll('#trHost .trs-cell').length === 7, null, { timeout: 8000 }).catch(() => {});
       const scans = await p.evaluate(() => window.__scans);
-      ok(scans.length === 1 && scans[0].mode === 'scan' && /eyecannndy\.com\/technique\/crash-transition$/.test(scans[0].url), 'reads with the grabber’s scan (links only, no download)', scans[0] && scans[0].mode);
+      ok(scans.every(x => x.mode === 'scan') && /eyecannndy\.com\/technique\/crash-transition$/.test(scans[0].url), 'reads with the grabber’s scan (links only, no download)', scans.map(x => x.url.split('/').pop()).join(', '));
+      ok(scans.length === 4 && /\?page=3$/.test(scans[2].url), 'goes through every page by itself, stopping at the first empty one');
       const recs = await p.evaluate(() => Transitions.all());
-      ok(recs.length === 3 && recs.every(r => r.tech[0] === 'crash-transition' && /^ec_crash-transition-\d$/.test(r.id)), 'keeps the 3 clips, drops the page link and the logo', recs.map(r => r.id).join(','));
-      await p.click('#trHost [data-a="read"]'); await p.waitForTimeout(500);
-      ok((await p.evaluate(() => Transitions.all())).length === 3, 'reading again adds no doubles');
-      ok(/Crashcut3/.test((await p.$$eval('#trHost .trs-pills button', x => x.map(y => y.textContent.replace(/\s/g, '')))).join('|').replace(/\s/g, '')), 'the pill counts its clips');
+      ok(recs.length === 7 && recs.every(r => r.tech[0] === 'crash-transition' && /^ec_crash-transition-\d$/.test(r.id)), 'keeps all 7 clips, drops the page link and the logo', recs.map(r => r.id).join(','));
+      await p.click('#trHost [data-a="read"]'); await p.waitForTimeout(1200);
+      ok((await p.evaluate(() => Transitions.all())).length === 7, 'reading again adds no doubles');
+      await p.waitForTimeout(800);
+      const still = await p.evaluate(() => [...document.querySelectorAll('#trHost .trs-cell')].map(c => { const im = c.querySelector('img');
+        return c.querySelector('canvas.trs-cv') ? 'canvas' : im && /^data:image\/jpeg/.test(im.getAttribute('src') || '') ? 'still' : im && im.getAttribute('src') ? 'moving' : 'none'; }));
+      ok(still.every(x => x === 'canvas' || x === 'still'), 'the grid shows stills by default, nothing animating', still.join(','));
+      ok(/Play all/.test(await p.textContent('#trHost [data-a="move"]')), 'with a Play all button');
+      await p.click('#trHost [data-a="move"]'); await p.waitForTimeout(700);
+      const mv = await p.evaluate(() => [...document.querySelectorAll('#trHost .trs-cell img')].filter(im => /asset\.eyecannndy/.test(im.getAttribute('src') || '')).length);
+      ok(mv >= 1 && /Stop all/.test(await p.textContent('#trHost [data-a="move"]')), 'Play all animates the ones on screen; the button becomes Stop all', mv);
+      await p.click('#trHost [data-a="move"]'); await p.waitForTimeout(900);
+      ok(await p.evaluate(() => ![...document.querySelectorAll('#trHost .trs-cell img')].some(im => /asset\.eyecannndy/.test(im.getAttribute('src') || ''))), 'Stop all stills them again');
+      ok(/Crashcut7/.test((await p.$$eval('#trHost .trs-pills button', x => x.map(y => y.textContent.replace(/\s/g, '')))).join('|').replace(/\s/g, '')), 'the pill counts its clips');
     }
     await p.waitForTimeout(400);
     await p.screenshot({ path: path.join(out, `tr-tab-${name}.png`) });

@@ -48,6 +48,7 @@
         </div>
         <div class="trs-bar"><span>${status ? esc(status) : cur ? `${esc(cur.name)} · ${plural(list.length, 'clip')}${cur.readAt ? '' : ' · not read yet'}`
             : pick === 'kept' ? 'The ones you keep coming back to' : plural(recs.length, 'clip') + ' from ' + plural(techs.filter(t => t.readAt).length, 'technique')}</span>
+          ${list.length ? `<button class="btn-sm" data-a="move" aria-pressed="${Transitions.moving()}">${Transitions.moving() ? '❚❚ Stop all' : '▶ Play all'}</button>` : ''}
           ${cur ? `<a class="btn-sm" href="${esc(Transitions.SITE + cur.slug)}" target="_blank" rel="noopener">↗ Eyecandy</a>` : ''}${readBtn}</div>
         ${list.length ? `<div class="trs-grid">${list.map(r => Transitions.cellHTML(r, 'data-w')).join('')}</div>`
           : `<div class="empty"><b>${pick === 'kept' ? 'Nothing kept yet' : cur ? 'Not read yet' : 'No transitions yet'}</b>${
@@ -63,7 +64,8 @@
       try {
         const r = await Transitions.read(slugs, {
           line: l => { const m = /^\s*(✗.*|.*found.*|Reading .*|.*check.*)$/.exec(l); if(m){ status = m[1].trim(); const s = host.querySelector('.trs-bar span'); if(s) s.textContent = status; } },
-          step: () => render(), stopped: () => stopped
+          step: () => render(), stopped: () => stopped,
+          page: (slug, n, found) => { status = `${Transitions.techName(slug)} · page ${n} · ${found} clips so far`; render(); }
         });
         status = '';
         U.toast(r.found ? `${plural(r.found, 'clip')} found${r.added ? ` · ${r.added} new` : ''}` : 'Nothing found — is the page behind a check? Try again.');
@@ -115,6 +117,7 @@
       const a = e.target.closest('[data-a]');
       if(a){
         if(a.dataset.a === 'techs') return techSheet();
+        if(a.dataset.a === 'move'){ Transitions.setMoving(!Transitions.moving()); return render(); }
         if(a.dataset.a === 'read') return readList([pick]);
         if(a.dataset.a === 'readall') return readList((await Transitions.techs()).filter(t => !t.readAt).map(t => t.slug));
         if(a.dataset.a === 'stop'){ stopped = true; try { await CS3Lib.grabStop(); } catch(err){} return; }

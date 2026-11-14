@@ -226,4 +226,6 @@ GIF, 3–9 MB), the title in `<h1>`, "Technique / Director / Original Source" li
 | On a shot | `tr:{id,n}` = the transition out of that shot into the next (shotlist.js extras), carried to subs, beats, clips, videos, shoot tasks | person's request |
 | Shot page | hidden; "⇄ N transitions · Show" toggles faint markers (localStorage cs4-show-tr, every page) | person's request |
 | Edit cut list | a row between the cuts (Watch, Change, ×); empty gaps have "+ transition" | mockup approved 2026-11-14 |
-| Tested | v4-transitions.browser.js 42/42 | round 7 |
+| Every page | page 1, then `?page=2, 3…` until a page has no clips or the same ones as the last (Eyecandy loads page 2 on scroll, then wants Load more pressed); up to 40 pages | custom.js infiniteScroll path |
+| Grid | stills by default: each one's first frame drawn once, two at a time, kept on this device (`transition-stills`, not synced); "Play all" animates only the cells on screen (cs4-tr-moving); the player always moves | person's request: the grid froze the laptop |
+| Tested | v4-transitions.browser.js 47/47 | round 7 |
