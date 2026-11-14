@@ -307,3 +307,4 @@ GIF, 3–9 MB), the title in `<h1>`, "Technique / Director / Original Source" li
 | Moving them | Creator Studio Settings → Export my boards: { app:'storyboard', version:1, items } from board-items → Boards: "Import a board or backup" (added as a board, nothing overwritten) | board.html importBackup |
 | Removed from Creator Studio | board/ folder, boardlink.js, boardsync.js, screens/board.js, every board button, the board deep link | person's request |
 | Kept | store board-items (and its sync and backup group), so Export my boards works on every device | estimated |
+| Purged (later the same day) | each device deletes its board-items once on start (cs4-boards-purged), through Store.del so the deletes sync; Export my boards removed; an old backup's boards are skipped on restore | person's request |

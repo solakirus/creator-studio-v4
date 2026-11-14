@@ -517,5 +517,15 @@
   }
 
   global.App = { go, goBack, refreshTab, sheet, closeSheet, pickImage, reloadToolIcons, updateBar, sendToPhone, planner:PLANNER, TOOLS, PRESETS };
-  document.addEventListener('DOMContentLoaded', () => { init(); backupWhenIdle(); });
+  /* v4: boards left for their own app (boards-app/) — their records go from
+     this device once, and the deletes sync to the others */
+  async function purgeBoards(){
+    try {
+      if(localStorage.getItem('cs4-boards-purged') === '1') return;
+      const { keys } = await Store.all('board-items');
+      for(const k of keys || []) await Store.del('board-items', k);
+      localStorage.setItem('cs4-boards-purged', '1');
+    } catch(e){ console.warn('Board purge', e); }
+  }
+  document.addEventListener('DOMContentLoaded', () => { init(); backupWhenIdle(); setTimeout(purgeBoards, 4000); });
 })(window);

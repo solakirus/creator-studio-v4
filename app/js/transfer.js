@@ -144,7 +144,7 @@
     { k:'tasks',    label:'Tasks and routines',       stores:['tasks', 'task-media', 'routines', 'templates', 'presets', 'task-frames'] },
     { k:'content',  label:'Series, clips and videos', stores:['series', 'clips', 'videos'] },
     { k:'vlog',     label:'Vlogs, months, quarters',  stores:['vlogs', 'months', 'quarters', 'challenges', 'sources', 'seq-template'] },
-    { k:'notes',    label:'Inbox, notes and journal', stores:['inbox', 'inbox-media', 'journal', 'board-items'] },
+    { k:'notes',    label:'Inbox, notes and journal', stores:['inbox', 'inbox-media', 'journal'] },
     { k:'library',  label:'Library and templates',    stores:['lib-items', 'lib-blob', 'lib-poster', 'lib-boards', 'shot-templates', 'star-groups', 'nb-music'] },
     { k:'fitness',  label:'Workouts and body',        stores:['sessions', 'exercises', 'exercise-art', 'runs', 'physique', 'physique-photo', 'plans', 'loads', 'courses'] },
     { k:'food',     label:'Food',                     stores:['meals', 'meal-photo', 'grocery', 'pantry', 'prep', 'planner'] },
@@ -169,7 +169,8 @@
     const stats = { blobs:0 };
 
     const plan = [];
-    const wanted = s => !only || only.has(s);
+    /* v4: boards are their own app now — an old backup's boards stay out */
+    const wanted = s => s !== 'board-items' && (!only || only.has(s));
     for(const [s, rows] of Object.entries(obj.data || {})){
       if(!wanted(s)) continue;
       if(!(s in shape)){ report.skipped.push(s); continue; }

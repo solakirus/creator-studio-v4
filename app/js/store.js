@@ -54,7 +54,7 @@
     physique:       { keyPath:'id' },     // weight and photo log
     'physique-photo': {},                 // the photos themselves, keyed by entry id
     months:         { keyPath:'id' },     // challenge months: whole weeks, one challenge, its stakes
-    'board-items':  { keyPath:'id' },     // boards, cards, lines and ink from the canvas (board/board.html)
+    'board-items':  { keyPath:'id' },     // emptied: boards are their own app now (boards-app/); kept so old databases open
     /* Library and Templates, carried over from Shotline */
     'lib-items':    { keyPath:'id' },     // GIFs, clips and stills you added: name, kind, library, page
     'lib-blob':     {},                   // the files themselves, keyed by item id

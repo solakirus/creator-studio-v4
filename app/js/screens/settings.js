@@ -137,7 +137,6 @@
         ${row(D.up,'Export for the other device','Without sync: plans, tasks, habits and the frames they use — not the Library','data-go="devicefile"')}
         ${row(D.up,'Export everything','Every record and picture, the Library too — a full backup or a new laptop','data-go="backup"')}
         ${row(D.up,'Export as spreadsheets','CSV files that open in Notion or Sheets','data-go="csvout"')}
-        ${row(D.up,'Export my boards','For the Boards app (it left Creator Studio) — import the file there','data-go="boardsout"')}
         ${row(D.grid,'Load sample content','Meals, series and clips to try things out','data-go="samples"')}
         <button class="row" data-go="wipe"><svg class="ic" style="color:var(--red)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${D.trash}"/></svg>
           <span class="lbl" style="color:var(--red)">Clear local data<small>Everything, permanently</small></span>${chev}</button>
@@ -302,16 +301,7 @@
       if(go.dataset.go === 'autobackup') return openAutoBackup(() => mount(el));
       if(go.dataset.go === 'backup')    return doBackup();
       if(go.dataset.go === 'csvout')    return doSheets();
-      /* v4: boards are their own app now; this hands them over in its backup format */
-      if(go.dataset.go === 'boardsout') return (async () => {
-        let items = [];
-        try { items = (await Store.all('board-items')).values || []; } catch(err){}
-        if(!items.length) return U.toast('No boards on this device');
-        const d = new Date();
-        const ok = await Transfer.download(`boards-from-creator-studio-${d.getFullYear()}-${U.pad(d.getMonth()+1)}-${U.pad(d.getDate())}.json`,
-          JSON.stringify({ app:'storyboard', version:1, exportedAt:d.toISOString(), items }), 'application/json');
-        if(ok) U.toast(`${items.filter(x => x && x.kind === 'board').length} boards exported — Boards app: Import a board or backup`);
-      })();
+
 
       /* These rows rendered but nothing listened for them, so they were dead to
          the touch — no error, no toast, nothing. Every one is a registered
