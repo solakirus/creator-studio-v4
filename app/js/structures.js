@@ -32,6 +32,10 @@
 
   const B = (n, g, role, shot) => ({ n, g, role, shot });
   const BUILTIN = [
+    { id:'b-bme', n:'Beginning · Middle · End', d:'Three beats, the way a day’s sequences are laid out', beats:[
+      B('Beginning', 'Open strong — the hook, where we are, what is about to happen.', 'Action', 'The opener'),
+      B('Middle', 'The thing itself — the build, the work, the moment.', 'Action', 'The main moment'),
+      B('End', 'Land it — the payoff, the reaction, the ask.', 'Reaction', 'The payoff') ] },
     { id:'b-loop', n:'Open loop', d:'Hook them, tease the payoff, make them wait for it', beats:[
       B('Hook', 'Stop the scroll in three seconds — the result or the boldest line first.', 'Action', 'The result, first'),
       B('Open the loop', 'Tease what is coming without giving it away.', 'Talking', 'Tease the payoff'),
@@ -249,6 +253,29 @@
   .sx-ed input,.sx-ed select{height:36px;min-width:0;padding:0 8px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--cream);font:inherit;font-size:14px}
   .sx-ed input.nm{flex:1;font-weight:700}
   .sx-ed button{width:34px;height:34px;flex:0 0 34px;padding:0;border:1px solid var(--line);border-radius:var(--r);background:transparent;color:var(--muted);cursor:pointer}
+  /* the beats side by side: one column each, its shots stacked inside */
+  .sx-view{display:inline-flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+  .sx-view button{height:30px;padding:0 11px;border:0;background:transparent;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer}
+  .sx-view button[aria-pressed="true"]{background:var(--cream);color:#151515;font-weight:700}
+  .sx-start{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;color:var(--muted);font-size:13px}
+  .sx-cols{display:flex;gap:12px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x mandatory;align-items:flex-start}
+  .sx.cols .sx-beat{margin:0;scroll-snap-align:start;min-width:0;flex:1 0 290px}
+  .sx.cols .sx-bh{flex-wrap:wrap;padding:10px 10px 6px}
+  .sx-bk{flex:0 0 100%;font-family:var(--display),sans-serif;font-weight:900;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--orange)}
+  .sx.cols .sx-bh .n{display:none}
+  .sx.cols .sx-bn{padding-left:0}
+  .sx.cols .sx-guide{margin:0 10px 8px}
+  .sx.cols .sx-shot{flex-direction:column;gap:8px}
+  .sx.cols .sx-shot .side{flex:none;flex-direction:row;align-items:flex-start;width:100%}
+  .sx.cols .sx-shot .side .no{display:none}
+  .sx.cols .sx-shot .sx-pic{width:100%;height:auto;aspect-ratio:16/9}
+  .sx.cols .sx-no{display:inline;color:var(--orange);font-family:var(--display),sans-serif;font-weight:900;font-size:13px}
+  .sx.cols .sx-sn{min-width:0}
+  .sx.cols .sx-mv{max-width:100%}
+  .sx-addcol{min-height:90px;border:1px dashed var(--line);border-radius:var(--r);background:transparent;color:var(--muted);font:inherit;font-size:14px;cursor:pointer;scroll-snap-align:start;align-self:stretch;flex:0 0 110px}
+  .sx.cols .sx-shot .side:has(.sx-pic.none){display:none}
+  .sx.cols .sx-foot [data-st="addbeat"]{display:none}
+  .sx-addcol:hover{border-color:var(--orange);color:var(--cream)}
   /* a phone: no frame column, tighter boxes, so the lines get the width */
   @media (max-width:600px){
     .sx-beat{margin:0 0 8px}
@@ -265,6 +292,8 @@
     .sx-ln{gap:5px}
     .sx-lt{font-size:14px;padding:3px 5px}
     .sx-lrm{width:22px;flex-basis:22px}
+    .sx.cols .sx-beat{flex-basis:calc(100% - 34px)}
+    .sx.cols .sx-shot .side{display:none}
   }`;
   function css(){
     if(document.getElementById('sx-css')) return;
@@ -272,6 +301,12 @@
   }
   const UP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>';
   const DOWN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+  const LEFT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>';
+  const RIGHT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+  /* the script laid out as rows (beats down the page) or columns (beats side
+     by side, like a day's sequences) — one choice, remembered */
+  const COLS_KEY = 'cs4-sx-cols';
+  const colsOn = () => { try { return localStorage.getItem(COLS_KEY) !== 'rows'; } catch(e){ return true; } };
   const pic = sl => sl.item ? `<span class="sx-pic" data-slpic="${esc(sl.item)}"></span>` : '<span class="sx-pic none"></span>';
   const grow = ta => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
 
@@ -383,23 +418,28 @@
         if(global.ShotList) ShotList.fillPics(container);
         return stat();
       }
-      container.innerHTML = `<div class="sx">
-        <div class="sx-head"><span class="k">Structure</span>
-          <b>${p.structure && p.structure.name ? esc(p.structure.name) : bn.length ? 'Your own beats' : 'None yet'}</b>
-          <button class="btn-sm" data-st="pick">${bn.length ? 'Change' : 'Pick a structure'}</button></div>
-        ${bn.length ? `<div class="sx-jump">${bn.map((b, k) => `<button data-stjump="${k}">${esc(b || 'Beat ' + (k + 1))}<i>${groups[k].length}</i></button>`).join('')}</div>` : ''}
-        ${bn.length ? bn.map((b, k) => `
+      const cols = colsOn() && bn.length > 0;
+      const secs = bn.map((b, k) => `
           <section class="sx-beat" id="${uidp}-${k}">
-            <div class="sx-bh"><span class="n">${k + 1}</span>
+            <div class="sx-bh">${cols ? `<span class="sx-bk">Beat ${k + 1} of ${bn.length}</span>` : ''}<span class="n">${k + 1}</span>
               <input class="sx-bn" data-bn="${k}" value="${esc(b)}" placeholder="Beat ${k + 1}" aria-label="Beat ${k + 1} name">
               <span class="cnt">${groups[k].length} shot${groups[k].length === 1 ? '' : 's'}</span>
-              <button class="mini" data-bmv="${k}:-1" ${k === 0 ? 'disabled' : ''} aria-label="Move this beat up">${UP}</button>
-              <button class="mini" data-bmv="${k}:1" ${k === bn.length - 1 ? 'disabled' : ''} aria-label="Move this beat down">${DOWN}</button>
+              <button class="mini" data-bmv="${k}:-1" ${k === 0 ? 'disabled' : ''} aria-label="Move this beat ${cols ? 'left' : 'up'}">${cols ? LEFT : UP}</button>
+              <button class="mini" data-bmv="${k}:1" ${k === bn.length - 1 ? 'disabled' : ''} aria-label="Move this beat ${cols ? 'right' : 'down'}">${cols ? RIGHT : DOWN}</button>
               <button class="mini" data-brm="${k}" aria-label="Remove this beat">×</button></div>
             ${gd[k] ? `<p class="sx-guide">${esc(gd[k])}</p>` : ''}
             <div class="sx-shots">${groups[k].map(i => shotCard(i, k)).join('')}
               <button class="sx-add" data-sadd="${k}">+ Add a shot to ${esc(b || 'this beat')}</button></div>
-          </section>`).join('')
+          </section>`).join('');
+      container.innerHTML = `<div class="sx${cols ? ' cols' : ''}">
+        <div class="sx-head"><span class="k">Structure</span>
+          <b>${p.structure && p.structure.name ? esc(p.structure.name) : bn.length ? 'Your own beats' : 'None yet'}</b>
+          ${bn.length ? `<span class="sx-view" role="group" aria-label="Lay the beats out as"><button data-sxv="rows" aria-pressed="${!cols}">Rows</button><button data-sxv="cols" aria-pressed="${cols}">Columns</button></span>` : ''}
+          <button class="btn-sm" data-st="pick">${bn.length ? 'Change' : 'Pick a structure'}</button></div>
+        ${bn.length ? `<div class="sx-jump">${bn.map((b, k) => `<button data-stjump="${k}">${esc(b || 'Beat ' + (k + 1))}<i>${groups[k].length}</i></button>`).join('')}</div>` : ''}
+        ${!bn.length ? `<div class="sx-start"><button class="btn-sm" data-st="bme">Start with Beginning · Middle · End</button>
+            <span>or pick a structure — then every shot sits under a beat, with its lines</span></div>` : ''}
+        ${bn.length ? (cols ? `<div class="sx-cols">${secs}<button class="sx-addcol" data-st="addbeat">＋ Beat</button></div>` : secs)
         : `<div class="sx-shots" style="padding:0">${slots(t).map((_, i) => shotCard(i, -1)).join('') || '<p class="sx-none">No shots yet.</p>'}
             <button class="sx-add" data-sadd="-1">+ Add a shot</button></div>`}
         <div class="sx-foot">
@@ -441,14 +481,17 @@
           return;
         }
         if(a.dataset.st === 'paste') return pasteSheet();
+        if(a.dataset.st === 'bme') return applyTpl(BUILTIN[0]);
         if(a.dataset.st === 'beats') return beatsSheet();
       }
+      const sv = e.target.closest('[data-sxv]');
+      if(sv){ try { localStorage.setItem(COLS_KEY, sv.dataset.sxv); } catch(e2){} return draw(); }
       const jp = e.target.closest('[data-stjump]');
       if(jp){
         const k = jp.dataset.stjump;
         const scope = container.closest('.screen') || document;
         const sec = container.querySelector(`#${uidp}-${k}`) || scope.querySelector(`[data-beatk="${k}"]`);
-        if(sec) sec.scrollIntoView({ behavior:'smooth', block:'start' });
+        if(sec) sec.scrollIntoView({ behavior:'smooth', block:sec.closest('.sx-cols') ? 'nearest' : 'start', inline:'start' });
         else U.toast(beatsOf(t, beats().length).includes(+k) ? 'Open the steps to see it' : 'No shots in that beat yet');
         return;
       }

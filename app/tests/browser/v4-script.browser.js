@@ -242,7 +242,11 @@ const head = s => console.log(`\n— ${s} —`);
   await ph.dispatchEvent(`${top} #clipScript [data-lt="1:0"]`, 'change'); await ph.waitForTimeout(1200);
   ui = await ph.evaluate(t => { const ta = document.querySelector(t + ' #clipScript [data-lt="1:0"]'); return { w: ta.getBoundingClientRect().width, h: ta.getBoundingClientRect().height,
     side: getComputedStyle(document.querySelector(t + ' #clipScript .sx-shot .side')).display }; }, top);
-  ok(ui.w >= 250 && ui.h <= 60 && ui.side === 'none', 'on a phone a line gets the width (no frame column) and wraps to two lines at most', `${Math.round(ui.w)} × ${Math.round(ui.h)} px`);
+  ok(ui.w >= 205 && ui.h <= 60 && ui.side === 'none', 'on a phone, in columns, a line gets the width (no frame column) and wraps to two lines at most', `${Math.round(ui.w)} × ${Math.round(ui.h)} px`);
+  await ph.click(`${top} #clipScript [data-sxv="rows"]`); await ph.waitForTimeout(500);
+  ui = await ph.evaluate(t => document.querySelector(t + ' #clipScript [data-lt="1:0"]').getBoundingClientRect().width, top);
+  ok(ui >= 250 && !(await ph.$(`${top} #clipScript .sx.cols`)), 'Rows lays the beats down the page, wider', Math.round(ui) + ' px');
+  await ph.click(`${top} #clipScript [data-sxv="cols"]`); await ph.waitForTimeout(500);
   await ph.screenshot({ path: path.join(out, 'script-phone-plan.png'), fullPage: false });
   await ph.click(`${top} [data-ctab="shoot"]`); await ph.waitForTimeout(1800);
   ui = await ph.evaluate(t => ({ page: !!document.querySelector(t + ' #clipShots .tkp-cwrap:not([hidden]) canvas'), show: !!document.querySelector(t + ' [data-a="showpage"]'),

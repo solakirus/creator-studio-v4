@@ -333,3 +333,19 @@ up at that hour; Shoot today runs timed sequences first.
 
 Today's derived list (`loadDerived`) now builds into its own list and only the
 latest run swaps it in — two loads at once used to show every sequence twice.
+
+## Clip script as columns
+
+A clip's Plan → Script (Structures.script) lays its beats out as **Columns**
+by default: one column per beat, side by side like a day's sequences, each
+headed "Beat N of M" with its name, guide line, and its shots stacked inside —
+every shot with its script lines (VO / CAM / TXT) and a beat menu to move it to
+another column. ‹ › move a whole beat left or right; the ＋ Beat column adds
+one. Columns scroll sideways when there are more than fit; on a phone one
+column fills the width with the next peeking in. **Rows** (the old layout,
+beats down the page) is one tap away; the choice is kept in
+localStorage `cs4-sx-cols`.
+
+A clip with no beats yet offers **Start with Beginning · Middle · End**, the
+new first built-in structure (`b-bme`): three beats with a shot in each, or the
+clip's existing shots spread across them.
