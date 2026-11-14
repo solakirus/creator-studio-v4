@@ -47,6 +47,19 @@
   /* the ones that are a way from one shot to the next */
   const STARTERS = ['transition','crash-transition','match-cut','match-motion','match-split','whip-pan','jump-cut','flash-cut','light-flash',
     'morphing','object-portal','pass-through','set-transition','masking','speed-ramping','freeze-frame','glitch','datamosh'];
+  /* Eyecandy lists its techniques A–Z with no grouping; these eight groups
+     are the app's own, so 136 of them can be found by what they do */
+  const GROUPS = [
+    { k:'cuts',   label:'Transitions & cuts', slugs:'transition crash-transition match-cut match-motion match-split whip-pan jump-cut flash-cut light-flash morphing object-portal pass-through set-transition masking quick-cuts cut-ins aspect-ratio-switch transformation as-object' },
+    { k:'moves',  label:'Camera moves',       slugs:'arc-movement dolly-shot dolly-zoom double-dolly pan tilt pedestal tracking trucking zoom-in camera-roll locked-on snorricam bolt-cam lazy-susan wandering floating falling shaky-cam fpv-drone aerial omnidirectional conveyor parallax' },
+    { k:'angles', label:'Angles & framing',   slugs:'close-up wide-shot high-angle low-angle overhead worms-eye ground-shot dutch-angle over-the-shoulder two-shot profile-shot central-framing tableau-shots first-person-pov fixed-camera interview epiphany-shot voyeur fourth-wall split-diopter' },
+    { k:'lens',   label:'Lens & optics',      slugs:'fisheye focal-focus focal-shift tilt-shift probe-lens magnification ultra-wide-zero-d halation haze reflections vignette x-ray thermal night-vision motion-blur' },
+    { k:'time',   label:'Time & speed',       slugs:'slow-motion speed-ramping undercranking freeze-frame step-printing stutter boomerang bullet-time stop-motion infinite echo-printing zoetrope slit-scan' },
+    { k:'light',  label:'Light & color',      slugs:'hard-light spotlight silhouette color-shift shadow-box projections' },
+    { k:'fx',     label:'Effects',            slugs:'double-exposure duplication split-screen screen-in-screen collage mixed-media digital-overlay digital-gesture datamosh glitch distortions kaleidoscope scale-shift typography cinemagraph photogrammetry generative pixel-art video-game vhs wigglegram breakdown' },
+    { k:'style',  label:'Style & subject',    slugs:'dreamcore wierdcore dystopian surrealism maximalism stylistic-suck void trip traditional anthropomorphism architexture choreo model product photography video-portraits underwater' }
+  ].map(g => ({ ...g, slugs:g.slugs.split(' ') }));
+  const groupOf = slug => (GROUPS.find(g => g.slugs.includes(slug)) || { k:'other' }).k;
   const techName = slug => NAMES[slug] || (String(slug || '').charAt(0).toUpperCase() + String(slug || '').slice(1)).replace(/-/g, ' ');
   const slugOf = u => { const m = /eyecannndy\.com\/technique\/([a-z0-9-]+)/i.exec(String(u || '')); return m ? m[1].toLowerCase() : ''; };
 
@@ -418,12 +431,28 @@
   const CSS = `
   .trs-pills{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
   .trs-pills button{flex:0 0 auto;height:34px;padding:0 12px;border-radius:var(--r);border:1px solid var(--line);background:var(--surface-1);color:var(--cream);font-size:14px;white-space:nowrap;cursor:pointer}
-  .trs-top{overflow:visible;flex-wrap:nowrap}
+  .trs-top{overflow:visible;flex-wrap:nowrap;align-items:center}
+  .trs-search{flex:1 1 200px;max-width:320px;min-width:0;height:34px;padding:0 11px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--cream);font:inherit;font-size:14px}
+  .trs-search:focus{outline:none;border-color:var(--orange)}
+  .trs-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:0 0 8px}
+  .trs-row button{flex:0 0 auto;height:32px;padding:0 11px;border-radius:16px;border:1px solid var(--line);background:transparent;color:var(--cream);font:inherit;font-size:13.5px;white-space:nowrap;cursor:pointer}
+  .trs-row button i{font-style:normal;color:var(--dim);margin-left:5px;font-size:12px}
+  .trs-row button[aria-pressed="true"]{background:var(--cream);color:#151515;border-color:var(--cream);font-weight:700}
+  .trs-row button[aria-pressed="true"] i{color:#555}
+  .trs-row button[aria-expanded="true"]:not([aria-pressed="true"]){border-color:var(--cream)}
+  .trs-row button.unread{color:var(--muted);border-style:dashed}
+  .trs-row button.edit{color:var(--muted)}
+  .trs-techs{margin:-2px 0 2px;padding:8px 0 8px;border-top:1px solid var(--line)}
+  @media (min-width:900px){ .trs-row{flex-wrap:wrap;overflow:visible} }
   .trs-selw{position:relative;flex:0 1 auto;min-width:0;display:flex}
   .trs-selw select{height:34px;max-width:min(260px,52vw);padding:0 30px 0 12px;border-radius:var(--r);border:1px solid var(--line);background:var(--surface-1);color:var(--cream);font:inherit;font-size:14px;-webkit-appearance:none;appearance:none;cursor:pointer;text-overflow:ellipsis}
   .trs-selw::after{content:'';position:absolute;right:12px;top:13px;width:7px;height:7px;border:solid var(--muted);border-width:0 2px 2px 0;transform:rotate(45deg);pointer-events:none}
   .trs-selw.on select{background:var(--cream);color:#151515;border-color:var(--cream);font-weight:700}
   .trs-selw.on::after{border-color:#151515}
+  .trs-sels{display:flex;gap:6px;margin:0 0 10px}
+  .trs-sels .trs-selw{flex:1 1 0;max-width:280px}
+  .trs-sels .trs-selw select{width:100%;max-width:none}
+  .trs-selw.off select{color:var(--dim);cursor:default}
   .trs-selw select option,.trs-selw select optgroup{background:var(--surface-1);color:var(--cream);font-weight:400}
   .trs-pills button i{font-style:normal;color:var(--dim);margin-left:6px;font-size:12px}
   .trs-pills button[aria-pressed="true"]{background:var(--cream);color:#151515;border-color:var(--cream);font-weight:700}
@@ -462,6 +491,6 @@
     const st = document.createElement('style'); st.id = 'trs-css'; st.textContent = CSS; document.head.appendChild(st);
   }
 
-  global.Transitions = { ALL_TECHS, STARTERS, SITE, techName, slugOf, techs, setTechs, all, get, put, keep, idFor, save, addLink,
+  global.Transitions = { ALL_TECHS, STARTERS, GROUPS, groupOf, SITE, techName, slugOf, techs, setTechs, all, get, put, keep, idFor, save, addLink,
     canRead, read, discover, watch, peek, hostsList, hostFor, setGap, assign, pick, cellHTML, wireImgs, moving, setMoving, css };
 })(window);

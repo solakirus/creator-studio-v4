@@ -228,7 +228,8 @@ GIF, 3–9 MB), the title in `<h1>`, "Technique / Director / Original Source" li
 | Edit cut list | a row between the cuts (Watch, Change, ×); empty gaps have "+ transition" | mockup approved 2026-11-14 |
 | Every page | page 1, then `?page=2, 3…` until a page has no clips or the same ones as the last (Eyecandy loads page 2 on scroll, then wants Load more pressed); up to 40 pages | custom.js infiniteScroll path |
 | Grid | stills by default: each one's first frame drawn once, two at a time, kept on this device (`transition-stills`, not synced); "Play all" animates only the cells on screen (cs4-tr-moving); the player always moves | person's request: the grid froze the laptop |
-| Top row | ★ Kept, All, one Technique drop-down (Read / Not read yet, A–Z, then "Add or remove techniques…") | person's request: too many pills |
+| Top row | search (title or technique name), ★ Kept, All | person's request: too many pills |
+| Filters | two drop-downs: Type (8 groups: Transitions & cuts, Camera moves, Angles & framing, Lens & optics, Time & speed, Light & color, Effects, Style & subject — the app's own; Eyecandy lists A–Z) then Technique within it; Read follows the choice | person's pick of drop-downs over chips |
 | More techniques | "Add all N" adds the rest of Eyecandy's 136; "Check Eyecandy for new ones" (laptop) scans the front page's /technique/ links | person's request |
 | Hover | with stills on, the mouse over a clip plays it; leaving puts the still back | person's request |
-| Tested | v4-transitions.browser.js 54/54 | round 7 |
+| Tested | v4-transitions.browser.js 63/63 | round 7 |

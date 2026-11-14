@@ -8,7 +8,7 @@
    the iPad get what it read through sync. Nothing is downloaded. */
 (function(){
   const esc = s => U.esc(s);
-  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  const plural = (n, w, ws) => `${n} ${n === 1 ? w : ws || w + 's'}`;
   const PICK_KEY = 'cs4-tr-pick';
 
   async function mount(el, params){
@@ -17,50 +17,83 @@
     el.innerHTML = (embedded ? '' : Screens.bar({ kicker:'Content', title:'Transitions' })) + '<div class="view" id="trHost"></div>';
     const host = el.querySelector('#trHost');
     let pick = (() => { try { return localStorage.getItem(PICK_KEY) || 'all'; } catch(e){ return 'all'; } })();
-    let busy = false, status = '', stopped = false;
+    let busy = false, status = '', stopped = false, q = '';
+    const OPEN_KEY = 'cs4-tr-group';
+    let openG = (() => { try { return localStorage.getItem(OPEN_KEY) || ''; } catch(e){ return ''; } })();
+    const setOpen = v => { openG = v; try { localStorage.setItem(OPEN_KEY, v); } catch(e){} };
+    const techsIn = (techs, k) => techs.filter(t => Transitions.groupOf(t.slug) === k);
     const setPick = v => { pick = v; try { localStorage.setItem(PICK_KEY, v); } catch(e){} };
 
+    /* pick: 'kept' | 'all' | 'g:<group>' | a technique; q narrows any of them
+       by the clip's title or its technique's name */
     async function shown(){
       const recs = await Transitions.all();
       recs.sort((a, b) => (b.kept ? 1 : 0) - (a.kept ? 1 : 0) || (a.at || 0) - (b.at || 0));
-      return { recs, list: pick === 'kept' ? recs.filter(r => r.kept) : pick === 'all' ? recs : recs.filter(r => (r.tech || []).includes(pick)) };
+      const g = pick.startsWith('g:') ? pick.slice(2) : '';
+      let list = pick === 'kept' ? recs.filter(r => r.kept) : pick === 'all' ? recs
+        : g ? recs.filter(r => (r.tech || []).some(x => Transitions.groupOf(x) === g)) : recs.filter(r => (r.tech || []).includes(pick));
+      if(q){
+        const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+        list = list.filter(r => { const hay = [r.title || ''].concat((r.tech || []).map(Transitions.techName)).join(' ').toLowerCase(); return words.every(w => hay.includes(w)); });
+      }
+      return { recs, list };
     }
 
     async function render(){
       if(!host.isConnected) return;
       const techs = await Transitions.techs();
-      if(!['all', 'kept'].includes(pick) && !techs.some(t => t.slug === pick)) setPick('all');
+      const gk = pick.startsWith('g:') ? pick.slice(2) : '';
+      if(!['all', 'kept'].includes(pick) && !gk && !techs.some(t => t.slug === pick)) setPick('all');
       const { recs, list } = await shown();
       const count = slug => recs.filter(r => (r.tech || []).includes(slug)).length;
       const kept = recs.filter(r => r.kept).length;
       const cur = techs.find(t => t.slug === pick);
+      const groups = Transitions.GROUPS.concat({ k:'other', label:'Other' }).map(g => {
+        const ts = techsIn(techs, g.k);
+        return { ...g, ts, clips:recs.filter(r => (r.tech || []).some(x => Transitions.groupOf(x) === g.k)).length };
+      }).filter(g => g.ts.length);
+      if(openG && !groups.some(g => g.k === openG)) setOpen('');
+      const og = groups.find(g => g.k === openG);
       const can = Transitions.canRead();
-      const unread = techs.filter(t => !t.readAt);
+      /* what Read reads: this technique, the open group's unread ones, or every unread one */
+      const unread = (gk ? techsIn(techs, gk) : techs).filter(t => !t.readAt);
       const readBtn = !can ? '' : busy ? '<button class="btn-sm" data-a="stop">Stop</button>'
         : cur ? `<button class="btn-sm${cur.readAt ? '' : ' accent'}" data-a="read">${cur.readAt ? 'Read it again' : 'Read from Eyecandy'}</button>`
-        : unread.length ? `<button class="btn-sm accent" data-a="readall">Read ${plural(unread.length, 'technique')} from Eyecandy</button>` : '';
+        : pick !== 'kept' && unread.length ? `<button class="btn-sm accent" data-a="readall">Read ${plural(unread.length, 'technique')}${gk ? '' : ' from Eyecandy'}</button>` : '';
+      const gname = gk ? (groups.find(g => g.k === gk) || {}).label || '' : '';
+      const sel = document.activeElement && document.activeElement.matches && document.activeElement.matches('.trs-search');
       host.innerHTML = `<div class="pagehead"><h1 class="page-title">Transitions</h1><span class="count">${recs.length}</span></div>
         <div class="trs-pills trs-top">
+          <input class="trs-search" type="search" value="${esc(q)}" placeholder="Search — whip, zoom, match…" aria-label="Search transitions">
           <button data-p="kept" aria-pressed="${pick === 'kept'}">★ Kept<i>${kept}</i></button>
           <button data-p="all" aria-pressed="${pick === 'all'}">All<i>${recs.length}</i></button>
-          <label class="trs-selw${cur ? ' on' : ''}"><select data-tech aria-label="Technique">
-            <option value="" ${cur ? '' : 'selected'}>Technique…</option>
-            ${[['Read', techs.filter(t => t.readAt)], ['Not read yet', techs.filter(t => !t.readAt)]].filter(([, l]) => l.length).map(([g, l]) =>
-              `<optgroup label="${g} (${l.length})">${l.slice().sort((a, b) => a.name.localeCompare(b.name)).map(t =>
-                `<option value="${esc(t.slug)}" ${pick === t.slug ? 'selected' : ''}>${esc(t.name)}${t.readAt ? ' · ' + count(t.slug) : ''}</option>`).join('')}</optgroup>`).join('')}
+        </div>
+        <div class="trs-sels">
+          <label class="trs-selw${og ? ' on' : ''}"><select data-type aria-label="Type">
+            <option value="" ${og ? '' : 'selected'}>All types</option>
+            ${groups.map(g => `<option value="${g.k}" ${g.k === openG ? 'selected' : ''}>${esc(g.label)} · ${g.clips ? plural(g.clips, 'clip') : plural(g.ts.length, 'type')}</option>`).join('')}
             <option value="__edit">＋ Add or remove techniques…</option>
           </select></label>
+          <label class="trs-selw${cur ? ' on' : ''}${og ? '' : ' off'}"><select data-tech aria-label="Technique" ${og ? '' : 'disabled'}>
+            ${og ? `<option value="" ${cur ? '' : 'selected'}>All ${esc(og.label.toLowerCase())}</option>
+              ${og.ts.slice().sort((a, b) => a.name.localeCompare(b.name)).map(t => `<option value="${esc(t.slug)}" ${pick === t.slug ? 'selected' : ''}>${esc(t.name)} · ${t.readAt ? count(t.slug) : 'not read'}</option>`).join('')}`
+              : '<option>Pick a type first</option>'}
+          </select></label>
         </div>
-        <div class="trs-bar"><span>${status ? esc(status) : cur ? `${esc(cur.name)} · ${plural(list.length, 'clip')}${cur.readAt ? '' : ' · not read yet'}`
+        <div class="trs-bar"><span>${status ? esc(status) : q ? `${plural(list.length, 'match', 'matches')} for “${esc(q)}”`
+            : cur ? `${esc(cur.name)} · ${plural(list.length, 'clip')}${cur.readAt ? '' : ' · not read yet'}`
+            : gk ? `${esc(gname)} · ${plural(list.length, 'clip')}${unread.length ? ` · ${unread.length} not read yet` : ''}`
             : pick === 'kept' ? 'The ones you keep coming back to' : plural(recs.length, 'clip') + ' from ' + plural(techs.filter(t => t.readAt).length, 'technique')}</span>
           ${list.length ? `<button class="btn-sm" data-a="move" aria-pressed="${Transitions.moving()}">${Transitions.moving() ? '❚❚ Stop all' : '▶ Play all'}</button>` : ''}
           ${cur ? `<a class="btn-sm" href="${esc(Transitions.SITE + cur.slug)}" target="_blank" rel="noopener">↗ Eyecandy</a>` : ''}${readBtn}</div>
         ${list.length ? `<div class="trs-grid">${list.map(r => Transitions.cellHTML(r, 'data-w')).join('')}</div>`
+          : q ? `<div class="empty"><b>Nothing matches “${esc(q)}”</b>${pick === 'all' ? 'Try another word.' : 'Try All, or another word.'}</div>`
           : `<div class="empty"><b>${pick === 'kept' ? 'Nothing kept yet' : cur ? 'Not read yet' : 'No transitions yet'}</b>${
               pick === 'kept' ? 'Open one and tap ☆ Keep — the ones you use go here.'
-              : can ? `Tap “${cur ? 'Read from Eyecandy' : 'Read … from Eyecandy'}” and the app looks at ${cur ? 'its page' : 'their pages'} for you — links only, nothing is downloaded.`
+              : can ? `Tap “${cur ? 'Read from Eyecandy' : 'Read …'}” and the app looks at ${cur ? 'its page' : 'their pages'} for you — links only, nothing is downloaded.`
               : 'Open the Transitions tab on the laptop and read them from Eyecandy there. They show up here on their own.'}</div>`}`;
       Transitions.wireImgs(host);
+      if(sel){ const f = host.querySelector('.trs-search'); f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
     }
 
     async function readList(slugs){
@@ -132,21 +165,32 @@
       })();
     }
 
+    /* two drop-downs: the type, then the exact technique within it */
     host.addEventListener('change', e => {
-      const sel = e.target.closest('[data-tech]');
-      if(!sel) return;
-      if(sel.value === '__edit'){ sel.value = Transitions.ALL_TECHS.includes(pick) ? pick : ''; return techSheet(); }
-      if(sel.value){ setPick(sel.value); render(); }
+      const ty = e.target.closest('[data-type]'), te = e.target.closest('[data-tech]');
+      if(ty){
+        if(ty.value === '__edit'){ ty.value = openG; return techSheet(); }
+        if(ty.value){ setOpen(ty.value); setPick('g:' + ty.value); } else { setOpen(''); setPick('all'); }
+        return render();
+      }
+      if(te){ setPick(te.value || 'g:' + openG); return render(); }
+    });
+    let qt = 0;
+    host.addEventListener('input', e => {
+      if(!e.target.matches('.trs-search')) return;
+      clearTimeout(qt);
+      qt = setTimeout(() => { q = e.target.value.trim(); render(); }, 220);
     });
     host.addEventListener('click', async e => {
       const p = e.target.closest('[data-p]');
-      if(p){ setPick(p.dataset.p); return render(); }
+      if(p){ setPick(p.dataset.p); setOpen(''); return render(); }
       const a = e.target.closest('[data-a]');
       if(a){
         if(a.dataset.a === 'techs') return techSheet();
         if(a.dataset.a === 'move'){ Transitions.setMoving(!Transitions.moving()); return render(); }
         if(a.dataset.a === 'read') return readList([pick]);
-        if(a.dataset.a === 'readall') return readList((await Transitions.techs()).filter(t => !t.readAt).map(t => t.slug));
+        if(a.dataset.a === 'readall'){ const all = await Transitions.techs(), g = pick.startsWith('g:') ? pick.slice(2) : '';
+          return readList((g ? techsIn(all, g) : all).filter(t => !t.readAt).map(t => t.slug)); }
         if(a.dataset.a === 'stop'){ stopped = true; try { await CS3Lib.grabStop(); } catch(err){} return; }
       }
       const w = e.target.closest('[data-w]');
