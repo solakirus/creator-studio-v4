@@ -175,11 +175,131 @@
   };
   const uid = () => 'sw_' + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
 
+  const lastFilter = { f:null, viewId:null };
+  let oldOpen = false;   /* the folded old fields on a swipe stay as you left them */
+  document.addEventListener('toggle', e => { if(e.target.classList && e.target.classList.contains('stg-old')) oldOpen = e.target.open; }, true);
+
+  /* ---------- your tags (swipetags.js) ---------- */
+  const escT = t => U.esc(t);
+  /* tag many swipes at once: a tag on all of them is taken off all of them */
+  async function tagSheet(ids, done){
+    const draw = async sh => {
+      const groups = await SwipeTags.all();
+      const recs = (await Promise.all(ids.map(id => Store.get('swipes', id)))).filter(Boolean);
+      const state = t => { const n = recs.filter(s => (s.tagIds || []).includes(t.id)).length; return n === recs.length && n ? 'all' : n ? 'some' : 'none'; };
+      sh.innerHTML = `<h2>Tag ${recs.length} swipe${recs.length === 1 ? '' : 's'}</h2>
+        <p class="hintline" style="margin:0 0 12px">Tap a tag to put it on all of them; tap again to take it off.</p>
+        ${groups.map(g => `<div class="field"><label>${escT(g.name)}</label><div class="opts" style="flex-wrap:wrap">
+          ${g.tags.map(t => { const st = state(t); return `<button type="button" class="opt" data-bt="${t.id}" data-st="${st}" aria-pressed="${st === 'all'}"
+            ${st === 'some' ? 'style="border-style:dashed"' : ''}><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${t.color};margin-right:7px"></span>${escT(t.name)}${st === 'some' ? ' · some' : ''}</button>`; }).join('')}
+        </div></div>`).join('')}
+        <div class="sheetcta"><button class="btn-primary" data-btdone>Done</button>
+          <button class="btn-ghost" data-btedit>Edit your tags</button></div>`;
+    };
+    App.sheet('', sh => {
+      draw(sh);
+      sh.addEventListener('click', async e => {
+        const b = e.target.closest('[data-bt]');
+        if(b){ await SwipeTags.apply(ids, b.dataset.bt, b.dataset.st !== 'all'); return draw(sh); }
+        if(e.target.closest('[data-btedit]')){ App.closeSheet(); return editTags(() => tagSheet(ids, done)); }
+        if(e.target.closest('[data-btdone]')){ App.closeSheet(); done && done(); }
+      });
+    });
+  }
+
+  /* add, rename, recolour and remove your groups and tags */
+  async function editTags(after){
+    const draw = async sh => {
+      const groups = await SwipeTags.all();
+      sh.innerHTML = `<h2>Your tags</h2>
+        <p class="hintline" style="margin:0 0 12px">Sort swipes your way. Tap a dot to change its colour; rename by typing.
+          Removing a tag takes it off every swipe.</p>
+        ${groups.map(g => `<div class="block stg-group" style="margin:0 0 12px">
+          <div style="display:flex;gap:8px;align-items:center;margin:0 0 8px">
+            <input class="stg-in" data-gname="${g.id}" value="${escT(g.name)}" aria-label="Group name" style="flex:1;font-weight:700">
+            <button class="btn-sm" data-gdel="${g.id}" style="color:var(--red)" aria-label="Delete the group ${escT(g.name)}">Delete group</button>
+          </div>
+          ${g.tags.map(t => `<div style="display:flex;gap:8px;align-items:center;margin:0 0 6px">
+            <button class="stg-dot" data-tcolor="${t.id}" style="background:${t.color}" aria-label="Change colour"></button>
+            <input class="stg-in" data-tname="${t.id}" value="${escT(t.name)}" aria-label="Tag name" style="flex:1">
+            <button class="btn-sm" data-tdel="${t.id}" aria-label="Remove ${escT(t.name)}">✕</button></div>`).join('')}
+          <div style="display:flex;gap:8px;margin-top:6px">
+            <input class="stg-in" data-tnew="${g.id}" placeholder="+ Add a tag to ${escT(g.name)}" style="flex:1">
+            <button class="btn-sm" data-tadd="${g.id}">Add</button></div>
+        </div>`).join('')}
+        <div style="display:flex;gap:8px;margin:4px 0 12px">
+          <input class="stg-in" id="stg-newgroup" placeholder="+ New group — e.g. Hook type, Topic, Energy" style="flex:1">
+          <button class="btn-sm accent" data-gadd>Add group</button></div>
+        <div class="sheetcta"><button class="btn-primary" data-tdone>Done</button></div>`;
+    };
+    App.sheet('', sh => {
+      draw(sh);
+      const addTagFrom = async gid => {
+        const inp = sh.querySelector(`[data-tnew="${gid}"]`);
+        if(inp && inp.value.trim()){ await SwipeTags.addTag(gid, inp.value); await draw(sh); const again = sh.querySelector(`[data-tnew="${gid}"]`); if(again) again.focus(); }
+      };
+      const addGroupFrom = async () => {
+        const inp = sh.querySelector('#stg-newgroup');
+        if(inp && inp.value.trim()){ await SwipeTags.addGroup(inp.value); await draw(sh); }
+      };
+      sh.addEventListener('click', async e => {
+        const b = e.target.closest('button'); if(!b) return;
+        if(b.dataset.tcolor){
+          const t = (await SwipeTags.byId())[b.dataset.tcolor]; if(!t) return;
+          const C = SwipeTags.COLORS; await SwipeTags.editTag(t.tag.id, { color: C[(C.indexOf(t.tag.color) + 1) % C.length] });
+          return draw(sh);
+        }
+        if(b.dataset.tdel){
+          const t = (await SwipeTags.byId())[b.dataset.tdel];
+          if(t && !confirm(`Remove the tag “${t.tag.name}”? It comes off every swipe that has it.`)) return;
+          await SwipeTags.removeTag(b.dataset.tdel); return draw(sh);
+        }
+        if(b.dataset.gdel){
+          const g = (await SwipeTags.all()).find(x => x.id === b.dataset.gdel);
+          if(g && !confirm(`Delete the group “${g.name}” and its ${g.tags.length} tag${g.tags.length === 1 ? '' : 's'}? Your swipes stay.`)) return;
+          await SwipeTags.removeGroup(b.dataset.gdel); return draw(sh);
+        }
+        if(b.dataset.tadd) return addTagFrom(b.dataset.tadd);
+        if(b.hasAttribute('data-gadd')) return addGroupFrom();
+        if(b.hasAttribute('data-tdone')){ App.closeSheet(); after && after(); }
+      });
+      sh.addEventListener('keydown', e => {
+        if(e.key !== 'Enter') return;
+        if(e.target.dataset.tnew){ e.preventDefault(); addTagFrom(e.target.dataset.tnew); }
+        else if(e.target.id === 'stg-newgroup'){ e.preventDefault(); addGroupFrom(); }
+        else if(e.target.classList.contains('stg-in')) e.target.blur();
+      });
+      /* renames save when you leave the box */
+      sh.addEventListener('change', async e => {
+        const t = e.target;
+        if(t.dataset.gname && t.value.trim()) await SwipeTags.renameGroup(t.dataset.gname, t.value);
+        if(t.dataset.tname && t.value.trim()) await SwipeTags.editTag(t.dataset.tname, { name: t.value.trim() });
+      });
+    });
+  }
+
+  async function entryTagsHTML(s){
+    if(!window.SwipeTags) return '';
+    const groups = await SwipeTags.all();
+    return `<div class="block">
+      <div style="display:flex;align-items:center;gap:8px;margin:0 0 8px"><h4 style="margin:0;flex:1">Tags</h4>
+        <button class="btn-sm" data-a="edittags">Edit your tags</button></div>
+      ${groups.map(g => `<p class="hintline" style="margin:8px 0 6px">${escT(g.name)}</p><div class="opts" style="flex-wrap:wrap">
+        ${g.tags.map(t => `<button class="opt" data-stag="${t.id}" aria-pressed="${(s.tagIds || []).includes(t.id)}"><span
+          style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${t.color};margin-right:7px"></span>${escT(t.name)}</button>`).join('')
+          || '<span class="hintline">No tags in this group yet</span>'}</div>`).join('')
+        || '<p class="hintline" style="margin:0">No tags yet — Edit your tags to make some.</p>'}
+    </div>`;
+  }
+
   /* ---------- gallery ---------- */
   async function mountList(el, params){
     /* hosted in the Content tab there is already a heading and a nav above */
     const embedded = !!(params && params.embedded);
-    let q = '', intent = '', channel = '', src = '', target = '';
+    let q = '';
+    /* your filters (swipetags.js), kept while the app is open */
+    let f = lastFilter.f || (window.SwipeTags ? SwipeTags.blank() : null), viewId = lastFilter.viewId || null;
+    const remember = () => { lastFilter.f = f; lastFilter.viewId = viewId; };
     /* 'all' is the grid as it always was; 'folders' is the folder tiles; a
        folder id (or '__none') is one folder open */
     let view = (params && params.folder) || 'all';
@@ -193,16 +313,17 @@
       if(view === 'folders') return renderFolders(folders);
       const everything = await all();
       const inboxN = everything.filter(x => x.inbox).length;
+      const tmap = window.SwipeTags ? await SwipeTags.byId() : {};
+      const svs = window.SwipeTags ? await SwipeTags.views() : [];
+      const fids = new Set(folders.map(x => x.id));
+      const tagWords = s => (s.tagIds || []).map(id => tmap[id] ? tmap[id].tag.name : '').join(' ');
       const rows = everything.filter(s =>
         (!inInbox() || s.inbox) &&
         (!inFolder() || (view === '__none'
           ? !(s.folders || []).some(id => folders.some(f => f.id === id))
           : (s.folders || []).includes(view))) &&
-        (!q || (s.title + ' ' + (s.hook||'') + ' ' + (s.myAngle||'') + ' ' + (s.author||'')).toLowerCase().includes(q)) &&
-        (!intent  || s.intent === intent) &&
-        (!channel || (s.channels || []).includes(channel)) &&
-        (!src     || s.source === src) &&
-        (!target  || (s.targets || []).includes(target)));
+        (!q || (s.title + ' ' + (s.hook||'') + ' ' + (s.myAngle||'') + ' ' + (s.author||'') + ' ' + tagWords(s)).toLowerCase().includes(q)) &&
+        (!window.SwipeTags || SwipeTags.matches(s, f, fids)));
 
       /* Icon-only actions keep the header on one line without truncating the title. */
       const IC_IMPORT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 18v-6"/><path d="M9 15l3 3 3-3"/></svg>`;
@@ -229,15 +350,8 @@
         })() : ''}
         <div class="filterwrap">
           <input class="wide" id="q" type="text" placeholder="${inFolder() ? 'Search this folder…' : inInbox() ? 'Search the Inbox — a creator, a word…' : 'Search swipes…'}" value="${esc(q)}">
-          ${inFolder() || inInbox() ? '' : `<select id="f-intent"><option value="">All intents</option>
-            ${INTENTS.map(i => `<option${intent===i?' selected':''}>${i}</option>`).join('')}</select>
-          <select id="f-src"><option value="">Any source</option>
-            ${Object.entries(SOURCES).map(([k,v]) => `<option value="${k}"${src===k?' selected':''}>${v.n}</option>`).join('')}</select>
-          <select id="f-channel"><option value="">Any channel</option>
-            ${CHANNELS.map(c => `<option${channel===c.n?' selected':''}>${c.n}</option>`).join('')}</select>
-          <select id="f-target"><option value="">Any target</option>
-            ${Object.entries(SOURCES).map(([k,v]) => `<option value="${k}"${target===k?' selected':''}>${v.n}</option>`).join('')}</select>`}
         </div>
+        ${window.SwipeTags ? filterBar(svs, tmap) : ''}
 
         ${(() => {
           /* the same video saved twice (two devices, two imports): swipekey.js */
@@ -271,8 +385,8 @@
             <span class="tx">
               <h3>${esc(s.title && !/^untitled swipe$/i.test(s.title) ? s.title : (s.author ? '@' + s.author : 'Untitled swipe'))}</h3>
               <span class="mini-tags">
-                ${(s.targets || []).slice(0,4).map(t =>
-                  `<span class="mt" style="color:${(SOURCES[t]||so).c}">${SHORT[t] || t}</span>`).join('')}
+                ${(s.tagIds || []).map(id => tmap[id]).filter(Boolean).slice(0, 3).map(x =>
+                  `<span class="mt" style="color:${x.tag.color}">${esc(x.tag.name)}</span>`).join('')}
               </span>
             </span>
           </button>`;
@@ -290,6 +404,90 @@
       if(keepFocus){ const qi = el.querySelector('#q'); if(qi){ qi.focus(); qi.setSelectionRange(qi.value.length, qi.value.length); } }
     }
     let keepFocus = false;
+
+    /* views you saved, the Filter button, and what's filtering now */
+    function filterBar(svs, tmap){
+      const on = SwipeTags.active(f);
+      const n = on ? f.tags.length + (f.src ? 1 : 0) + (f.angle ? 1 : 0) + (f.nofolder ? 1 : 0) + (f.when ? 1 : 0) : 0;
+      const chip = (k, label, color) => `<button class="stg-chip" data-unf="${k}"${color ? ` style="border-color:${color}"` : ''}>${esc(label)} <span aria-hidden="true">✕</span></button>`;
+      return `<div class="stg-bar">
+          <button class="pill" data-sv="" aria-pressed="${!viewId && !on}">All</button>
+          ${svs.map(v => `<button class="pill" data-sv="${v.id}" aria-pressed="${viewId === v.id}">${esc(v.name)}</button>`).join('')}
+          <button class="pill stg-filter" data-a="filters" aria-pressed="false">Filter${n ? ` · ${n}` : ''}</button>
+        </div>
+        ${on ? `<div class="stg-active">
+          ${f.tags.map(id => tmap[id] ? chip('tag:' + id, tmap[id].tag.name, tmap[id].tag.color) : '').join('')}
+          ${f.tags.length > 1 ? `<span class="stg-note">${f.match === 'any' ? 'any of these' : 'all of these'}</span>` : ''}
+          ${f.src ? chip('src', (SOURCES[f.src] || {}).n || f.src) : ''}
+          ${f.angle ? chip('angle', f.angle === 'none' ? 'No angle yet' : 'Has my angle') : ''}
+          ${f.nofolder ? chip('nofolder', 'Not in a folder') : ''}
+          ${f.when ? chip('when', SwipeTags.WHEN[f.when][0]) : ''}
+          <button class="stg-link" data-a="clearf">Clear</button>
+          ${viewId ? '' : `<button class="stg-link" data-a="saveview">Save as a view</button>`}
+        </div>` : ''}`;
+    }
+
+    async function openFilters(){
+      const groups = await SwipeTags.all(), svs = await SwipeTags.views();
+      const everything = await all();
+      const fids = new Set(((window.SwipeFolders ? await SwipeFolders.all() : [])).map(x => x.id));
+      const d = JSON.parse(JSON.stringify(f));
+      const cur = svs.find(v => v.id === viewId);
+      const opt = (attr, v, label, on, color) => `<button type="button" class="opt" ${attr}="${v}" aria-pressed="${on}">${
+        color ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:7px"></span>` : ''}${esc(label)}</button>`;
+      const draw = sh => {
+        const count = everything.filter(s => SwipeTags.matches(s, d, fids)).length;
+        sh.innerHTML = `<h2>Filter swipes</h2>
+          ${groups.map(g => `<div class="field"><label>${esc(g.name)}</label><div class="opts" style="flex-wrap:wrap">
+            ${g.tags.map(t => opt('data-ft', t.id, t.name, d.tags.includes(t.id), t.color)).join('') || '<span class="hintline">No tags yet</span>'}</div></div>`).join('')}
+          ${d.tags.length > 1 ? `<div class="field"><label>Show swipes with</label><div class="opts">
+            ${opt('data-fm', 'all', 'All of these tags', d.match !== 'any')}${opt('data-fm', 'any', 'Any of them', d.match === 'any')}</div></div>` : ''}
+          <div class="field"><label>Where it's from</label><div class="opts" style="flex-wrap:wrap">
+            ${opt('data-fs', '', 'Anywhere', !d.src)}${Object.entries(SOURCES).map(([k, v]) => opt('data-fs', k, v.n, d.src === k, v.c)).join('')}</div></div>
+          <div class="field"><label>My angle</label><div class="opts">
+            ${opt('data-fa', '', 'Any', !d.angle)}${opt('data-fa', 'none', 'No angle yet', d.angle === 'none')}${opt('data-fa', 'has', 'Has my angle', d.angle === 'has')}</div></div>
+          <div class="field"><label>Saved</label><div class="opts" style="flex-wrap:wrap">
+            ${opt('data-fw', '', 'Any time', !d.when)}${Object.entries(SwipeTags.WHEN).map(([k, v]) => opt('data-fw', k, v[0], d.when === k)).join('')}</div></div>
+          <div class="field"><label>Folders</label><div class="opts">
+            ${opt('data-fn', '', 'Any', !d.nofolder)}${opt('data-fn', '1', 'Not in a folder yet', !!d.nofolder)}</div></div>
+          <div class="sheetcta">
+            <button class="btn-primary" data-fgo>Show ${count} swipe${count === 1 ? '' : 's'}</button>
+            <button class="btn-ghost" data-fclear>Clear</button>
+          </div>
+          ${cur ? `<div class="sheetcta" style="margin-top:8px">
+            <button class="btn-ghost" data-fupdate>Update “${esc(cur.name)}”</button>
+            <button class="btn-ghost" data-fdelview style="color:var(--red)">Delete this view</button></div>`
+            : `<button class="btn-ghost" data-fsave style="width:100%;margin-top:8px">Save as a view…</button>`}
+          <button class="btn-ghost" data-fedit style="width:100%;margin-top:8px">Edit your tags</button>`;
+      };
+      App.sheet('', sh => {
+        draw(sh);
+        sh.addEventListener('click', async e => {
+          const b = e.target.closest('button'); if(!b) return;
+          if(b.dataset.ft){ d.tags = d.tags.includes(b.dataset.ft) ? d.tags.filter(x => x !== b.dataset.ft) : d.tags.concat(b.dataset.ft); return draw(sh); }
+          if(b.dataset.fm){ d.match = b.dataset.fm; return draw(sh); }
+          if(b.dataset.fs !== undefined){ d.src = b.dataset.fs; return draw(sh); }
+          if(b.dataset.fa !== undefined){ d.angle = b.dataset.fa; return draw(sh); }
+          if(b.dataset.fw !== undefined){ d.when = b.dataset.fw; return draw(sh); }
+          if(b.dataset.fn !== undefined){ d.nofolder = !!b.dataset.fn; return draw(sh); }
+          if(b.hasAttribute('data-fclear')){ Object.assign(d, SwipeTags.blank()); return draw(sh); }
+          if(b.hasAttribute('data-fedit')){ App.closeSheet(); return editTags(() => openFilters()); }
+          if(b.hasAttribute('data-fdelview')){
+            if(!confirm(`Delete the view “${cur.name}”? Your swipes and tags stay.`)) return;
+            await SwipeTags.removeView(cur.id); viewId = null; f = d;
+          } else if(b.hasAttribute('data-fupdate')){ await SwipeTags.saveView(cur.name, d, cur.id); f = d; U.toast('View updated'); }
+          else if(b.hasAttribute('data-fsave')){
+            const name = (prompt('Name this view — e.g. "Hooks with no angle"') || '').trim(); if(!name) return;
+            const v = await SwipeTags.saveView(name, d); f = d; viewId = v.id; U.toast(`Saved “${name}”`);
+          } else if(b.hasAttribute('data-fgo')){
+            /* changed from the view it came from: it's just a filter now */
+            if(cur && JSON.stringify(cur.f) !== JSON.stringify({ ...d, nofolder:!!d.nofolder })) viewId = null;
+            f = d;
+          } else return;
+          remember(); App.closeSheet(); render();
+        });
+      });
+    }
 
     function viewSwitch(inboxN){
       if(!window.SwipeFolders) return '';
@@ -514,11 +712,7 @@
     });
     el.addEventListener('change', e => {
       const id = e.target.id;
-      if(id === 'f-intent')  intent  = e.target.value;
-      if(id === 'f-src')     src     = e.target.value;
-      if(id === 'f-channel') channel = e.target.value;
-      if(id === 'f-target')  target  = e.target.value;
-      render();
+      if(/^f-/.test(id)) render();
     });
     /* Hold one to pick several. The card is a button, so the guard in Select
        stops a tap from opening an entry while you are choosing. */
@@ -528,6 +722,7 @@
       idOf: n => n.dataset.open || null,
       warning: 'The entries go for good. Anything you wrote about them goes too.',
       extra: () => !window.SwipeFolders ? [] : [
+        ...(window.SwipeTags ? [{ label:'Tag…', run: (ids, done) => tagSheet(ids, done) }] : []),
         { label:'+ Folder', run: (ids, done) => pickFolder(ids, done) },
         ...(inInbox() ? [{ label:'Sorted', run: async (ids, done) => {
           const n = await markSorted(ids);
@@ -551,7 +746,26 @@
     el.addEventListener('click', async e => {
       const vw = e.target.closest('[data-view]');
       if(vw){ view = vw.dataset.view; q = ''; return render(); }
+      const sv = e.target.closest('[data-sv]');
+      if(sv && window.SwipeTags){
+        const v = (await SwipeTags.views()).find(x => x.id === sv.dataset.sv);
+        f = v ? JSON.parse(JSON.stringify(v.f)) : SwipeTags.blank(); viewId = v ? v.id : null;
+        remember(); return render();
+      }
+      const unf = e.target.closest('[data-unf]');
+      if(unf){
+        const k = unf.dataset.unf;
+        if(k.startsWith('tag:')) f.tags = f.tags.filter(x => x !== k.slice(4));
+        else if(k === 'nofolder') f.nofolder = false; else f[k] = '';
+        viewId = null; remember(); return render();
+      }
       const a = e.target.closest('[data-a]');
+      if(a && a.dataset.a === 'filters') return openFilters();
+      if(a && a.dataset.a === 'clearf'){ f = SwipeTags.blank(); viewId = null; remember(); return render(); }
+      if(a && a.dataset.a === 'saveview'){
+        const name = (prompt('Name this view — e.g. "Hooks with no angle"') || '').trim(); if(!name) return;
+        const v = await SwipeTags.saveView(name, f); viewId = v.id; remember(); U.toast(`Saved “${name}”`); return render();
+      }
       if(a && a.dataset.a === 'newfolder') return folderSheet(null, f => { view = f ? f.id : 'folders'; render(); });
       if(a && a.dataset.a === 'editfolder'){
         const f = window.SwipeFolders ? await SwipeFolders.get(view) : null;
@@ -924,6 +1138,8 @@
             border-radius:var(--r);color:var(--cream);font-size:16px;padding:0 11px;outline:none">
         </div>
 
+        ${await entryTagsHTML(s)}
+
         <div class="block">
           <h4>The hook, transcribed</h4>
           <textarea class="fld" data-f="hook" rows="3" placeholder="Their opening line, word for word — paraphrasing loses what made it work."
@@ -966,6 +1182,10 @@
             color:var(--cream);font-size:15.5px;padding:11px;outline:none;line-height:1.5;resize:vertical">${s.myAngle||''}</textarea>
         </div>
 
+        <!-- the app's old sorting: still read by clip ideas and channel pages,
+             folded away now that your own tags do the sorting -->
+        <details class="block stg-old"${oldOpen ? ' open' : ''}>
+          <summary>Intent, channels and platforms</summary>
         <div class="block">
           <h4>Intent</h4>
           <div class="opts">${INTENTS.map(i =>
@@ -1004,6 +1224,8 @@
             `<button class="opt" data-tog="targets" data-v="${k}" aria-pressed="${(s.targets||[]).includes(k)}">
               <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${v.c};margin-right:6px"></span>${v.n}</button>`).join('')}</div>
         </div>
+
+        </details>
 
         ${await entryFoldersHTML(s)}
 
@@ -1047,6 +1269,13 @@
     el.addEventListener('click', async e => {
       const set = e.target.closest('[data-set]');
       if(set){ s[set.dataset.set] = set.dataset.v; await save(); return render(); }
+      const stag = e.target.closest('[data-stag]');
+      if(stag){
+        const id = stag.dataset.stag;
+        s.tagIds = (s.tagIds || []).includes(id) ? s.tagIds.filter(x => x !== id) : (s.tagIds || []).concat(id);
+        await save(); return render();
+      }
+      if(e.target.closest('[data-a="edittags"]')) return editTags(render);
 
       const fo = e.target.closest('[data-fold]');
       if(fo){

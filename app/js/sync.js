@@ -459,7 +459,7 @@
     try { if(global.Data && Data.invalidate) Data.invalidate(); } catch(e){}
     /* lists kept in memory: without this, folders or channels made on another
        device only showed after a restart */
-    ['SwipeFolders', 'Channels', 'Months', 'Quarters'].forEach(n => {
+    ['SwipeFolders', 'SwipeTags', 'Channels', 'Months', 'Quarters'].forEach(n => {
       try { if(global[n] && global[n].invalidate) global[n].invalidate(); } catch(e){}
     });
     try {
