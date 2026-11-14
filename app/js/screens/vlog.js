@@ -688,7 +688,7 @@
             title="Plan this episode's days, sequences and shots with Claude">✦ Plan</button>
         <span class="modetog">
           <button data-a="mode-plan" aria-pressed="${mode==='plan'}">Plan</button>
-          <button data-a="mode-week" aria-pressed="${mode==='week'}">Shoot</button>
+          <button data-a="mode-week" aria-pressed="false" title="Shoot mode through today's sequences, one after another">▶ Shoot today</button>
           <button data-a="mode-outline" aria-pressed="${mode==='outline'}">Edit</button>
         </span>` }) + `
       <div class="view">
@@ -1066,12 +1066,46 @@
           </div>`;
     }
 
+    /* v4: Shoot today — shoot mode through a day's sequences, one after
+       another (the old Shoot tab repeated the day screen). Today's, or ask
+       which day when today has none in this episode. In plan order, a set
+       time first; a sequence on your task list is shot on its task. */
+    async function shootToday(){
+      const all = everyBeat(v).filter(x => x.beat.day != null && (x.beat.shots || []).some(s2 => s2 && (s2.text || s2.item || s2.clip)));
+      const days = [...new Set(all.map(x => x.beat.day))].sort((a, b) => a - b);
+      if(!days.length) return U.toast('No sequence has a day and shots yet — plan them on the Plan tab');
+      const run = async day => {
+        const seqs = all.filter(x => x.beat.day === day);
+        const left = seqs.filter(x => (x.beat.shots || []).some(s2 => s2 && !s2.done));
+        const list = (left.length ? left : seqs).map((x, k) => ({ x, k })).sort((a, b) => String(a.x.beat.at || '99:99').localeCompare(String(b.x.beat.at || '99:99')) || a.k - b.k).map(y => y.x);
+        const queue = [];
+        for(const x of list){
+          const tk = x.beat.taskId ? await Store.get('tasks', x.beat.taskId).catch(() => null) : null;
+          queue.push({ ...(tk ? { id:tk.id } : {}), vlogId:v.id, beatId:x.beat.id, title:x.beat.title || 'Sequence' });
+        }
+        const q0 = queue[0];
+        Screens.push('shoot-run', { ...(q0.id ? { id:q0.id } : { host:ShotList.hostBeat(v.id, q0.beatId) }), queue, qi:0, onChange: async () => { await load(); render(); } });
+      };
+      if(days.includes(today)) return run(today);
+      App.sheet(`<h2 style="margin:0 0 4px">Nothing to film today in this episode</h2>
+        <p class="hintline" style="margin:0 0 12px">Shoot which day?</p>
+        <div class="group compact" style="margin:0 0 12px">${days.map(d => { const n = all.filter(x => x.beat.day === d).length;
+          return `<button class="row" data-shootday="${d}"><span class="lbl">${dayLabel(d)}<small>${n} sequence${n === 1 ? '' : 's'}</small></span>${ICON.chevR}</button>`; }).join('')}</div>
+        <div class="sheetcta"><button class="btn-ghost" data-no>Cancel</button></div>`, sh => {
+        sh.addEventListener('click', e => {
+          if(e.target.closest('[data-no]')) return App.closeSheet();
+          const b = e.target.closest('[data-shootday]');
+          if(b){ App.closeSheet(); run(+b.dataset.shootday); }
+        });
+      });
+    }
+
     /* v4: Edit — the whole episode in one line (editline.js) */
     function renderEdit(){
       el.innerHTML = Screens.bar({ kicker:v.week ? `Vlog ${v.week}` : 'Vlog builder', title:v.title,
         actions:`<span class="modetog">
           <button data-a="mode-plan" aria-pressed="false">Plan</button>
-          <button data-a="mode-week" aria-pressed="false">Shoot</button>
+          <button data-a="mode-week" aria-pressed="false" title="Shoot mode through today's sequences, one after another">▶ Shoot today</button>
           <button data-a="mode-outline" aria-pressed="true">Edit</button>
         </span>` }) + `<div class="view">
           ${window.EditSteps ? fold('editsteps', 'Edit walkthrough', EditSteps.stageLine(EditSteps.stage(v)) || 'Import, organize, rough cut … post', '<div id="esHost"></div>') : ''}
@@ -1109,7 +1143,7 @@
       el.innerHTML = Screens.bar({ kicker:v.week ? `Vlog ${v.week}` : 'Vlog builder', title:v.title,
         actions:`<span class="modetog">
           <button data-a="mode-plan" aria-pressed="true">Plan</button>
-          <button data-a="mode-week" aria-pressed="false">Shoot</button>
+          <button data-a="mode-week" aria-pressed="false" title="Shoot mode through today's sequences, one after another">▶ Shoot today</button>
           <button data-a="mode-outline" aria-pressed="false">Edit</button>
         </span>` }) + `
       <div class="view">
@@ -1247,7 +1281,7 @@
       el.innerHTML = Screens.bar({ kicker:v.week ? `Vlog ${v.week}` : 'Vlog builder', title:v.title,
         actions:`<span class="modetog">
           <button data-a="mode-plan" aria-pressed="false">Plan</button>
-          <button data-a="mode-week" aria-pressed="true">Shoot</button>
+          <button data-a="mode-week" aria-pressed="false" title="Shoot mode through today's sequences, one after another">▶ Shoot today</button>
           <button data-a="mode-outline" aria-pressed="false">Edit</button>
         </span>` }) + `
       <div class="view">
@@ -1874,7 +1908,7 @@
 
       if(a2.dataset.a === 'mode-plan'){ mode = 'plan'; return render(); }
       if(a2.dataset.a === 'mode-outline'){ mode = 'outline'; return render(); }
-      if(a2.dataset.a === 'mode-week'){ mode = 'week'; return render(); }
+      if(a2.dataset.a === 'mode-week') return shootToday();
       if(a2.dataset.a === 'wprev'){ weekOffset--; return renderWeek(); }
       if(a2.dataset.a === 'wnext'){ weekOffset++; return renderWeek(); }
       if(a2.dataset.a === 'addact'){

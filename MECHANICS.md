@@ -308,3 +308,28 @@ GIF, 3–9 MB), the title in `<h1>`, "Technique / Director / Original Source" li
 | Removed from Creator Studio | board/ folder, boardlink.js, boardsync.js, screens/board.js, every board button, the board deep link | person's request |
 | Kept | store board-items (and its sync and backup group), so Export my boards works on every device | estimated |
 | Purged (later the same day) | each device deletes its board-items once on start (cs4-boards-purged), through Store.del so the deletes sync; Export my boards removed; an old backup's boards are skipped on restore | person's request |
+
+## Shoot today
+
+An episode's Shoot button is now **▶ Shoot today**. It opens shoot mode on
+today's sequences (beats on today's weekday that have shots) and walks them
+back to back: sequences with a time go first, in time order, then the rest in
+plan order; ones already fully shot go last. If nothing is planned today, a
+sheet lists the days that have sequences to pick from.
+
+In shoot mode (`shoot-run`, `params.queue` + `params.qi`) the header reads
+"Sequence X of N · title · then next". › past the last shot, or the "Next
+sequence" button, goes on to the next sequence; ‹ on the first shot goes back
+to the last shot of the one before (`atEnd`). The last one says "Done for
+today". Ticks land on the beat (or its shoot task) as before.
+
+## Sequence time chip
+
+Each sequence on a day (Storyboard columns and Steps cards) has a time chip:
+"＋ Time" or "🕘 6:30 AM". Tapping it opens a time sheet (Set the time / No
+time) that saves `beat.at` and, if the beat has a shoot task, that task's `at`.
+Today already places derived sequence cards by `at`, so a timed sequence shows
+up at that hour; Shoot today runs timed sequences first.
+
+Today's derived list (`loadDerived`) now builds into its own list and only the
+latest run swaps it in — two loads at once used to show every sequence twice.

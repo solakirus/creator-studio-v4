@@ -125,6 +125,9 @@
   .sr-ttl{flex:1;min-width:0;font-family:var(--display),sans-serif;font-weight:900;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .sr-dev{flex:0 0 auto;max-width:34vw;height:34px;padding:0 10px;border:1px solid #ffffff44;border-radius:17px;background:#00000066;color:#EDE5D2;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .sr-n{font-family:var(--display),sans-serif;font-weight:900;font-size:15px;color:#FB6900}
+  .sr-q{padding:0 12px 6px;color:#969185;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;z-index:2}
+  .sr-q b{color:#EDE5D2;font-weight:600}
+  .sr.clean .sr-q{display:none}
   .sr-dots{display:flex;gap:3px;padding:0 12px 6px;position:relative;z-index:2}
   .sr-dots i{flex:1;height:4px;border-radius:2px;background:#ffffff26;cursor:pointer}
   .sr-dots i.done{background:#5BBE6A}.sr-dots i.on{background:#FB6900}
@@ -228,8 +231,19 @@
         nextTask = after[0] || ts[0] || null;
       } catch(e){ nextTask = null; }
     }
-    await findNext();
-    const goTask = () => { if(!nextTask) return; const n = nextTask; Screens.replace('shoot-run', { id:n.id, onChange:params.onChange }); };
+    /* v4: Shoot today — a day's sequences back to back (params.queue, qi):
+       "next task" is the next sequence, and › past the last shot goes on to it */
+    const Q = Array.isArray(params.queue) && params.queue.length ? params.queue : null;
+    const qi = Q ? Math.max(0, +params.qi || 0) : 0;
+    const qParams = (k, extra) => { const x = Q[k]; return { ...(x.id ? { id:x.id } : { host:ShotList.hostBeat(x.vlogId, x.beatId) }), queue:Q, qi:k, onChange:params.onChange, ...(extra || {}) }; };
+    if(Q) nextTask = Q[qi + 1] ? { title:Q[qi + 1].title, q:qi + 1 } : null;
+    else await findNext();
+    const goTask = () => {
+      if(!nextTask) return;
+      if(Q) return Screens.replace('shoot-run', qParams(nextTask.q));
+      const n = nextTask; Screens.replace('shoot-run', { id:n.id, onChange:params.onChange });
+    };
+    const goPrevSeq = () => { if(Q && qi > 0) Screens.replace('shoot-run', qParams(qi - 1, { atEnd:true })); };
     /* another page with shots still to take, the ones after this first */
     const openPage = () => { const later = pages.filter(k => k > pg).concat(pages.filter(k => k < pg));
       const k = later.find(k => shotsOf(t, k).some(s => !s.done)); return k == null ? null : k; };
@@ -244,7 +258,7 @@
     function firstOpen(){ const k = shots.findIndex(s => !s.done); return k < 0 ? 0 : k; }
     /* params.at is a shot on the page; its parts (if any) come after it */
     const atShot = params.at != null ? shots.findIndex(x => x.i === +params.at && x.j == null) : -1;
-    let at = atShot >= 0 ? atShot : firstOpen();
+    let at = atShot >= 0 ? atShot : params.atEnd ? Math.max(0, shots.length - 1) : firstOpen();
     let clean = false, allShown = false;
     /* the script: see the shot first, then reveal its lines. Stays open or shut
        as you move between shots, and between visits. */
@@ -294,7 +308,8 @@
           <div class="sr-ttl">${esc(t.title)}</div>
           ${global.Devices ? `<button class="sr-dev" data-srdev title="What you're shooting on — every shot you tick gets it">${esc(Devices.last() || 'Shooting on…')}</button>` : ''}
           <div class="sr-n">${at + 1} / ${shots.length}</div>
-          ${nextTask ? `<button class="sr-skip" data-nexttask title="Next shoot task: ${esc(nextTask.title)}">⏭<span> Next task</span></button>` : ''}</div>
+          ${nextTask ? `<button class="sr-skip" data-nexttask title="Next: ${esc(nextTask.title)}">⏭<span> ${Q ? 'Next sequence' : 'Next task'}</span></button>` : ''}</div>
+        ${Q ? `<div class="sr-q">Sequence ${qi + 1} of ${Q.length} · <b>${esc(Q[qi].title)}</b>${nextTask ? ` · then ${esc(nextTask.title)}` : ' · the last one today'}</div>` : ''}
         ${more ? `<div class="sr-pages"><button data-pgprev aria-label="Previous page" ${pi <= 0 ? 'disabled' : ''}>‹</button>
           <span>Page ${pi + 1} of ${pages.length} · <b>${esc(pageName(t, pg))}</b></span>
           <button data-pgnext aria-label="Next page" ${pi >= pages.length - 1 ? 'disabled' : ''}>›</button></div>` : ''}
@@ -313,15 +328,15 @@
             : doneN === shots.length ? '<span>Every shot is taken</span>' : '<span>This is the last one left</span>'}</div>
         </div>
         <div class="sr-bar">
-          <button data-prev aria-label="${at === 0 && pi > 0 ? 'Previous page' : 'Previous shot'}" ${at === 0 && pi <= 0 ? 'disabled' : ''}>‹</button>
+          <button data-prev aria-label="${at === 0 && pi > 0 ? 'Previous page' : 'Previous shot'}" ${at === 0 && pi <= 0 && !(Q && qi > 0) ? 'disabled' : ''}>‹</button>
           <button class="sr-go${s.done ? ' undo' : ''}" data-got>${s.done ? '✓ Taken — undo' : 'Got it'}</button>
-          <button data-next aria-label="${at === shots.length - 1 && pi < pages.length - 1 ? 'Next page' : 'Next shot'}" ${at === shots.length - 1 && pi >= pages.length - 1 ? 'disabled' : ''}>›</button>
+          <button data-next aria-label="${at === shots.length - 1 && pi < pages.length - 1 ? 'Next page' : at === shots.length - 1 && Q && nextTask ? 'Next sequence' : 'Next shot'}" ${at === shots.length - 1 && pi >= pages.length - 1 && !(Q && nextTask) ? 'disabled' : ''}>›</button>
         </div>
         ${allShown ? `<div class="sr-all"><h2>All ${shots.length} shots taken</h2><p>${esc(t.title)}${more ? ' · ' + esc(pageName(t, pg)) : ''}</p>
           ${t.view === 'done' ? '<p>The task is ticked off too.</p>' : ''}
           ${op != null ? `<button class="sr-go" data-nextpage>Next page →<small>${esc(pageName(t, op))} · ${shotsOf(t, op).filter(x => !x.done).length} to take</small></button>` : ''}
-          ${nextTask ? `<button class="${op == null ? 'sr-go' : ''}" data-nexttask>Next shoot task →<small>${esc(nextTask.title)}</small></button>` : ''}
-          <button class="${op == null && !nextTask ? 'sr-go' : ''}" data-x>Back to ${HO ? 'the shots' : 'the task'}</button><button data-review>Look through them again</button></div>` : ''}
+          ${nextTask ? `<button class="${op == null ? 'sr-go' : ''}" data-nexttask>${Q ? 'Next sequence' : 'Next shoot task'} →<small>${esc(nextTask.title)}</small></button>` : ''}
+          <button class="${op == null && !nextTask ? 'sr-go' : ''}" data-x>${Q && !nextTask ? 'Done for today' : `Back to ${HO ? 'the shots' : 'the task'}`}</button><button data-review>Look through them again</button></div>` : ''}
       </div>`;
       /* hold the picture to swap it for another starred frame — today only */
       const pic = el.querySelector('[data-pic]');
@@ -339,8 +354,8 @@
 
     const go = k => {
       const pi = pages.indexOf(pg);
-      if(k >= shots.length){ if(pi < pages.length - 1) toPage(pages[pi + 1], 'first'); return; }
-      if(k < 0){ if(pi > 0) toPage(pages[pi - 1], 'last'); return; }
+      if(k >= shots.length){ if(pi < pages.length - 1) toPage(pages[pi + 1], 'first'); else if(Q && nextTask) goTask(); return; }
+      if(k < 0){ if(pi > 0) toPage(pages[pi - 1], 'last'); else if(Q && qi > 0) goPrevSeq(); return; }
       at = k; render();
     };
     async function got(){

@@ -54,6 +54,10 @@
       }
       return opened.has(b.id);
     }
+    /* "06:30" → "6:30 AM" */
+    const fmtT = at => { const m = /^(\d{1,2}):(\d{2})/.exec(String(at || '')); if(!m) return ''; const h = +m[1]; return `${(h % 12) || 12}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`; };
+    /* v4: when it's shot — a chip on each sequence; Today puts it at that hour */
+    const timeChip = b => `<button class="dc-time${b.at ? ' has-t' : ''}" data-seqtime="${b.id}" title="When you shoot it — Today puts it at that time">${b.at ? '🕘 ' + fmtT(b.at) : '＋ Time'}</button>`;
     function countLine(b){
       const sh = b.shots || [], done = sh.filter(s => s.done).length, fr = sh.filter(s => s.item).length;
       return [sh.length ? `${done} of ${sh.length} shots${fr ? ` · ${fr} with frames` : ''}` : 'no shots yet',
@@ -65,6 +69,10 @@
       .seqcard .sc-cv{display:inline-flex;width:18px;color:var(--dim);flex:0 0 18px}
       .seqcard .sc-shoot{flex:0 0 auto;height:40px;padding:0 14px;margin-right:10px;border:0;border-radius:var(--r);background:var(--orange);color:#151515;font-family:var(--display),sans-serif;font-weight:900;font-size:13.5px;cursor:pointer}
       .seqcard .sc-host{padding:4px 12px 8px;border-top:1px solid var(--line)}
+      .dc-time{height:26px;padding:0 9px;border:1px dashed var(--line);border-radius:13px;background:transparent;color:var(--muted);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap;flex:0 0 auto}
+      .dc-time.has-t{border-style:solid;border-color:var(--orange);color:var(--cream)}
+      .seqcard .sc-row .dc-time{margin-right:8px}
+      .dc-tin{width:100%;height:46px;padding:0 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--cream);font:inherit;font-size:18px;color-scheme:dark}
       .dcols{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(300px,1fr);gap:12px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x mandatory}
       .dcol{scroll-snap-align:start;min-width:0;background:var(--surface-2);border:1px solid #2B2822;border-radius:var(--r);display:flex;flex-direction:column}
       .dcol.all{border-color:rgba(91,190,106,.45)}
@@ -128,7 +136,7 @@
               <div class="dc-h">
                 ${pos ? `<span class="dc-pos">${k + 1} · ${pos}</span>` : ''}
                 <button class="dc-t" data-seq="${b.id}" title="Open the sequence"><b>${esc(b.title)}</b></button>
-                <div class="dc-meta">${setupTag(b)}<small data-count="${b.id}">${countLine(b)}</small></div>
+                <div class="dc-meta">${timeChip(b)}${setupTag(b)}<small data-count="${b.id}">${countLine(b)}</small></div>
                 <div class="dc-acts">${sh.length ? `<button class="dc-shoot" data-shootseq="${b.id}">▶ Shoot it</button>` : ''}
                   <button data-moveto="${b.id}">Move</button>${sh.length ? `<button data-keep="${b.id}">Save as template</button>` : ''}</div>
               </div>
@@ -153,6 +161,7 @@
                       ${setupTag(b)}
                       <small data-count="${b.id}">${countLine(b)}</small></span>
                   </button>
+                  ${timeChip(b)}
                   ${sh.length ? `<button class="sc-shoot" data-shootseq="${b.id}">▶ Shoot it</button>` : ''}
                 </div>
                 ${open ? `<div class="sc-host" data-host="${b.id}" data-selectable="1"></div>` : ''}
@@ -315,6 +324,30 @@
     el.addEventListener('click', async e => {
       /* the Steps + Shot page block handles its own taps (screens/task.js) */
       if(e.target.closest && e.target.closest('.tk-host')) return;
+      const tm = e.target.closest('[data-seqtime]');
+      if(tm){
+        const b = (act.beats || []).find(x => x.id === tm.dataset.seqtime);
+        if(!b) return;
+        App.sheet(`<h2 style="margin:0 0 4px">When do you shoot ${esc(b.title)}?</h2>
+          <p class="hintline" style="margin:0 0 12px">${b.day ? esc(dayLabel(b.day)) + ' · ' : ''}Today shows it at this time, and Shoot today goes in time order.</p>
+          <input type="time" class="dc-tin" value="${esc(b.at || '')}" aria-label="Time">
+          <div class="sheetcta"><button class="btn-primary" data-tok>Set the time</button>${b.at ? '<button class="btn-ghost" data-toff>No time</button>' : ''}<button class="btn-ghost" data-no>Cancel</button></div>`, sh => {
+          const f = sh.querySelector('.dc-tin'); setTimeout(() => { try { f.focus(); } catch(err){} }, 50);
+          sh.addEventListener('click', async ev => {
+            if(ev.target.closest('[data-no]')) return App.closeSheet();
+            const off = ev.target.closest('[data-toff]'), okb = ev.target.closest('[data-tok]');
+            if(!off && !okb) return;
+            const val = off ? null : (f.value || null);
+            b.at = val;
+            await save();
+            /* the shoot task on your days moves with it */
+            if(b.taskId){ try { const t = await Store.get('tasks', b.taskId); if(t){ t.at = val; await Store.put('tasks', t); if(window.Data && Data.invalidate) Data.invalidate('tasks'); } } catch(err){} }
+            App.closeSheet(); render();
+            U.toast(val ? `${b.title} · ${fmtT(val)}` : `${b.title} · no set time`);
+          });
+        });
+        return;
+      }
       /* v4: Steps | Storyboard for every sequence on the day */
       const sbv = e.target.closest('.sb-switch [data-sbv]');
       if(sbv){ if(sbv.getAttribute('aria-selected') !== 'true'){ ShotBoard.setView(sbv.dataset.sbv); render(); } return; }

@@ -56,15 +56,19 @@
     } catch(e){ console.warn('Chips unavailable', e); }
   }
 
+  /* built in its own list and swapped in at the end: two loads at once (a
+     mount and a refresh) pushed into the same list, so every sequence showed
+     twice on Today */
+  let derivedRun = 0;
   async function loadDerived(){
-    derived = [];
+    const run = ++derivedRun, list = [];
     try {
       dayDate = await Data.dayToDate(day);
       const dayEnd = dayDate + 86400000;
 
       const prep = await Nutrition.prep();
       prep.filter(p => !p.cooked && p.date >= dayDate && p.date < dayEnd).forEach(p => {
-        derived.push({ kind:'prep', id:p.id, title:'Meal prep session',
+        list.push({ kind:'prep', id:p.id, title:'Meal prep session',
           cad:'Cook day', pri:'high',
           prog:`${(p.mealIds||[]).length} meal${(p.mealIds||[]).length===1?'':'s'} · ${p.batches||1}×` });
       });
@@ -73,7 +77,7 @@
       try {
         const wk = await Data.weekNumber(dayDate);
         const ms = await Challenges.milestonesFor(wk);
-        ms.forEach(m => derived.push({ kind:'milestone', id:m.id, chalId:m.challenge.id,
+        ms.forEach(m => list.push({ kind:'milestone', id:m.id, chalId:m.challenge.id,
           done:m.done, title:m.title, cad:m.challenge.title, pri:'high', at:null,
           prog:`Week ${wk} milestone` }));
       } catch(e){ console.warn('Milestones unavailable', e); }
@@ -85,7 +89,7 @@
         acts.forEach(a => (a.beats || []).filter(b => b.day === day && !b.taskId).forEach(b => {
           const shots = (b.shots || []).length;
           const shotsDone = (b.shots || []).filter(x => x.done).length;
-          derived.push({ kind:'beat', id:b.id, vlogId:v.id, done:b.done,
+          list.push({ kind:'beat', id:b.id, vlogId:v.id, done:b.done,
             title:b.title, cad:`${v.title} · ${a.title}`, pri:'med', at:b.at,
             prog: shots ? `${shotsDone}/${shots} shots` : (b.purpose || 'Vlog beat'),
             pct: shots ? Math.round(shotsDone / shots * 100) : null });
@@ -100,11 +104,12 @@
         .map(sl => ({ sl, meal: byId[week.slots[`${dow}-${sl}`]] }))
         .filter(x => x.meal);
       if(planned.length){
-        derived.push({ kind:'meals', id:'meals-' + dow, title:'Meals planned',
+        list.push({ kind:'meals', id:'meals-' + dow, title:'Meals planned',
           cad:'Nutrition', pri:'low',
           prog: planned.map(x => x.meal.title).join(' · ') });
       }
     } catch(e){ console.warn('Derived agenda unavailable', e); }
+    if(run === derivedRun) derived = list;
   }
 
   async function persist(t){
