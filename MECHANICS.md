@@ -299,3 +299,11 @@ GIF, 3–9 MB), the title in `<h1>`, "Technique / Director / Original Source" li
 | Weekday blocks | a block named Sunday…Saturday in an episode with a week takes that day of the week as its date (once, when the episode opens); its sequences without a date take it too | person's report: Shoot → No day yet → picking the day did nothing |
 | Shoot "Which day?" | picking the block it's already in gives it the block's date; a block with no date says so | same |
 | Boards | the episode's Board mode, the Plan's Board section, a day's Board button and a clip's Board button are gone (board data and the boards-home screen are kept); board.browser.js removed | person's request: boards become their own app again |
+
+## Boards, split out (2026-11-14)
+| Rule | Value | Source |
+|---|---|---|
+| The app | boards-app/ (index.html = the old board/board.html, own database 'boards-app' v1 with store board-items, its fonts) — open index.html; delivered as Boards.zip | person's request |
+| Moving them | Creator Studio Settings → Export my boards: { app:'storyboard', version:1, items } from board-items → Boards: "Import a board or backup" (added as a board, nothing overwritten) | board.html importBackup |
+| Removed from Creator Studio | board/ folder, boardlink.js, boardsync.js, screens/board.js, every board button, the board deep link | person's request |
+| Kept | store board-items (and its sync and backup group), so Export my boards works on every device | estimated |

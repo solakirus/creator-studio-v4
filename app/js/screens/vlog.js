@@ -1547,19 +1547,6 @@
         return Screens.push('vlog-beat', { vlogId:v.id, beatId:b.id,
           onChange:async () => { await load(); render(); } });
       }
-      /* One day's visuals. Same board as the episode's — a week is one board —
-         opened showing only this day's sections, so you can draw and arrange
-         Tuesday without the rest of the week in the way. */
-      const abd = e.target.closest('[data-actboard]');
-      if(abd){
-        const a = v.acts.find(x => x.id === abd.dataset.actboard);
-        if(!a) return;
-        if(!(a.beats || []).length)
-          return U.toast('Add a beat to this day first — the board draws a section per beat');
-        return BoardLink.open({ type:'vlog', id:v.id, name:v.title,
-          kicker: a.title || 'Day', focus:`act:${a.id}`,
-          onChange: async () => { await load(); render(); } });
-      }
 
       const ad = e.target.closest('[data-actday]');
       if(ad){
@@ -1794,8 +1781,6 @@
         await load(); return render();
       }
 
-      if(a2.dataset.a === 'board') return BoardLink.open({ type:'vlog', id:v.id, name:v.title,
-        kicker: v.week ? `Vlog ${v.week}` : 'Vlog', onChange: async () => { await load(); render(); } });
       if(a2.dataset.a === 'board-old'){
         if(v.boardId){
           /* the way back is this episode, so the other app can return you */
@@ -1888,10 +1873,6 @@
           onChange:async () => { await load(); render(); } });
 
       if(a2.dataset.a === 'mode-plan'){ mode = 'plan'; return render(); }
-      /* The board is a canvas and wants the whole screen, so it opens over
-         the episode rather than inside it; back returns here. */
-      if(a2.dataset.a === 'mode-board') return BoardLink.open({ type:'vlog', id:v.id, name:v.title,
-        kicker: v.week ? `Vlog ${v.week}` : 'Vlog', onChange: async () => { await load(); render(); } });
       if(a2.dataset.a === 'mode-outline'){ mode = 'outline'; return render(); }
       if(a2.dataset.a === 'mode-week'){ mode = 'week'; return render(); }
       if(a2.dataset.a === 'wprev'){ weekOffset--; return renderWeek(); }

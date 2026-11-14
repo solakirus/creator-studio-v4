@@ -17,26 +17,10 @@
    The database is untouched by any of this. IndexedDB is not part of the cache
    and a service worker update never clears it. */
 
-const BUILD = '8fedee1ef456';
+const BUILD = '9473542eb7a8';
 const CACHE = 'cs4-' + BUILD;
 const FILES = [
   "./index.html",
-  "./board/board.html",
-  "./board/fonts/bebas-neue-400.woff2",
-  "./board/fonts/board-fonts.css",
-  "./board/fonts/caveat-500.woff2",
-  "./board/fonts/caveat-700.woff2",
-  "./board/fonts/courier-prime-400.woff2",
-  "./board/fonts/courier-prime-700.woff2",
-  "./board/fonts/inter-400.woff2",
-  "./board/fonts/inter-500.woff2",
-  "./board/fonts/inter-600.woff2",
-  "./board/fonts/inter-700.woff2",
-  "./board/fonts/permanent-marker-400.woff2",
-  "./board/fonts/playfair-display-600.woff2",
-  "./board/fonts/playfair-display-700.woff2",
-  "./board/fonts/source-serif-4-600.woff2",
-  "./board/fonts/source-serif-4-700.woff2",
   "./fonts/dm-sans-latin-400-italic.woff2",
   "./fonts/dm-sans-latin-400-normal.woff2",
   "./fonts/dm-sans-latin-500-normal.woff2",
@@ -61,8 +45,6 @@ const FILES = [
   "./js/avatars.js",
   "./js/awards.js",
   "./js/backup.js",
-  "./js/boardlink.js",
-  "./js/boardsync.js",
   "./js/celebrate.js",
   "./js/challenges.js",
   "./js/channels.js",
@@ -121,7 +103,6 @@ const FILES = [
   "./js/screens/academy.js",
   "./js/screens/avatars.js",
   "./js/screens/awards.js",
-  "./js/screens/board.js",
   "./js/screens/calendar.js",
   "./js/screens/challenges.js",
   "./js/screens/channel.js",

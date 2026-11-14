@@ -1015,8 +1015,6 @@
       }
 
       /* the clip's own canvas — status follows the clip */
-      if(a.dataset.a === 'board') return BoardLink.open({ type:'clip', id:clip.id,
-        name: clip.title || 'Untitled clip', status: BoardLink.statusFor(clip.stage), kicker:'Clip' });
 
       if(a.dataset.a === 'toshoot'){
         const t = await ShotList.daySheet({ taskId:clip.shootTaskId, title:clip.title || 'Clip', shots:shotList(),

@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Board · Creator Studio v4</title>
+<title>Boards</title>
+<meta name="theme-color" content="#151515">
 <script>
 /* Creator Studio 3: this page runs inside the app (an iframe on the Board
    screen). The theme and colours follow Creator Studio's, read from the
@@ -31,7 +32,7 @@
   } catch (e) {}
 })();
 </script>
-<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="fonts/fonts.css">
 <link rel="stylesheet" href="fonts/board-fonts.css">
 <style>
 :root{
@@ -844,8 +845,10 @@ const DB = {
     try {
       const P = window.parent !== window ? window.parent : null;
       if (P && P.Store && P.Store.db) this.db = await P.Store.db();
+      /* Boards on its own (split out of Creator Studio): its own database */
       else this.db = await new Promise((res, rej) => {
-        const r = indexedDB.open((() => { try { return window.CS_DB_NAME || (window.parent && window.parent.CS_DB_NAME) || 'creator-studio-4'; } catch (e) { return 'creator-studio-4'; } })());
+        const r = indexedDB.open('boards-app', 1);
+        r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('board-items')) r.result.createObjectStore('board-items', { keyPath: 'id' }); };
         r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
       });
       if (!this.db.objectStoreNames.contains('board-items')) throw new Error('no board store');

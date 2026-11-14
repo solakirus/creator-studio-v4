@@ -21,8 +21,8 @@
     { v:'swipe',    label:'Swipe',    screen:'swipe-file',
       d:'M4 6h11v12H4zM17 8h3v8h-3M7.5 9.5l4 2.5-4 2.5z' },
     /* v4: Eyecandy's techniques, watched by link and placed between shots
-       (screens/transitions.js). Boards left the nav here — outlines happen in
-       another app now; boards-home is still registered, and its data kept. */
+       (screens/transitions.js). Boards are their own app now (boards-app/);
+       Settings → Export my boards hands them over. */
     { v:'transitions', label:'Transitions', screen:'transitions',
       d:'M3 7h11M10.5 3.5L14 7l-3.5 3.5M21 17H10M13.5 13.5L10 17l3.5 3.5' },
     /* From Shotline: the Library of GIFs, clips and stills to plan with, and
