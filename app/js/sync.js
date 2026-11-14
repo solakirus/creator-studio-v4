@@ -8,8 +8,16 @@
      - a sync pushes those keys up (reading the record as it is NOW, so ten edits
        to one task are one upload, and a key that no longer exists goes up as a
        delete), then pulls everything other devices sent since last time
-     - the newest change to a record wins; on an exact tie an edit beats a delete
-       (the server decides that, so every device agrees)
+     - it pulls first, then pushes. A record changed here AND on another device
+       since they last met is combined (merge.js): every edit from both stays,
+       and only where both changed the same detail does the newer one win — the
+       other is kept in Settings → Sync → Changed on two devices. To know what
+       each side changed, a record's last-synced version (its base) is kept in
+       this side database from the moment it is first edited until it is back
+       in step with the server.
+     - "newer" never trusts a device's clock alone: a change is stamped no
+       earlier than anything this device has already seen from the server
+     - a delete against an edit, or a picture: the newer one wins, as before
 
    It runs on open, when the app comes back to the front, a few seconds after
    any change, and every few minutes while open. With no server set it does
@@ -41,11 +49,13 @@
   function sdb(){
     if(sdbp) return sdbp;
     sdbp = new Promise((res, rej) => {
-      const r = indexedDB.open(DB_NAME, 1);
+      const r = indexedDB.open(DB_NAME, 2);
       r.onupgradeneeded = () => {
         const d = r.result;
         if(!d.objectStoreNames.contains('dirty')) d.createObjectStore('dirty', { keyPath:'k' });
         if(!d.objectStoreNames.contains('meta'))  d.createObjectStore('meta');
+        /* a changed record as it was when last in step with the server */
+        if(!d.objectStoreNames.contains('base'))  d.createObjectStore('base');
       };
       r.onsuccess = () => res(r.result);
       r.onerror = () => rej(r.error);
@@ -62,6 +72,23 @@
   const meta    = k => req('meta', 'readonly', s => s.get(k));
   const setMeta = (k, v) => req('meta', 'readwrite', s => s.put(v, k));
   const dirtyKey = (store, key) => store + '\u0001' + JSON.stringify(key);
+  const getBase = k => req('base', 'readonly', s => s.get(k)).catch(() => undefined);
+  const putBase = (k, v) => v === undefined ? delBase(k) : req('base', 'readwrite', s => s.put(v, k)).catch(() => {});
+  const delBase = k => req('base', 'readwrite', s => s.delete(k)).catch(() => {});
+  const isObjLike = v => v !== null && typeof v === 'object' && (Array.isArray(v) ||
+    Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
+
+  /* Stamps: the device's clock, but never earlier than the newest change this
+     device has seen — a phone whose clock runs slow still stamps its new edit
+     after the one it just received, and one running fast only pulls everyone
+     forward with it. */
+  let clockSeen = 0, clockLoaded = false;
+  function seen(t){ if(+t > clockSeen) clockSeen = +t; }
+  function stamp(){ const t = Math.max(Date.now(), clockSeen + 1); clockSeen = t; return t; }
+  async function loadClock(){
+    if(clockLoaded) return; clockLoaded = true;
+    try { seen(await meta('clock')); } catch(e){}
+  }
   const getDirty = k => req('dirty', 'readonly', s => s.get(k));
   const allDirty = () => req('dirty', 'readonly', s => s.getAll());
   const countDirty = () => req('dirty', 'readonly', s => s.count());
@@ -86,7 +113,7 @@
     try {
       if(key === undefined || key === null || skip(store, key)) return;
       const k = dirtyKey(store, key);
-      await req('dirty', 'readwrite', s => s.put({ k, store, key, at: Date.now() }));
+      await req('dirty', 'readwrite', s => s.put({ k, store, key, at: stamp() }));
       soon();
     } catch(e){ console.warn('sync: could not note a change', e); }
   }
@@ -98,7 +125,7 @@
     try {
       const list = (keys || []).filter(k => k !== undefined && k !== null && !skip(store, k));
       if(!list.length) return 0;
-      const when = at || Date.now();
+      const when = at || stamp();
       await req('dirty', 'readwrite', s => { list.forEach(k => s.put({ k: dirtyKey(store, k), store, key: k, at: when })); });
       soon();
       return list.length;
@@ -125,12 +152,26 @@
     return n;
   }
 
+  /* Before a record in step with the server is first changed, keep it as it
+     is: that is what both sides started from, should another device change it
+     too before they meet. Already changed since then: the base stays. */
+  async function keepBase(store, key){
+    try {
+      if(key === undefined || key === null || skip(store, key)) return;
+      const dk = dirtyKey(store, key);
+      if(await getDirty(dk)) return;
+      const old = await Store.get(store, key);
+      if(isObjLike(old)) await putBase(dk, old);
+    } catch(e){}
+  }
+
   Store.put = async function(store, value, key){
-    const r = await raw.put(store, value, key);
     let k = key;
     if(k === undefined){
       try { const kp = (await layout())[store]; k = kp && value ? value[kp] : undefined; } catch(e){}
     }
+    await keepBase(store, k);
+    const r = await raw.put(store, value, key);
     touch(store, k);
     return r;
   };
@@ -214,7 +255,7 @@
   async function push(cfg, me){
     const kp = await layout();
     let sent = 0;
-    for(;;){
+    for(let round = 0; round < 200; round++){
       const entries = (await allDirty()).sort((a, b) => a.at - b.at);
       if(!entries.length) return sent;
 
@@ -233,51 +274,102 @@
         }
         const size = change.data ? JSON.stringify(change.data).length : 64;
         if(batch.length && bytes + size > PUSH_MAX_BYTES) break;
-        bytes += size; batch.push(change); picked.push(e);
+        bytes += size; batch.push(change); picked.push({ e, value });
       }
       if(!batch.length) return sent;
 
       const r = await call(cfg, 'POST', '/sync/' + APP, { changes: batch });
-      const byId = new Map(picked.map(e => [e.store + '\u0001' + JSON.stringify(e.key), e]));
+      const byId = new Map(picked.map(p => [p.e.store + '\u0001' + JSON.stringify(p.e.key), p]));
 
       for(const a of (r.accepted || [])){
-        const e = byId.get(a.store + '\u0001' + a.id);
-        await clearIfUnchanged(e);
+        const p = byId.get(a.store + '\u0001' + a.id);
+        if(!p) continue;
+        /* in step with the server again — unless it was edited while on its
+           way, in which case what the server now has is that edit's base */
+        if(await clearIfUnchanged(p.e)) await delBase(p.e.k);
+        else await putBase(p.e.k, isObjLike(p.value) ? p.value : undefined);
       }
       for(const x of (r.rejected || [])){
-        const e = byId.get(x.store + '\u0001' + x.id);
-        if(x.reason === 'older' && x.current) await apply(x.current, kp);
-        await clearIfUnchanged(e);
+        const p = byId.get(x.store + '\u0001' + x.id);
+        /* another device got there first: combine with theirs (apply), and
+           what is left to send goes up on the next round */
+        if(x.reason === 'older' && x.current){
+          if(x.current.updatedAt) seen(x.current.updatedAt);
+          await apply(x.current, kp);
+          const now = p && await getDirty(p.e.k);
+          /* nothing to combine (theirs is simply newer): take theirs */
+          if(now && now.at === p.e.at){ await req('dirty', 'readwrite', s => s.delete(p.e.k)); await apply(x.current, kp); }
+        } else if(p) await clearIfUnchanged(p.e);
       }
       sent += batch.length;
     }
+    return sent;
   }
 
   /* Only forget a change if nothing newer happened to that key while it was
      in flight — otherwise the newer edit would never be sent. */
   async function clearIfUnchanged(e){
-    if(!e) return;
+    if(!e) return false;
     const now = await getDirty(e.k);
-    if(now && now.at === e.at) await req('dirty', 'readwrite', s => s.delete(e.k));
+    if(now && now.at === e.at){ await req('dirty', 'readwrite', s => s.delete(e.k)); return true; }
+    return false;
   }
 
-  /* Write one change from the server into this device, unless this device has
-     a newer unsent edit to the same record. Returns true if anything changed. */
+  /* What changed on two devices, kept so the other version can be brought
+     back (Settings → Sync → Changed on two devices). The newest 100. */
+  async function logConflicts(store, key, value, list){
+    try {
+      const v = isObjLike(value) && !Array.isArray(value) ? value : {};
+      const label = String(v.title || v.name || v.text || key).slice(0, 80);
+      const now = Date.now();
+      const add = list.map(c => ({ at:now, store, key, label, path:c.path, kept:c.kept, other:c.other }));
+      const had = (await meta('conflicts')) || [];
+      await setMeta('conflicts', add.concat(had).slice(0, 100));
+    } catch(e){ console.warn('sync: could not keep a conflict', e); }
+  }
+
+  /* Write one change from the server into this device. A record this device
+     also changed since they last met is combined with it (merge.js). */
   async function apply(c, kp){
     if(!(c.store in kp)) return false;          /* a store a newer build added */
     let key;
     try { key = JSON.parse(c.id); } catch(e){ return false; }
     if(skip(c.store, key)) return false;
-    const d = await getDirty(dirtyKey(c.store, key));
-    if(d && d.at > c.updatedAt) return false;    /* ours is newer; it goes up next */
+    if(c.updatedAt) seen(c.updatedAt);
+    const dk = dirtyKey(c.store, key);
+    const d = await getDirty(dk);
+    const theirs = c.deleted ? undefined : Transfer.decode(c.data, null);
+    const write = async v => {
+      if(v === undefined) await raw.del(c.store, key);
+      else if(kp[c.store]) await raw.put(c.store, v);
+      else await raw.put(c.store, v, key);
+    };
+    const settle = async v => {
+      await write(v);
+      if(d) await req('dirty', 'readwrite', s => s.delete(dk));
+      await delBase(dk);
+      return true;
+    };
 
-    if(c.deleted) await raw.del(c.store, key);
-    else {
-      const value = Transfer.decode(c.data, null);
-      if(kp[c.store]) await raw.put(c.store, value);
-      else await raw.put(c.store, value, key);
+    if(!d) return settle(theirs);
+    /* only offered (first connect, a catch-up): the server's copy is kept */
+    if(d.at <= 1) return settle(theirs);
+
+    let mine;
+    try { mine = await Store.get(c.store, key); } catch(e){}
+    const mineNewer = d.at > c.updatedAt;
+    /* a delete on either side, a picture, a plain value: the newer one */
+    if(theirs === undefined || mine === undefined || !isObjLike(mine) || !isObjLike(theirs) || !global.Merge){
+      if(mineNewer) return false;               /* ours goes up next */
+      return settle(theirs);
     }
-    if(d) await req('dirty', 'readwrite', s => s.delete(d.k));
+    const base = await getBase(dk);
+    const { value, conflicts } = Merge.merge(base, mine, theirs, mineNewer);
+    if(conflicts.length) await logConflicts(c.store, key, value, conflicts);
+    if(Merge.same(value, theirs)) return settle(theirs);
+    await write(value);
+    await putBase(dk, theirs);                  /* the server holds theirs now */
+    await req('dirty', 'readwrite', s => s.put({ ...d, at: stamp() }));   /* the combined one goes up */
     return true;
   }
 
@@ -337,8 +429,12 @@
       if(!global.Transfer || !Transfer.encode) return note({ ok:false, error:'Sync could not start' });
       const me = await deviceId();
       try {
-        const sent = await push(cfg, me);
+        await loadClock();
+        /* pull first: what other devices changed is combined with what is
+           waiting here before it goes up, rather than one replacing the other */
         const got = await pull(cfg, me);
+        const sent = await push(cfg, me);
+        try { await setMeta('clock', clockSeen); } catch(e){}
         if(got) refresh();
         return note({ ok:true, sent, got, at: Date.now() });
       } catch(e){
@@ -361,6 +457,11 @@
      that screen closes, because invalidate() bumps the version it watches. */
   function refresh(){
     try { if(global.Data && Data.invalidate) Data.invalidate(); } catch(e){}
+    /* lists kept in memory: without this, folders or channels made on another
+       device only showed after a restart */
+    ['SwipeFolders', 'Channels', 'Months', 'Quarters'].forEach(n => {
+      try { if(global[n] && global[n].invalidate) global[n].invalidate(); } catch(e){}
+    });
     try {
       const a = document.activeElement;
       const typing = a && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable);
@@ -392,6 +493,7 @@
       /* a fresh identity, so nothing on the server is mistaken for our echo */
       await setMeta('device', null); await deviceId();
       await req('dirty', 'readwrite', s => s.clear());
+      await req('base', 'readwrite', s => s.clear()).catch(() => {});
       for(const st of Object.keys(kp)){
         if(st === 'settings'){
           const { keys } = await Store.all(st);
@@ -444,10 +546,36 @@
     return syncNow();
   }
 
+  /* ---- Changed on two devices: what merge.js had to choose between ---- */
+  async function conflicts(){ return (await meta('conflicts')) || []; }
+  async function dismissConflict(i){
+    const list = await conflicts();
+    list.splice(i, 1);
+    await setMeta('conflicts', list); emit();
+  }
+  /* bring the other device's version of that detail back (a normal edit, so
+     it syncs everywhere like any other) */
+  async function useOther(i){
+    const list = await conflicts();
+    const c = list[i];
+    if(!c) return false;
+    const rec = await Store.get(c.store, c.key);
+    if(rec === undefined) throw new Error('That item is gone now');
+    const next = Merge.setAt(structuredClone(rec), c.path, c.other);
+    const kp = (await layout())[c.store];
+    if(kp) await Store.put(c.store, next); else await Store.put(c.store, next, c.key);
+    list.splice(i, 1);
+    await setMeta('conflicts', list);
+    try { if(global.Data && Data.invalidate) Data.invalidate(); } catch(e){}
+    emit();
+    return true;
+  }
+
   async function disconnect(){
     await setMeta('config', {});
     await setMeta('cursor', 0);
     await setMeta('status', {});
+    await req('base', 'readwrite', s => s.clear()).catch(() => {});
     await req('dirty', 'readwrite', s => s.clear());
     emit();
   }
@@ -481,7 +609,7 @@
     }, EVERY);
   }
 
-  global.Sync = { syncNow, connect, moveServer, disconnect, probe, localCount, status, setPaused, touch, touchMany, offerRestored, LOCAL_STORES,
+  global.Sync = { syncNow, connect, moveServer, disconnect, probe, localCount, status, setPaused, touch, touchMany, offerRestored, conflicts, useOther, dismissConflict, LOCAL_STORES,
                   onChange: f => listeners.push(f), APP };
   start();
 })(window);

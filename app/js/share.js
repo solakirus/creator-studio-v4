@@ -76,7 +76,7 @@
 
   async function toSwipe(share){
     const rec = {
-      id: uid('sw_'),
+      id: global.SwipeKey && share.url ? SwipeKey.idFor(share.url) : uid('sw_'),
       url: share.url,
       title: share.title || share.text || share.url,
       source: sourceOf(share.url),
@@ -86,6 +86,14 @@
       inbox: true,
       createdAt: Date.now()
     };
+    /* already saved (the id comes from the link — swipekey.js), on this
+       device or another: keep that one and what you wrote on it */
+    if(global.SwipeKey && share.url){
+      const all = (await Store.all('swipes')).values;
+      const k = SwipeKey.key(share.url);
+      const had = all.find(s => s.id === rec.id) || all.find(s => k && SwipeKey.key(s.url) === k);
+      if(had){ if(global.U && U.toast) U.toast('Already in your swipe file'); return had; }
+    }
     await Store.put('swipes', rec);
 
     /* the cover, where the platform allows one — the same path meals use */

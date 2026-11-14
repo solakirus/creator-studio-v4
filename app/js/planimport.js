@@ -164,18 +164,21 @@
      (or "beats" for sequences). None given: the usual seven days. */
   const SETUP_KEYS = ['talking', 'vlog', 'phone', 'location', 'transition', 'screen', 'broll'];
   const vid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-  function actsFrom(pe){
+  /* ids from the episode and position, not the clock: the same plan imported
+     on two devices before they sync makes the same parts, sequences and shots */
+  function actsFrom(pe, epKey){
     if(!Array.isArray(pe.acts) || !pe.acts.length) return null;
+    const sid = (...p) => epKey != null && global.U && U.stableId ? U.stableId(...p) : null;
     return pe.acts.map((a, i) => ({
-      id: vid('a'), title: str(a.title || a.day || a.name) || `Part ${i + 1}`, day:null, open: i === 0,
+      id: sid('a', epKey, i) || vid('a'), title: str(a.title || a.day || a.name) || `Part ${i + 1}`, day:null, open: i === 0,
       beats: (Array.isArray(a.sequences) ? a.sequences : Array.isArray(a.beats) ? a.beats : []).map((b, j) => ({
-        id: vid('b'), title: str(b.title || b.name) || `Sequence ${j + 1}`, purpose: str(b.purpose),
+        id: sid('b', epKey, i, j) || vid('b'), title: str(b.title || b.name) || `Sequence ${j + 1}`, purpose: str(b.purpose),
         setup: SETUP_KEYS.includes(String(b.setup || '').toLowerCase()) ? String(b.setup).toLowerCase() : 'vlog',
         script: str(b.script), sourceId:null, day:null, at:null, done:false, clipId:null,
-        shots: (Array.isArray(b.shots) ? b.shots : []).map(raw => {
+        shots: (Array.isArray(b.shots) ? b.shots : []).map((raw, k) => {
           const x = global.ShotList ? ShotList.norm([raw])[0] : null;
           if(!x) return null;
-          return { id:x.id, text:x.text, note:x.note || '', framing:x.framing || '', movement:x.movement || '',
+          return { id:sid('sh', epKey, i, j, k) || x.id, text:x.text, note:x.note || '', framing:x.framing || '', movement:x.movement || '',
             location: raw && typeof raw === 'object' ? str(raw.location) : '', done:false, ...(x.lines ? { lines:x.lines } : {}) };
         }).filter(Boolean)
       }))
@@ -448,7 +451,7 @@
         warnings.push(`${pe.title}: the plan says week ${pe.weekNumber}, but ${sun} is week ${week} with your program start — using week ${week}`);
 
       const auto = pe.filmEnd ? Months.thursdayAfter(pe.filmEnd) : null;
-      const acts = actsFrom(pe);
+      const acts = actsFrom(pe, pe.id || (week !== null ? 'wk' + week : str(pe.title)));
       const rec = {
         id: pe.id || null,
         title: str(pe.title) || `Week ${week}`,
@@ -580,13 +583,15 @@
   async function apply(pv){
     const made = { months:0, episodes:0 };
     for(const m of pv.months.filter(x => x.action === 'create')){
+      if(!m.rec.id && m.rec.startDate) m.rec.id = U.stableId('mo', m.rec.startDate);
       const exists = m.rec.id ? await Store.get('months', m.rec.id) : null;
       if(exists) continue;
       await Months.save({ ...m.rec, id:m.rec.id || null, createdAt:Date.now() });
       made.months++;
     }
     for(const e of pv.episodes.filter(x => x.action === 'create')){
-      const id = e.rec.id || ('v_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6));
+      /* a weekly episode is its week: the same one from any device */
+      const id = e.rec.id || (e.rec.week != null ? 'v_wk' + e.rec.week : ('v_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6)));
       if(await Store.get('vlogs', id)) continue;
       const ep = { ...e.rec, id, acts: e.rec.acts || Months.weeklyActs(), segments: Months.defaultSegments(), createdAt: Date.now() };
       ep.imported = { at:Date.now(), sig:recSig(ep, E_KEYS.concat('acts')) };
@@ -621,12 +626,12 @@
     if(pv.includeSeries !== false){
       for(const x of (pv.series || []).filter(y => y.action === 'create')){
         if(x.rec.id && (await Data.series()).some(y => y.id === x.rec.id)) continue;
-        await Data.saveSeries({ ...x.rec, id: x.rec.id || undefined });
+        await Data.saveSeries({ ...x.rec, id: x.rec.id || U.stableId('s', x.rec.channel, x.rec.title) });
         made.series++;
       }
       for(const x of (pv.ideas || []).filter(y => y.action === 'create')){
         const day = x.rec.day; delete x.rec.day;
-        const vidId = x.rec.id ? String(x.rec.id).replace(/^cv_/, '') : 'vid_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        const vidId = x.rec.id ? String(x.rec.id).replace(/^cv_/, '') : U.stableId('vid', x.rec.seriesId, x.rec.title);
         const c = ClipFlow.fromVideo({ ...x.rec, id: vidId });
         delete c.fromVideo;
         c.dur = c.plat === 'youtube' ? '15:00' : '0:45';   /* a starting length; the clip page changes it */

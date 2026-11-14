@@ -343,7 +343,7 @@
     if(s.paused) return 'Paused on this device';
     const wait = s.pending ? ` · ${s.pending} change${s.pending === 1 ? '' : 's'} waiting` : '';
     if(s.error) return s.error + wait;
-    return 'Synced ' + agoText(s.at) + wait;
+    return (s.pending ? 'Synced ' : 'All saved on nastime · synced ') + agoText(s.at) + wait;
   }
 
   /* ---------- app updates ----------
@@ -432,24 +432,79 @@
     after && after();
   }
 
+  /* What sync had to choose between: the same detail changed on two devices.
+     The newer one was kept; the other can be brought back here. */
+  const STORE_WORD = { vlogs:'Vlog', clips:'Clip', videos:'Video', series:'Series', swipes:'Swipe', tasks:'Task',
+    months:'Month', quarters:'Quarter', settings:'Setting', routines:'Routine', meals:'Meal', challenges:'Challenge' };
+  function shown(v){
+    if(v === undefined || v === null || v === '') return '(empty)';
+    if(typeof v === 'string') return v.length > 140 ? v.slice(0, 140) + '…' : v;
+    if(typeof v !== 'object') return String(v);
+    const t = v.title || v.name || v.text;
+    if(t) return String(t).slice(0, 140);
+    const j = JSON.stringify(v);
+    return j.length > 140 ? j.slice(0, 140) + '…' : j;
+  }
+  const where = path => (path || []).filter(p => typeof p === 'string' && p[0] !== '#')
+    .map(p => p.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()).join(' › ') || 'the whole item';
+  async function openConflicts(after){
+    const esc = s => U.esc(s);
+    const list = await Sync.conflicts();
+    if(!list.length){ App.closeSheet(); U.toast('Nothing changed on two devices'); return; }
+    App.sheet(`
+      <h2>Changed on two devices</h2>
+      <p style="margin:0 0 14px;color:var(--muted);font-size:14.5px;line-height:1.55">The same detail was changed on two
+        devices before they synced. The newer change was kept everywhere; the other is here if you want it back.
+        Everything else from both was combined.</p>
+      ${list.map((c, i) => `<div class="block" style="margin:0 0 10px">
+        <p style="margin:0 0 4px;font-weight:700">${esc(STORE_WORD[c.store] || c.store)} · ${esc(c.label)}</p>
+        <p class="hintline" style="margin:0 0 8px">${esc(where(c.path))} · ${esc(agoText(c.at))}</p>
+        <p style="margin:0 0 4px;font-size:14px"><span style="color:var(--green)">Kept:</span> ${esc(shown(c.kept))}</p>
+        <p style="margin:0 0 10px;font-size:14px"><span style="color:var(--amber)">Other device:</span> ${esc(shown(c.other))}</p>
+        <div style="display:flex;gap:8px">
+          <button class="btn-sm accent" data-use="${i}">Use the other one</button>
+          <button class="btn-sm" data-dismiss="${i}">Keep it as it is</button></div></div>`).join('')}
+      <button class="btn-ghost" data-clearall style="width:100%;margin-top:4px">Keep them all as they are</button>`,
+    sh => {
+      sh.addEventListener('click', async e => {
+        const u = e.target.closest('[data-use]'), d = e.target.closest('[data-dismiss]');
+        try {
+          if(u){ await Sync.useOther(+u.dataset.use); U.toast('Brought back — it syncs to your other devices'); return openConflicts(after); }
+          if(d){ await Sync.dismissConflict(+d.dataset.dismiss); return openConflicts(after); }
+          if(e.target.closest('[data-clearall]')){
+            for(let n = (await Sync.conflicts()).length; n > 0; n--) await Sync.dismissConflict(0);
+            App.closeSheet(); after && after();
+          }
+        } catch(err){ U.toast(err.message || String(err)); }
+      });
+    });
+  }
+
   async function openSync(after){
     const esc = s => U.esc(s);   /* shared: util.js */
     const s = await Sync.status();
     const p = 'margin:0 0 14px;color:var(--muted);font-size:14.5px;line-height:1.55';
 
     if(s.connected){
+      let cfs = [];
+      try { cfs = await Sync.conflicts(); } catch(e){}
       App.sheet(`
         <h2>Sync</h2>
         <p style="${p}">This device swaps changes with <b>${esc(s.server)}</b> when it opens,
           when you come back to it, a few seconds after you change something, and every few
           minutes. Away from home it keeps working and catches up when it can reach the server.</p>
         <div class="block" style="margin:0 0 14px">
+          ${!s.error && !s.paused && !s.pending && s.at && Date.now() - s.at < 15 * 60000
+            ? `<p data-allsaved style="margin:0 0 9px;color:var(--green);font-weight:700;font-size:15px">✓ Everything on this device is saved on nastime</p>`
+            : s.pending ? `<p style="margin:0 0 9px;color:var(--amber);font-weight:700;font-size:15px">${s.pending} change${s.pending === 1 ? '' : 's'} on this device not on nastime yet</p>` : ''}
           <div class="metaline" style="margin:0">
             <span class="tg count">Last sync · ${esc(agoText(s.at))}</span>
             <span class="tg count">${s.pending} waiting to send</span>
           </div>
           ${s.error ? `<p class="hintline" style="margin:9px 0 0;color:var(--red)">${esc(s.error)}</p>` : ''}
         </div>
+        ${cfs.length ? `<button class="btn-ghost" data-conflicts style="width:100%;margin:0 0 12px;border-color:var(--amber)">
+          Changed on two devices (${cfs.length})</button>` : ''}
         <div class="sheetcta">
           <button class="btn-primary" data-now>Sync now</button>
           <button class="btn-ghost" data-pause>${s.paused ? 'Resume sync' : 'Pause on this device'}</button>
@@ -479,6 +534,7 @@
             await Sync.setPaused(!s.paused);
             App.closeSheet(); U.toast(s.paused ? 'Sync resumed' : 'Sync paused'); after && after(); return;
           }
+          if(e.target.closest('[data-conflicts]')) return openConflicts(after);
           if(e.target.closest('[data-move]')){
             const box = sheetEl.querySelector('#sy-move');
             box.hidden = false; e.target.closest('[data-move]').hidden = true;
@@ -571,12 +627,12 @@
           $('#sy-choice').innerHTML = `
             <p style="${p}">The server already has <b>${records}</b> records, and this device has
               <b>${here}</b>. Which should this device end up with?</p>
-            <button class="btn-primary" data-how="replace" style="width:100%">Use the server's — replace this device</button>
-            <p class="hintline" style="margin:6px 0 12px">Right for a second device. ${silent
-              ? "This device's data is backed up first, then swapped for the server's."
-              : "Its data is swapped for the server's. Want a copy first? Close this and use Export everything."}</p>
-            <button class="btn-ghost" data-how="merge" style="width:100%">Combine both</button>
-            <p class="hintline" style="margin:6px 0 0">Adds what is only here to the server. Where both have the same item, the server's version is kept.</p>`;
+            <button class="btn-primary" data-how="merge" style="width:100%">Combine both (recommended)</button>
+            <p class="hintline" style="margin:6px 0 12px">Keeps everything on this device and adds what the server has. Nothing is lost on either side.</p>
+            <button class="btn-ghost" data-how="replace" style="width:100%">Use the server's — replace this device</button>
+            <p class="hintline" style="margin:6px 0 0">Only for a brand-new or spare device: what is only on this device is dropped. ${silent
+              ? "It's backed up first."
+              : "Want a copy first? Close this and use Export everything."}</p>`;
           msg('');
         } catch(err){
           c.disabled = false; c.textContent = 'Connect';
@@ -1240,11 +1296,21 @@
     const parts = Transfer.contents ? Transfer.contents(obj) : [];
     const go = async only => {
       try {
+        if(mode === 'replace'){
+          let synced = false;
+          try { synced = !!(window.Sync && (await Sync.status()).connected); } catch(e){}
+          if(!confirm('Replace what this device has of the ticked parts with the file?' +
+              (synced ? '\n\nSync is on, so your phone, laptop and iPad get the same: anything not in the file is removed from them too.' : '') +
+              '\n\nA backup of this device is made first when it can be.')) return;
+          try {
+            if(window.Backup && (await Backup.status()).silent){ U.toast('Backing up first…'); await Backup.run('records', { manual:true }); }
+          } catch(e){}
+        }
         const n = await Transfer.importAll(obj, mode, only);
         const rep = Transfer.report() || {};
         Data.invalidate(); Nutrition.invalidate(); Channels.invalidate();
         App.closeSheet();
-        U.toast(`Brought in ${n} records${rep.photos ? ` and ${rep.photos} pictures` : ''}`);
+        U.toast(`Brought in ${n} new${rep.photos ? ` and ${rep.photos} pictures` : ''}${rep.kept ? ` · ${rep.kept} already here kept as they are` : ''}`);
         setTimeout(() => location.reload(), 700);
       } catch(err){ console.error(err); U.toast(err.message || 'That file could not be read'); }
     };
@@ -1254,7 +1320,7 @@
       <h2>What to bring in</h2>
       <p style="margin:0 0 12px;color:var(--muted);font-size:14.5px;line-height:1.55">${mode === 'replace'
         ? 'Each part you tick replaces what this device has of it. Parts you leave unticked aren’t touched.'
-        : 'Each part you tick is added to what’s here (the same item is updated, nothing is removed).'}</p>
+        : 'Each part you tick is added to what’s here. Anything already here stays as it is — the backup never undoes a newer change.'}</p>
       ${swipe ? `<button class="btn-ghost" data-only-swipe style="width:100%;margin:0 0 12px">Just the swipe file (${swipe.count})</button>` : ''}
       <div data-parts>${parts.map(p => `<label style="display:flex;gap:10px;align-items:center;margin:0 0 8px;font-size:14.5px;cursor:pointer">
         <input type="checkbox" data-part="${p.k}" checked style="width:18px;height:18px;margin:0">

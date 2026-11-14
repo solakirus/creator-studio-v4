@@ -41,9 +41,13 @@ const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwA
   ok((await LAP.evaluate(h => Sync.connect(h, 'tok', 'upload'), hub.url)).ok, 'the laptop syncs');
   const PH = await device('phone', 400);
   await PH.evaluate(h => Sync.connect(h, 'tok', 'replace'), hub.url);
+  /* one of them is already here, renamed since the backup was made */
+  await LAP.evaluate(async () => { await Store.put('swipes', { id:'cs3_2', title:'Renamed since', createdAt:Date.now() }); await Sync.syncNow(); });
   await LAP.evaluate(async t => Transfer.importAll(JSON.parse(t), 'merge', new Set(['swipes', 'swipe-thumb'])), backup);
   const pend = await LAP.evaluate(() => Sync.status().then(s => s.pending));
-  ok(pend === 6, 'the restored swipes and their picture are waiting to go up', pend);
+  ok(pend === 5, 'the restored swipes and their picture are waiting to go up', pend);
+  ok((await LAP.evaluate(async () => (await Store.get('swipes', 'cs3_2')).title)) === 'Renamed since',
+    'one already here keeps its newer version — Add never goes back to the backup\'s copy');
   await LAP.evaluate(() => Sync.syncNow()); await PH.evaluate(() => Sync.syncNow());
   ok(await swipes(PH) === 'cs3_0,cs3_1,cs3_2,cs3_3,cs3_4', 'the phone has the restored swipes', await swipes(PH));
   ok(await PH.evaluate(async () => !!(await Store.get('swipe-thumb', 'cs3_0'))), 'and the cover picture');

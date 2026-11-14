@@ -239,6 +239,16 @@
             ${Object.entries(SOURCES).map(([k,v]) => `<option value="${k}"${target===k?' selected':''}>${v.n}</option>`).join('')}</select>`}
         </div>
 
+        ${(() => {
+          /* the same video saved twice (two devices, two imports): swipekey.js */
+          const dbl = window.SwipeKey ? SwipeKey.doubles(everything) : [];
+          const extra = dbl.reduce((n, g) => n + g.length - 1, 0);
+          return extra ? `<div class="metaline" style="justify-content:space-between;align-items:center;
+            margin:0 0 12px;padding:9px 12px;border:1px solid var(--amber);border-radius:var(--r)">
+            <span style="font-size:13.5px">${extra} swipe${extra === 1 ? ' is' : 's are'} in here twice
+              <small style="display:block;color:var(--muted)">Merging keeps one of each, with every folder, note and cover from both</small></span>
+            <button class="btn-sm accent" data-a="mergedoubles">Merge doubles</button></div>` : '';
+        })()}
         ${fetchQ.running ? `<div class="metaline" style="justify-content:space-between;align-items:center;
           margin:0 0 12px;padding:9px 12px;border:1px solid #2B2822;border-radius:var(--r)">
           <span id="fetchbar" style="font-size:13.5px;color:var(--muted)">${fetchBarText()}</span>
@@ -449,7 +459,7 @@
             const k = urlKey(url);
             if(seen.has(k)) return;
             seen.add(k);
-            recs.push({ id:uid() + i.toString(36), url, source:detectSource(url), title:'Untitled swipe',
+            recs.push({ id:SwipeKey.idFor(url), url, source:detectSource(url), title:'Untitled swipe',
                         hook:'', beats:[], why:'', transferable:'', myAngle:'',
                         intent:'Education', channels:[], targets:[], createdAt:Date.now() - i });
           });
@@ -551,6 +561,15 @@
       if(a && a.dataset.a === 'stopfetch'){ fetchQ.stop = true; a.textContent = 'Stopping…'; return; }
       if(a && a.dataset.a === 'csv') return openCsv(render);
       if(a && a.dataset.a === 'import') return openImportChooser();
+      if(a && a.dataset.a === 'mergedoubles'){
+        a.disabled = true; a.textContent = 'Merging…';
+        try {
+          const r = await SwipeKey.mergeAll();
+          await loadThumbs();
+          U.toast(r.removed ? `Merged — ${r.removed} double${r.removed === 1 ? '' : 's'} folded into ${r.groups} swipe${r.groups === 1 ? '' : 's'}` : 'No doubles left');
+        } catch(err){ console.error(err); U.toast("Couldn't merge — nothing was changed"); }
+        return render();
+      }
       if(a && a.dataset.a === 'quicksort') return Screens.push('swipe-sort', { onChange:render });
       if(a && a.dataset.a === 'fileall'){
         const ids = (await all()).filter(x => x.inbox &&
@@ -655,20 +674,7 @@
 
   /* Same video, however it was copied: tracking params and trailing slashes
      don't count, and every YouTube form collapses to its 11-char id. */
-  function urlKey(url){
-    const u = String(url || '').trim();
-    if(!u) return '';
-    const yt = ytId(u);
-    if(yt) return 'yt:' + yt;
-    const c = window.SwipeImport && SwipeImport.classify(u);
-    if(c) return c.key;
-    try {
-      const p = new URL(u);
-      const host = p.hostname.replace(/^(www\.|m\.)/, '');
-      const v = host.includes('facebook') ? (p.searchParams.get('v') || '') : '';
-      return (host + p.pathname.replace(/\/+$/, '') + (v ? '?v=' + v : '')).toLowerCase();
-    } catch(e){ return u.toLowerCase(); }
-  }
+  function urlKey(url){ return SwipeKey.key(url); }   /* swipekey.js: the same on every device */
 
   function openCsv(after){
     App.sheet(`
@@ -742,7 +748,7 @@
             if(key) seen.add(key);
 
             await Store.put('swipes', {
-              id: uid() + i.toString(36), url, title: get('title') || 'Untitled swipe',
+              id: url ? SwipeKey.idFor(url) : uid() + i.toString(36), url, title: get('title') || 'Untitled swipe',
               source: get('source') || (url ? detectSource(url) : 'reel'),
               hook: get('hook'), why: get('why'), transferable: get('transferable'),
               myAngle: get('angle'), intent: get('intent') || 'Education',
@@ -865,7 +871,7 @@
         for(let i = 0; i < fresh.length; i++){
           const it = fresh[i];
           const folders = useCols ? (it.collections || []).map(c => fid[c]).filter(Boolean) : [];
-          const rec = { id: uid() + i.toString(36), url: it.url, source: PLAT_SRC[it.platform] || detectSource(it.url),
+          const rec = { id: SwipeKey.idFor(it.url), url: it.url, source: PLAT_SRC[it.platform] || detectSource(it.url),
             title:'Untitled swipe', hook:'', beats:[], why:'', transferable:'', myAngle:'',
             intent:'Education', channels:[], targets:[], author: it.author || '',
             savedAt: it.savedAt || null, importedFrom: it.platform,

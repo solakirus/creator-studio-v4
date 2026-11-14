@@ -180,8 +180,15 @@
       if(kind === 'swipe'){
         const first = text.split('\n')[0].slice(0,80);
         const urlMatch = text.match(/https?:\/\/\S+/);
+        if(urlMatch && window.SwipeKey){
+          const k = SwipeKey.key(urlMatch[0]);
+          if((await Store.all('swipes')).values.some(s => SwipeKey.key(s.url) === k)){
+            await drop(id);
+            return U.toast('Already in your swipe file');
+          }
+        }
         await Store.put('swipes', {
-          id:'sw_' + Date.now().toString(36), url:urlMatch ? urlMatch[0] : '',
+          id:urlMatch && window.SwipeKey ? SwipeKey.idFor(urlMatch[0]) : 'sw_' + Date.now().toString(36), url:urlMatch ? urlMatch[0] : '',
           source:'reel', title:first, hook:'', beats:[], why:'', transferable:'',
           myAngle:urlMatch ? text : '', intent:'Education', channels:[], targets:[],
           createdAt:Date.now()

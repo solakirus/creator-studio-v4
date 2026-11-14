@@ -200,12 +200,26 @@
     }
     if(mode === 'replace') for(const [s] of plan) await Store.clear(s);
     if(secrets.length) await putMany('settings', secrets, true);
-    for(const [s, items, keyed] of plan){
+    report.kept = 0;
+    for(const [s, items0, keyed] of plan){
+      const keyOf = it => keyed ? it[0] : it[shape[s]];
+      let items = items0;
+      /* Add to what's here ADDS: an item already here keeps the version it
+         has (the newest, from you or another device), rather than going back
+         to the backup's older copy and taking every device with it */
+      if(mode !== 'replace'){
+        let have = new Set();
+        try { have = new Set((await Store.all(s)).keys.map(k => JSON.stringify(k))); } catch(e){}
+        items = items0.filter(it => !have.has(JSON.stringify(keyOf(it))));
+        report.kept += items0.length - items.length;
+      }
       report.records += await putMany(s, items, keyed);
       /* written past Store.put, so tell sync what came in — otherwise a
-         restore stays on this device and never reaches the others */
+         restore stays on this device and never reaches the others. Added
+         items are only offered (stamped 1): if another device already sent
+         the server the same item, the server's copy is the one kept. */
       if(global.Sync && Sync.touchMany)
-        await Sync.touchMany(s, keyed ? items.map(it => it[0]) : items.map(it => it[shape[s]]));
+        await Sync.touchMany(s, items.map(keyOf), mode === 'replace' ? undefined : 1);
     }
     report.photos = stats.blobs;
     lastReport = report;

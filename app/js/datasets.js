@@ -596,10 +596,15 @@
       async load(rows){
         const uid = p2 => p2 + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
         let n = 0;
+        /* the same link twice is one swipe (swipekey.js) — keep the one there */
+        const have = new Set(window.SwipeKey ? (await Store.all('swipes')).values.map(s => SwipeKey.key(s.url)).filter(Boolean) : []);
         for(const r of rows){
           if(SKIP(r.title) || !(r.title || r.url)) continue;
+          const k = window.SwipeKey && (r.url || '').trim() ? SwipeKey.key(r.url.trim()) : '';
+          if(k && have.has(k)) continue;
+          if(k) have.add(k);
           await Store.put('swipes', {
-            id: uid('sw_'),
+            id: (r.url || '').trim() && window.SwipeKey ? SwipeKey.idFor(r.url.trim()) : uid('sw_'),
             title: (r.title || r.url).trim(),
             url: (r.url || '').trim(),
             source: (r.source || '').trim(),

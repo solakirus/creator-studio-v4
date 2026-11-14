@@ -9,6 +9,20 @@
     return Math.abs(h);
   }
 
+  /* An id worked out from what a thing is, so two devices making "the same
+     thing" make the same record and sync sees one, not two. Two 32-bit
+     FNV-1a passes with different seeds (~64 bits). */
+  function stableId(prefix, ...parts){
+    const s = parts.map(x => String(x == null ? '' : x).trim().toLowerCase()).join('\u0001');
+    let a = 0x811c9dc5, b = 0x9747b28c;
+    for(let i = 0; i < s.length; i++){
+      const c = s.charCodeAt(i);
+      a ^= c; a = Math.imul(a, 16777619);
+      b ^= c; b = Math.imul(b, 2246822519);
+    }
+    return prefix + '_' + (a >>> 0).toString(36) + (b >>> 0).toString(36);
+  }
+
   const PALETTES = [
     ["#7A4A28","#2A1710"], ["#2F4A63","#141E28"], ["#3F5B44","#16211A"],
     ["#5C3E62","#211828"], ["#6B5227","#231B0F"], ["#7A3A3A","#281414"]
@@ -176,7 +190,7 @@
     el.addEventListener('contextmenu', e => { e.preventDefault(); stop(); fired = false; fn(e); });
   }
 
-  global.U = {
+  global.U = { stableId,
     taskId, DOW, DOW_N, DOW_FULL, dayGrid, wireDayGrid, readDayGrid, daysLabel, slug, pad, hash, generatedArt, ICON, toast, dayField, wireDayField, readDayField,
     esc, midnight, isoOf, onHold };
 })(window);

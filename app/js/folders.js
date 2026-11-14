@@ -36,7 +36,12 @@
     const list = (await all()).slice();
     const same = list.find(f => f.name.toLowerCase() === n.toLowerCase());
     if(same) return same;
-    const f = { id:uid(), name:n, emoji:emoji || '📁', pinned:false, order:null, createdAt:Date.now() };
+    /* the id comes from the name, so "Cars" made on the phone and "Cars" made
+       on the laptop before they sync are one folder, not two. A folder that
+       once had this name and was renamed keeps its id; this one gets its own. */
+    let id = global.U && U.stableId ? U.stableId('fd', n) : uid();
+    if(list.some(f => f.id === id)) id = uid();
+    const f = { id, name:n, emoji:emoji || '📁', pinned:false, order:null, createdAt:Date.now() };
     list.push(f);
     await save(list);
     return f;
