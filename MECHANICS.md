@@ -281,3 +281,14 @@ GIF, 3–9 MB), the title in `<h1>`, "Technique / Director / Original Source" li
 | Shoot mode | a device chip (last used, localStorage cs4-last-dev); Got it labels a shot with no device yet; a vlog shoot task also labels the episode's shot | person's request |
 | Copy as markers | "m:ss  Shot · type · device · [folder] — edit note  ⇄ Transition →", one a shot, by day · sequence, total | estimated |
 | Tested | v4-editline.browser.js 34/34 | round 10 |
+
+## Edit, pass 2: the walkthrough and the stage (2026-11-14)
+| Rule | Value | Source |
+|---|---|---|
+| Vlog steps | Import all footage, Label and organize, Rough cut, Fine cut, Transitions, Sound effects, Music, Color, Titles and captions, Export, Thumbnail, Post — each with a how line | person's request |
+| Short steps | Import the footage, Rough cut, Captions, Music and sound effects, Color, Export, Post | estimated |
+| Stage | the first step not ticked ("Rough cut · 2 of 12"); on the episode's card (Edit: …) and the walkthrough's header | person's request |
+| Yours | rename, how-to, reorder, remove, add; "Make this my default" (settings edit-steps-vlog / edit-steps-short); "Start over from my default" keeps ticks by name | person's request |
+| Where | episode Edit (top, open until shut once); a clip's Edit tab (walkthrough + its shots in one line with footage); a long YouTube clip uses the vlog list | estimated |
+| Stored | rec.editSteps [{id, n, how, done, at}] on the vlog or clip | estimated |
+| Tested | v4-editline.browser.js 50/50 | round 11 |

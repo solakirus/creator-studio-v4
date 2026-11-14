@@ -175,7 +175,7 @@ const head = s => console.log(`\n— ${s} —`);
     secs: [...s.querySelectorAll('.view > details > summary')].map(x => x.firstChild.textContent.trim()) }; }, top);
   ok(ui.cuts === 6 && ui.beats.length === 6 && ui.said === 3, 'every shot in story order under its beat, with the words over it');
   ok(ui.taken[0] === '✓ Taken' && ui.taken[1] === 'Not taken yet', 'filmed on the shoot task shows as Taken');
-  ok(!ui.whole && ui.secs.join() === 'Cut list,Versions,Notes', 'no whole script, length or references on Edit', ui.secs.join(' · '));
+  ok(!ui.whole && ui.secs.join() === 'Edit walkthrough,The shots and their footage,Cut list,Versions,Notes', 'no whole script, length or references on Edit', ui.secs.join(' · '));
   await lap.fill(`${top} #clipCuts [data-en="3"]`, 'Cut the second um'); await lap.dispatchEvent(`${top} #clipCuts [data-en="3"]`, 'change'); await lap.waitForTimeout(1200);
   r = await clipRec(cid);
   ok(steps(r)[3].editNote === 'Cut the second um', 'an edit note is kept on its shot');

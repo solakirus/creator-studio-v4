@@ -166,6 +166,7 @@
                     <span>${wk ? `Week ${wk}${wk === thisWeek ? ' · this week' : ''}` : 'Unscheduled'}</span>
                     <span class="sep">|</span><span class="st">${done} / ${beats.length} sequences</span>
                     <span class="sep">|</span><span class="st">${shots} shot${shots===1?'':'s'}</span>
+                    ${(() => { const st = window.EditSteps && EditSteps.stage(v); return st && st.started ? `<span class="sep">|</span><span class="st">${st.done ? '✓ Edit done' : 'Edit: ' + esc(st.name)}</span>` : ''; })()}
                   </div>
                 </div>
                 <div class="progress"><i style="width:${pct}%"></i></div>
@@ -1052,7 +1053,15 @@
           <button data-a="mode-board" aria-pressed="false">Board</button>
           <button data-a="mode-week" aria-pressed="false">Shoot</button>
           <button data-a="mode-outline" aria-pressed="true">Edit</button>
-        </span>` }) + '<div class="view"><div id="elHost"></div></div>';
+        </span>` }) + `<div class="view">
+          ${window.EditSteps ? fold('editsteps', 'Edit walkthrough', EditSteps.stageLine(EditSteps.stage(v)) || 'Import, organize, rough cut … post', '<div id="esHost"></div>') : ''}
+          <div id="elHost"></div></div>`;
+      /* the walkthrough opens until you've shut it once */
+      try { if(localStorage.getItem('cs4-ep-fold-editsteps') == null){ const d = el.querySelector('details[data-epfold="editsteps"]'); if(d) d.open = true; } } catch(e){}
+      if(window.EditSteps) EditSteps.mount(el.querySelector('#esHost'), { kind:'vlog',
+        get: async () => migrate(await Store.get('vlogs', v.id)),
+        put: async rec => { const cur = await Store.get('vlogs', v.id); cur.editSteps = rec.editSteps; await Store.put('vlogs', cur); v.editSteps = rec.editSteps; params.onChange && params.onChange(); },
+        onChange: rec => { const sm = el.querySelector('details[data-epfold="editsteps"] > summary .s'); if(sm) sm.textContent = EditSteps.stageLine(EditSteps.stage(rec)); } });
       EditLine.mount(el.querySelector('#elHost'), { vlogId:v.id,
         openBeat: id => Screens.push('vlog-beat', { vlogId:v.id, beatId:id, onChange:async () => { await load(); render(); } }),
         onChange: async () => { v = migrate(await Store.get('vlogs', v.id)); } });

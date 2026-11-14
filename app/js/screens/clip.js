@@ -16,14 +16,14 @@
   const TABS = {
     plan:  ['ready','refs','purposeGrp','scriptGrp','cta'],
     shoot: ['toshoot','shots','notes','refs'],
-    edit:  ['cutlist','versionsEdit','notes'],
+    edit:  ['editSteps','editLine','cutlist','versionsEdit','notes'],
     post:  ['versionsPost','titles','caption','metric']
   };
   const TAB_NAME = { plan:'Plan', shoot:'Shoot', edit:'Edit', post:'Post' };
   const TAB_NOTE = {
     plan:  'What this clip is, who it is for, and what is said over each shot.',
     shoot: 'The shots in the order you film them. Open a shot’s Script to read its lines.',
-    edit:  'Every cut in story order with the words over it. Tick a version when it is cut.',
+    edit:  'Work down the walkthrough; the shots and their footage are in the line. Every cut in story order with the words over it.',
     post:  'Where each version goes, the title and the caption — tick each one as it goes out.'
   };
   /* where each readiness gap lives */
@@ -209,7 +209,7 @@
        take them back into this screen's copy, so its own saves keep them */
     async function pullShots(){
       const fresh = await Store.get('clips', clip.id);
-      if(fresh) ['page', 'subs', 'pageFrom', 'morePages', 'hideDone', 'pageOff', 'shotList', 'shots', 'shotsSig'].forEach(k => {
+      if(fresh) ['page', 'subs', 'pageFrom', 'morePages', 'hideDone', 'pageOff', 'shotList', 'shots', 'shotsSig', 'footFolder', 'editSteps'].forEach(k => {
         if(k in fresh) clip[k] = fresh[k]; else delete clip[k]; });
       const before = clip.stage;
       await settleStage();
@@ -348,6 +348,12 @@
       S.shots = `
         <div class="cp-steps">${p.beats.length ? '<div id="clipStruct"></div>' : ''}<div id="clipShots"></div></div>`;
       S.versionsEdit = versionsHTML('edit');
+      /* v4: the edit walkthrough (editsteps.js) and the shots in one line with their footage (editline.js) */
+      const est = window.EditSteps ? EditSteps.stage(clip) : null;
+      S.editSteps = window.EditSteps ? `<details class="cp-sec" open data-esfold><summary>Edit walkthrough<span class="n" data-esn>${esc(EditSteps.stageLine(est) || 'import, rough cut … post')}</span>${CHEV}</summary>
+          <div class="cp-body"><div id="clipSteps"></div></div></details>` : '';
+      S.editLine = window.EditLine ? `<details class="cp-sec"><summary>The shots and their footage<span class="n">device, on the computer, where</span>${CHEV}</summary>
+          <div class="cp-body" style="padding-left:0;padding-right:0"><div id="clipLine"></div></div></details>` : '';
       S.versionsPost = versionsHTML('post');
       S.cutlist = `
         <details class="cp-sec" open>
@@ -419,6 +425,13 @@
             clip.plan.beats.length ? `${clip.plan.beats.length} beat${clip.plan.beats.length === 1 ? '' : 's'}` : '',
             st.shots ? `${st.withLines} of ${st.shots} shots have lines` : '', st.words ? 'about ' + Structures.secsLabel(st.secs) : ''].filter(Boolean).join(' · ');
         } });
+      const csh = el.querySelector('#clipSteps');
+      if(csh) EditSteps.mount(csh, { kind:/youtube|long/i.test(clip.plat || '') ? 'vlog' : 'short',
+        get: async () => { await flushClip(); return Store.get('clips', clip.id); },
+        put: async rec => { const cur = await Store.get('clips', clip.id); cur.editSteps = rec.editSteps; await Data.saveClip(cur); clip.editSteps = rec.editSteps; },
+        onChange: rec => { const n = el.querySelector('[data-esn]'); if(n) n.textContent = EditSteps.stageLine(EditSteps.stage(rec)); } });
+      const cln = el.querySelector('#clipLine');
+      if(cln) EditLine.mount(cln, { source:EditLine.clipSource(clip.id), onChange:pullShots });
       const cu = el.querySelector('#clipCuts');
       if(cu) Structures.cuts(cu, { host:ShotList.hostClip(clip.id), plan:() => clip.plan, savePlan:flushClip, flush:flushClip, onChange:pullShots, taken:takenOf,
         onStats: st => { const n = el.querySelector('[data-cutn]'); if(n) n.textContent = st.shots ? `${st.shots} shot${st.shots === 1 ? '' : 's'} in story order · ${[...Array(st.shots).keys()].filter(takenOf).length} taken` : 'no shots yet'; } });

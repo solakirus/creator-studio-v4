@@ -130,12 +130,14 @@
     let v = null, sel = new Set(), focus = null, picking = false;
     let zoom = (() => { try { const z = +localStorage.getItem('cs4-el-zoom'); return ZOOMS.includes(z) ? z : 16; } catch(e){ return 16; } })();
     const key = (bid, i) => bid + ':' + i;
-    const load = async () => { v = await Store.get('vlogs', o.vlogId); };
+    /* an episode (vlogs), or a short/clip lent as one day with one sequence (clipSource) */
+    const src = o.source || { load: () => Store.get('vlogs', o.vlogId), save: rec => Store.put('vlogs', rec) };
+    const load = async () => { v = await src.load(); };
     const find = k => { const [bid, i] = k.split(':'); for(const a of v.acts || []) for(const b of a.beats || []) if(b.id === bid) return { act:a, beat:b, shot:shotsOf(b)[+i], i:+i }; return null; };
     /* every change goes on the episode; the Steps rebuild their page from it */
     async function save(beats){
       (beats || []).forEach(b => { b.shotsSig = ''; });
-      await Store.put('vlogs', v);
+      await src.save(v);
       if(global.Data && Data.invalidate) Data.invalidate();
       if(o.onChange) await o.onChange();
     }
@@ -196,7 +198,7 @@
           <button data-elpick aria-pressed="${picking}" title="Tap blocks to add or take them off the selection">${picking ? '✓ Picking blocks' : 'Pick blocks'}</button>
           ${sel.size ? `<button data-elsel="none">Clear</button>` : ''}
         </div>
-        ${sel.size ? `<div class="el-mass"><b>${sel.size} shot${sel.size === 1 ? '' : 's'}</b>
+        ${sel.size ? `<div class="el-mass${o.source ? ' flat' : ''}"><b>${sel.size} shot${sel.size === 1 ? '' : 's'}</b>
           <button class="btn-sm accent" data-elmass="off">On the computer ✓</button>
           <button class="btn-sm" data-elmass="card">Back to the card</button>
           <button class="btn-sm" data-elmass="dev">Device…</button>
@@ -204,12 +206,12 @@
           <button class="btn-sm" data-elmass="filmed">Filmed ✓</button>
           <button class="btn-sm" data-elmass="cut">Cut ✓</button></div>` : ''}
         ${flat.length ? `<div class="el-track">
-          <div class="el-row el-days">${days.map(d => `<div class="el-day" style="width:${d.w - 3}px" data-elday="${esc(d.act.id)}" title="Tap to select this day">${esc(d.act.title)}</div>`).join('')}</div>
+          ${o.source ? '' : `<div class="el-row el-days">${days.map(d => `<div class="el-day" style="width:${d.w - 3}px" data-elday="${esc(d.act.id)}" title="Tap to select this day">${esc(d.act.title)}</div>`).join('')}</div>`}
           <div class="el-row el-seqs">${seqBands}</div>
           <div class="el-row el-blocks">${blocks}</div>
           <div class="el-ruler" style="width:${Math.round((total + 30) * zoom)}px">${ticks.map(s2 => `<span style="left:${s2 * zoom}px">${tc(s2)}</span>`).join('')}</div>
         </div>
-        <p class="el-key">Green line: filmed · dashed: not yet · amber dot: still on the card · ▣ on the computer · ✂ cut · ⇄ a transition (tap to watch) · green block: a short · drag a sequence's label to reorder</p>`
+        <p class="el-key">Green line: filmed · dashed: not yet · amber dot: still on the card · ▣ on the computer · ✂ cut · ⇄ a transition (tap to watch) · green block: a short${o.source ? '' : " · drag a sequence's label to reorder"}</p>`
           : `<div class="empty"><b>No shots yet</b>Plan the days' sequences on the Plan tab — they line up here.</div>`}
         ${f && f.shot ? panelHTML(f) : ''}
       </div>`;
@@ -374,6 +376,7 @@
   .el-selbar button[aria-pressed="true"]{border-color:var(--orange);color:var(--orange)}
   .el-mass{position:sticky;top:0;z-index:4;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 8px;padding:8px 10px;border:1px solid var(--orange);border-radius:var(--r);background:var(--surface-2)}
   .el-mass b{margin-right:4px;font-size:13.5px}
+  .el-mass.flat{position:static}
   .el-track{position:relative;overflow-x:auto;padding:8px 8px 22px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-1)}
   .el-row{display:flex;align-items:stretch;width:max-content}
   .el-days{margin:0 0 3px}
@@ -423,6 +426,26 @@
   .el-dev button:disabled{opacity:.3}`;
   function css(){ if(document.getElementById('el-css')) return; const st = document.createElement('style'); st.id = 'el-css'; st.textContent = CSS; document.head.appendChild(st); }
 
+  /* a short or clip's shots, as an episode with one day and one sequence */
+  function clipSource(id){
+    let clip = null;
+    return {
+      async load(){
+        clip = await Store.get('clips', id);
+        if(!clip) return null;
+        const list = (Array.isArray(clip.shotList) ? clip.shotList : (clip.shots || [])).map(x => typeof x === 'string' ? { text:x } : x).filter(Boolean);
+        return { id:clip.id, title:clip.title || 'Clip', footFolder:clip.footFolder || '', acts:[{ id:'clip', title:clip.title || 'Clip', beats:[{ id:clip.id, title:'Shots', shots:list }] }] };
+      },
+      async save(v){
+        clip = (await Store.get('clips', id)) || clip;
+        const b = v.acts[0].beats[0];
+        clip.shotList = b.shots; clip.shots = b.shots.map(s2 => s2.text || 'Shot'); clip.shotsSig = '';
+        if(v.footFolder) clip.footFolder = v.footFolder; else delete clip.footFolder;
+        await Data.saveClip(clip);
+      }
+    };
+  }
+
   global.Devices = Devices;
-  global.EditLine = { mount, markers, ordered };
+  global.EditLine = { mount, markers, ordered, clipSource };
 })(window);

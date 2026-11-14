@@ -106,6 +106,39 @@ const top = '.screen:last-child';
     await p.click('[data-got]'); await p.waitForTimeout(900);
     ok((await p.evaluate(() => Store.get('vlogs', 'v1'))).acts[1].beats[0].shots[0].dev === 'iPhone', 'Got it labels the shot with it');
     await p.evaluate(() => Screens.pop()); await p.waitForTimeout(300);
+
+    /* pass 2: the walkthrough */
+    await p.click(`${top} [data-a="mode-plan"]`); await p.waitForTimeout(500); await p.click(`${top} [data-a="mode-outline"]`); await p.waitForTimeout(900);
+    const es = await p.evaluate(t => { const s = document.querySelector(t); return { open: (s.querySelector('details[data-epfold="editsteps"]') || {}).open, steps: [...s.querySelectorAll('.es-i .es-n')].map(x => x.textContent.trim()), stage: (s.querySelector('.es-stage') || {}).textContent }; }, top);
+    ok(es.open && es.steps.length === 12 && /^Import all footage/.test(es.steps[0]) && es.stage === 'Import all footage', 'Edit: the walkthrough, open on top, starting at Import', JSON.stringify(es.steps.slice(0, 3)));
+    await p.click(`${top} [data-estick="0"]`); await p.waitForTimeout(500); await p.click(`${top} [data-estick="1"]`); await p.waitForTimeout(600);
+    ok(/Rough cut/.test(await p.textContent(`${top} .es-stage`)) && /Rough cut · 2 of 12/.test(await p.textContent(`${top} details[data-epfold="editsteps"] > summary`)), 'ticking moves the stage on (Rough cut · 2 of 12)');
+    await p.screenshot({ path: path.join(out, `es-${name}.png`) });
+    await p.click(`${top} [data-esedit]`); await p.waitForTimeout(300);
+    await p.fill(`${top} [data-esnew]`, 'Sound mix'); await p.click(`${top} [data-esadd]`); await p.waitForTimeout(500);
+    await p.click(`${top} [data-esrm="10"]`); await p.waitForTimeout(400);
+    await p.click(`${top} [data-esdefault]`); await p.waitForTimeout(500);
+    await p.click(`${top} [data-esedit]`); await p.waitForTimeout(500);
+    const tpl = await p.evaluate(() => EditSteps.template('vlog'));
+    ok(tpl.length === 12 && tpl[11].n === 'Sound mix' && !tpl.some(x => x.n === 'Thumbnail'), 'the list is yours: add, remove, and make it the default for vlogs', tpl.map(x => x.n).slice(-3).join(', '));
+    await p.evaluate(() => Screens.pop()); await p.waitForTimeout(500);
+    await p.evaluate(() => Screens.push('vlog-builder', {})); await p.waitForTimeout(1500);
+    ok(/Edit: Rough cut/.test(await p.evaluate(() => document.body.innerText)), 'the episode’s card shows its edit stage', await p.evaluate(() => { const t = document.body.innerText; const i = t.indexOf('Week 2'); return t.slice(i, i + 160).replace(/\s+/g, ' '); }));
+
+    /* a short's Edit tab */
+    const cid = await p.evaluate(async () => (await Data.saveClip({ title: 'Gym short', stage: 'shot', state: 'raw', plat: 'shorts', shotList: [{ text: 'Chalk', secs: 2, done: true }, { text: 'Lift', secs: 4, done: true }] })).id);
+    await p.evaluate(id => Screens.push('clip', { id, tab: 'edit' }), cid); await p.waitForTimeout(1800);
+    const cs = await p.evaluate(t => { const s = document.querySelector(t); return { steps: s.querySelectorAll('#clipSteps .es-i').length, first: (s.querySelector('#clipSteps .es-n') || {}).textContent }; }, top);
+    ok(cs.steps === 7 && /Import the footage/.test(cs.first), 'a short’s Edit tab: its own (shorter) walkthrough', JSON.stringify(cs));
+    await p.click(`${top} #clipSteps [data-estick="0"]`); await p.waitForTimeout(700);
+    ok((await p.evaluate(id => Store.get('clips', id), cid)).editSteps[0].done, 'and its ticks are saved on the short');
+    await p.evaluate(() => { const d = document.querySelector('.screen:last-child #clipLine'); d.closest('details').open = true; });
+    await p.waitForTimeout(400);
+    ok((await p.$$(`${top} #clipLine .el-b`)).length === 2, 'its shots in one line, with their footage');
+    await p.click(`${top} #clipLine [data-elsel="all"]`); await p.waitForTimeout(300);
+    await p.click(`${top} #clipLine [data-elmass="off"]`); await p.waitForTimeout(900);
+    ok((await p.evaluate(id => Store.get('clips', id), cid)).shotList.every(x => x.off), 'mass update works on a short too');
+    await p.screenshot({ path: path.join(out, `es-clip-${name}.png`) });
     await ctx.close();
   }
   await b.close();
