@@ -77,19 +77,33 @@
 
   /* tick one shot — the same rule as the task screen: a page spot ticks the
      steps standing for it; every step ticked makes the task done */
-  async function setDone(id, i, v, k, j){
+  async function setDone(id, i, v, k, j, dev){
     const t = await Store.get('tasks', id);
     if(!t) return null;
-    applyDone(t, i, v, k, j);
+    applyDone(t, i, v, k, j, dev);
+    /* a sequence's shoot task: the device goes on the episode's shot too (the Edit timeline reads it there) */
+    if(v && dev && t.vlogId && t.beatId && j == null) try {
+      const ep = await Store.get('vlogs', t.vlogId);
+      const sub = (t.subs || []).find(s2 => s2.shot === i) || (t.subs || [])[i];
+      for(const a of (ep && ep.acts) || []) for(const b of a.beats || []) if(b.id === t.beatId){
+        const sh = (b.shots || []).find(x => x && typeof x === 'object' && sub && String(x.text || '').trim() && String(sub.t || '').toLowerCase().startsWith(String(x.text).toLowerCase()));
+        if(sh && !sh.dev){ sh.dev = dev; b.shotsSig = ''; await Store.put('vlogs', ep); }
+      }
+    } catch(e){}
     await Store.put('tasks', t);
     if(global.Data && Data.invalidate) Data.invalidate('tasks');
     return t;
   }
-  function applyDone(t, i, v, k, j){
+  function applyDone(t, i, v, k, j, dev){
     /* a part of a shot's task sequence: ticked on that sequence's page */
     if(!k && j != null){
-      (t.subs || []).forEach(s2 => { if(s2.shot === i && s2.seq && s2.seq.slots && s2.seq.slots[j]) s2.seq.slots[j].done = v; });
+      (t.subs || []).forEach(s2 => { if(s2.shot === i && s2.seq && s2.seq.slots && s2.seq.slots[j]){ s2.seq.slots[j].done = v; if(v && dev && !s2.seq.slots[j].dev) s2.seq.slots[j].dev = dev; } });
       return t;
+    }
+    /* v4: what it was shot on — the device chip in shoot mode — on a shot that has none yet */
+    if(!k && v && dev){
+      if(t.page && Array.isArray(t.page.slots) && t.page.slots.length) (t.subs || []).forEach(s2 => { if(s2.shot === i && !s2.dev) s2.dev = dev; });
+      else if(t.subs && t.subs[i] && !t.subs[i].dev) t.subs[i].dev = dev;
     }
     if(k){ const P = pageAt(t, k); if(P && P.slots && P.slots[i]) P.slots[i].done = v; return t; }
     if(t.page && Array.isArray(t.page.slots) && t.page.slots.length){
@@ -109,6 +123,7 @@
   .sr-top{display:flex;align-items:center;gap:10px;padding:calc(var(--sat,0px) + 10px) 12px 8px;background:linear-gradient(#000d,#0000);position:relative;z-index:2}
   .sr-x{width:42px;height:42px;flex:0 0 42px;border:1px solid #ffffff33;border-radius:var(--r,4px);background:#00000066;color:#EDE5D2;font-size:20px;display:flex;align-items:center;justify-content:center}
   .sr-ttl{flex:1;min-width:0;font-family:var(--display),sans-serif;font-weight:900;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sr-dev{flex:0 0 auto;max-width:34vw;height:34px;padding:0 10px;border:1px solid #ffffff44;border-radius:17px;background:#00000066;color:#EDE5D2;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .sr-n{font-family:var(--display),sans-serif;font-weight:900;font-size:15px;color:#FB6900}
   .sr-dots{display:flex;gap:3px;padding:0 12px 6px;position:relative;z-index:2}
   .sr-dots i{flex:1;height:4px;border-radius:2px;background:#ffffff26;cursor:pointer}
@@ -276,7 +291,9 @@
       const op = openPage();
       el.innerHTML = `<div class="sr${clean ? ' clean' : ''}">
         <div class="sr-top"><button class="sr-x" data-x aria-label="Close shoot mode">✕</button>
-          <div class="sr-ttl">${esc(t.title)}</div><div class="sr-n">${at + 1} / ${shots.length}</div>
+          <div class="sr-ttl">${esc(t.title)}</div>
+          ${global.Devices ? `<button class="sr-dev" data-srdev title="What you're shooting on — every shot you tick gets it">${esc(Devices.last() || 'Shooting on…')}</button>` : ''}
+          <div class="sr-n">${at + 1} / ${shots.length}</div>
           ${nextTask ? `<button class="sr-skip" data-nexttask title="Next shoot task: ${esc(nextTask.title)}">⏭<span> Next task</span></button>` : ''}</div>
         ${more ? `<div class="sr-pages"><button data-pgprev aria-label="Previous page" ${pi <= 0 ? 'disabled' : ''}>‹</button>
           <span>Page ${pi + 1} of ${pages.length} · <b>${esc(pageName(t, pg))}</b></span>
@@ -329,9 +346,10 @@
     async function got(){
       const s = shots[at];
       const v = !s.done;
-      if(HO){ applyDone(t, s.i, v, pg, s.j); await HO.save(t); await reload(); }
+      const dev = global.Devices ? Devices.last() : '';
+      if(HO){ applyDone(t, s.i, v, pg, s.j, dev); await HO.save(t); await reload(); }
       else {
-        const fresh = await setDone(id, s.i, v, pg, s.j);
+        const fresh = await setDone(id, s.i, v, pg, s.j, dev);
         if(fresh){ t = fresh; pages = pagesOf(t); shots = shotsOf(t, pg); }
       }
       if(!v) return render();
@@ -349,6 +367,7 @@
       if(e.target.closest('[data-pgnext]')){ const pi = pages.indexOf(pg); if(pi < pages.length - 1) toPage(pages[pi + 1], 'open'); return; }
       if(e.target.closest('[data-pgprev]')){ const pi = pages.indexOf(pg); if(pi > 0) toPage(pages[pi - 1], 'open'); return; }
       if(e.target.closest('[data-got]')) return got();
+      if(e.target.closest('[data-srdev]')){ (async () => { const d = await Devices.pick('What are you shooting on?', Devices.last()); if(d !== null){ Devices.setLast(d); render(); } })(); return; }
       if(e.target.closest('[data-script]')){ scriptOpen = !scriptOpen; try { localStorage.setItem('cs4.sr.script', scriptOpen ? '1' : '0'); } catch(err){} return render(); }
       if(e.target.closest('[data-prev]')) return go(at - 1);
       if(e.target.closest('[data-next]')) return go(at + 1);

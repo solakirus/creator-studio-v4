@@ -267,3 +267,17 @@ GIF, 3–9 MB), the title in `<h1>`, "Technique / Director / Original Source" li
 | Details | toggle in the card's header (Details ⌄ / Less ⌃); a Description line (shot.desc) apart from Notes | person's request |
 | Shoot mode | ▶ Shoot mode on top of a sequence page's Storyboard (day columns keep ▶ Shoot it) | person's request |
 | Tested | v4-shotboard 47/47, v4-transitions 63/63 | round 9 |
+
+## Edit, pass 1: the episode in one line, and its footage (2026-11-14)
+| Rule | Value | Source |
+|---|---|---|
+| Where | the episode's Edit button (vlog.js renderEdit → editline.js) | person's request |
+| Line | days → sequences (v.editOrder, drag a label; laptop) → shots; width = length × zoom (6/10/16/26/40 px/s); no length counts 3 s ("about") | estimated |
+| Block marks | filmed: green line; not yet: dashed; still on the card: amber dot; ▣ on the computer; ✂ cut; device short (R6, P3); ⇄ transition; green: a short | person's request |
+| Panel | description, edit note, device, where the file is, THEN, lines; ✓ Filmed / ▣ On the computer / ✂ Cut | person's request |
+| Mass update | select all / still on a card / no device / a device / a day / a sequence / pick blocks → on the computer, back to the card, device, folder, filmed, cut | person's request |
+| Shot fields | dev, off, loc, cut (shotlist.js extras); v.footFolder | estimated |
+| Devices | settings 'devices', default Canon R6, DJI Pocket 3, iPhone, Android phone; add/rename/reorder/remove | person's request |
+| Shoot mode | a device chip (last used, localStorage cs4-last-dev); Got it labels a shot with no device yet; a vlog shoot task also labels the episode's shot | person's request |
+| Copy as markers | "m:ss  Shot · type · device · [folder] — edit note  ⇄ Transition →", one a shot, by day · sequence, total | estimated |
+| Tested | v4-editline.browser.js 34/34 | round 10 |

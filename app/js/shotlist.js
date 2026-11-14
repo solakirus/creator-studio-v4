@@ -51,6 +51,11 @@
     if(x.clip) o.clip = String(x.clip);
     /* v4: the Storyboard's description line — what we see in it */
     if(x.desc) o.desc = String(x.desc);
+    /* v4: the footage (editline.js): device, on the computer, where, cut */
+    if(x.dev) o.dev = String(x.dev);
+    if(x.off) o.off = true;
+    if(x.loc) o.loc = String(x.loc);
+    if(x.cut) o.cut = true;
     /* v4: the shots inside this one (a notebook page — the Storyboard's ▦ task
        sequence), so shoot mode can go through them after it */
     if(x.seq && Array.isArray(x.seq.slots) && x.seq.slots.length) o.seq = x.seq;

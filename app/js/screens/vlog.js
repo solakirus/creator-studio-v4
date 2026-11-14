@@ -668,6 +668,7 @@
       if(!v){ Screens.pop(); return; }
       if(mode === 'plan') return renderPlan();
       if(mode === 'week') return renderWeek();
+      if(mode === 'outline' && window.EditLine) return renderEdit();
       const prevView = el.querySelector('.view');
       const keepTop = prevView ? prevView.scrollTop : 0;
       setTimeout(() => {
@@ -1041,6 +1042,20 @@
               dated.length && sent.length < dated.length
                 ? '<button class="btn-sm accent" data-a="tasks">Add to my tasks</button>' : '')}
           </div>`;
+    }
+
+    /* v4: Edit — the whole episode in one line (editline.js) */
+    function renderEdit(){
+      el.innerHTML = Screens.bar({ kicker:v.week ? `Vlog ${v.week}` : 'Vlog builder', title:v.title,
+        actions:`<span class="modetog">
+          <button data-a="mode-plan" aria-pressed="false">Plan</button>
+          <button data-a="mode-board" aria-pressed="false">Board</button>
+          <button data-a="mode-week" aria-pressed="false">Shoot</button>
+          <button data-a="mode-outline" aria-pressed="true">Edit</button>
+        </span>` }) + '<div class="view"><div id="elHost"></div></div>';
+      EditLine.mount(el.querySelector('#elHost'), { vlogId:v.id,
+        openBeat: id => Screens.push('vlog-beat', { vlogId:v.id, beatId:id, onChange:async () => { await load(); render(); } }),
+        onChange: async () => { v = migrate(await Store.get('vlogs', v.id)); } });
     }
 
     /* v4: a section of the plan folded to one line until it's wanted

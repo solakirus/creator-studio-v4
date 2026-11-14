@@ -140,6 +140,7 @@
                  ${A.host ? `<button class="lv-btn sm ghost" data-sbshoot="${i}" title="Shoot mode from this shot: it, then the shots inside it, then the next">▶ Shoot</button>` : ''}
                  <button class="lv-btn sm ghost" data-sbunseq="${i}" title="Back to one picture (the sequence is removed)">✕</button>`
               : `<button class="lv-btn sm ghost" data-sbmkseq="${i}" title="Hold up to nine more shots inside this one">▦ Task sequence</button>`}</div>` : ''}
+            ${global.Devices ? `<div class="lv-row"><span class="tp-then">ON</span><button class="lv-btn sm ghost" data-sbdev="${i}" title="What it's shot on">${esc(s.dev || 'Pick a device')}</button>${s.off ? '<small style="color:#7FB6F5">▣ on the computer</small>' : ''}</div>` : ''}
             ${s.clip ? '' : `<div class="lv-row"><button class="lv-btn sm ghost" data-sbclip="${i}" title="This shot is a short or clip you made (or will make)">＋ Attach a short or clip</button></div>`}
             <textarea class="lv-in lv-ta" data-sbf="note" data-i="${i}" rows="2" placeholder="Notes: lens, audio, line…">${esc(s.note || '')}</textarea>
             <div class="lv-row tp-sfoot"><small></small>
@@ -177,6 +178,8 @@
     box.addEventListener('click', async e => {
       e.stopPropagation();
       const g = e.target;
+      const dv = g.closest('[data-sbdev]');
+      if(dv){ const i = +dv.dataset.sbdev; const d = await Devices.pick('Shot ' + (i + 1) + ' — shot on', shots[i].dev || ''); if(d === null) return; if(d) shots[i].dev = d; else delete shots[i].dev; await save(); return draw(); }
       const co = g.closest('[data-sbclipopen]');
       if(co) return Screens.push('clip', { id:co.dataset.sbclipopen, onChange: async () => { await loadClips(); draw(); } });
       const cf = g.closest('[data-sbclipoff]');
