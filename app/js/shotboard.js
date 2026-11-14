@@ -39,6 +39,40 @@
     let tt = 0;
     /* each card shows its frame and words; the rest folds under Details
        (one card at a time, or all of them — remembered on this device) */
+    /* the shorts and clips a shot can be (Content → Clips) */
+    let clips = new Map();
+    const loadClips = async () => { try { clips = new Map(((await Store.all('clips')).values || []).map(c => [c.id, c])); } catch(e){} };
+    await loadClips();
+    const kindOf = c => /shorts|reels|tiktok|short/i.test(c.plat || c.format || '') ? 'Short' : 'Clip';
+    function clipSheet(title){
+      return new Promise(resolve => {
+        let q = '';
+        const list = () => [...clips.values()].filter(c => !q || (c.title || '').toLowerCase().includes(q))
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 80);
+        const rows = () => list().map(c => `<button class="row" data-pickclip="${esc(c.id)}"><span class="lbl">${esc(c.title || 'Untitled')}
+            <small>${[kindOf(c), c.channel, global.Lifecycle && Lifecycle.stage ? Lifecycle.stage(c.stage || 'idea').label : ''].filter(Boolean).map(esc).join(' · ')}</small></span></button>`).join('')
+          || '<p class="hintline" style="margin:6px 0">Nothing by that name — make it new below.</p>';
+        App.sheet(`<h2 style="margin:0 0 4px">${esc(title)}</h2>
+          <p class="hintline" style="margin:0 0 10px">A short or clip from Content → Clips. It stays its own clip; this shot points at it.</p>
+          <input class="sb-q" type="search" placeholder="Find a short or clip" aria-label="Find a short or clip">
+          <div class="group compact sb-clips" style="margin:8px 0 10px;max-height:44vh;overflow-y:auto">${rows()}</div>
+          <div style="display:flex;gap:6px"><input class="sb-q" data-newclip placeholder="Or a new short — its title" aria-label="New short title" style="flex:1"><button class="btn-sm accent" data-mkclip>Make it</button></div>
+          <div class="sheetcta"><button class="btn-ghost" data-no>Cancel</button></div>`, sh => {
+          sh.querySelector('.sb-q').addEventListener('input', e => { q = e.target.value.trim().toLowerCase(); sh.querySelector('.sb-clips').innerHTML = rows(); });
+          sh.addEventListener('click', async e => {
+            if(e.target.closest('[data-no]')){ App.closeSheet(); return resolve(null); }
+            const pc = e.target.closest('[data-pickclip]');
+            if(pc){ App.closeSheet(); return resolve(clips.get(pc.dataset.pickclip) || null); }
+            if(e.target.closest('[data-mkclip]')){
+              const t = sh.querySelector('[data-newclip]').value.trim();
+              if(!t) return U.toast('Give it a title');
+              const c = await Data.saveClip({ title:t, state:'raw', stage:'idea', plat:'shorts', createdAt:Date.now() });
+              await loadClips(); App.closeSheet(); return resolve(c);
+            }
+          });
+        });
+      });
+    }
     const DET_KEY = 'cs4-sb-details';
     let allOpen = (() => { try { return localStorage.getItem(DET_KEY) === '1'; } catch(e){ return false; } })();
     const opened = new Set();
@@ -54,7 +88,7 @@
         ${plain.map(x => `<option value="${esc(x)}" ${cur === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}
         ${tr && tr.n && !tr.id && !plain.includes(tr.n) ? `<option value="${esc(tr.n)}" selected>${esc(tr.n)}</option>` : ''}
         ${tr && tr.id ? `<option value="ec:${esc(tr.id)}" selected>⇄ ${esc(tr.n || 'Eyecandy')}</option>` : ''}
-        ${global.Transitions ? '<option value="__ec">⇄ From your transitions…</option>' : ''}</select>`;
+        ${global.Transitions ? '<option value="__ec">⇄ Eyecandy transitions…</option>' : ''}</select>`;
     }
 
     function draw(){
@@ -67,14 +101,16 @@
         ${shots.length ? `<p class="hintline sb-sum">${[global.Notebook && Notebook.roleLine && roles.length ? esc(Notebook.roleLine(roles)) : '',
             miss.length ? `<span style="color:var(--red)">missing: ${esc(miss.join(', ').toLowerCase())}</span>` : '', total ? 'total ' + fmt(total) : '',
             `${shots.filter(s => s.done).length} of ${shots.length} filmed`].filter(Boolean).join(' · ')}
-          <button class="sb-alldet" data-sballdet aria-pressed="${allOpen}">${allOpen ? 'Hide details' : 'Show all details'}</button></p>` : ''}
+          <span class="sb-sumacts">${A.host && !o.narrow ? `<button class="sb-shootall" data-sbshootall>▶ Shoot mode</button>` : ''}
+          <button class="sb-alldet" data-sballdet aria-pressed="${allOpen}">${allOpen ? 'Hide details' : 'Show all details'}</button></span></p>` : ''}
         <div class="tp-shots">${shots.map((s, i) => {
           const s0 = start; start += Math.max(0, +s.secs || 0);
           const spec = [dash(s.framing), dash(s.movement)].filter(Boolean).join(' · ');
           const nseq = s.seq && s.seq.slots ? s.seq.slots.length : 0;
           return `<article class="tp-shot${s.done ? ' sb-done' : ''}" draggable="true" data-i="${i}">
             <div class="tp-shead"><b>${String(i + 1).padStart(2, '0')}</b><span class="sp">${esc(spec.toUpperCase())}</span>
-              <small>${s.secs ? fmt(s0) + ' · ' + fmt(s.secs) : ''}</small></div>
+              <small>${s.secs ? fmt(s0) + ' · ' + fmt(s.secs) : ''}</small>
+              ${allOpen ? '' : `<button class="sb-tog" data-sbmore="${esc(s.id)}" aria-expanded="${isOpen(s)}" title="${isOpen(s) ? 'Fold the details' : 'Show the details'}">${isOpen(s) ? 'Less ⌃' : 'Details ⌄'}</button>`}</div>
             <div class="tp-frame${s.item ? '' : ' empty'}" data-sbframe="${i}">
               ${s.item ? `<span class="sb-pic" data-slpic="${esc(s.item)}"></span>` : ''}
               <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
@@ -84,37 +120,42 @@
                 <button class="tp-fbtn" data-sbclear="${i}" title="Take the frame off this shot" aria-label="Take the frame off this shot">✕</button></span>` : ''}
             </div>
             <input class="lv-in" data-sbf="text" data-i="${i}" value="${esc(s.text || '')}" placeholder="What happens in this shot">
+            ${s.clip ? (() => { const c = clips.get(s.clip); return `<div class="sb-cliprow"><button class="sb-clip" data-sbclipopen="${esc(s.clip)}" title="Open it">▶ ${c ? `${kindOf(c)} · ${esc(c.title || 'Untitled')}` : 'A clip that isn’t on this device'}</button>
+              <button class="lv-btn sm ghost" data-sbclipoff="${i}" title="Take it off this shot (the clip stays)" aria-label="Take the clip off this shot">✕</button></div>`; })() : ''}
             ${!isOpen(s) ? `<div class="sb-fold"><label class="tp-done" title="Filmed"><input type="checkbox" data-sbf="done" data-i="${i}" ${s.done ? 'checked' : ''}></label>
-              <span class="sb-facts">${[s.role, s.secs ? fmt(s.secs) : '', s.tr && (s.tr.n || s.tr.id) && i < shots.length - 1 ? '⇄ ' + (s.tr.n || 'Transition') : '',
-                nseq ? `▦ ${nseq}` : '', s.note ? '✎' : ''].filter(Boolean).map(esc).join(' · ') || '<i>Nothing set yet</i>'}</span>
+              <span class="sb-facts">${[s.role, s.secs ? fmt(s.secs) : '', nseq ? `▦ ${nseq}` : '', s.desc || s.note ? '✎' : ''].filter(Boolean).map(esc).join(' · ') || '<i>Nothing set yet</i>'}</span>
               ${nseq && A.host ? `<button class="lv-btn sm ghost" data-sbshoot="${i}" title="Shoot mode from this shot">▶</button>` : ''}
-              <button class="lv-btn sm ghost" data-sbmore="${esc(s.id)}" aria-expanded="false">Details ⌄</button></div>` : `
+              </div>` : `
             <div class="sb-more">
             <div class="lv-row"><span class="tp-drag" title="Drag to reorder">⠿</span>
               ${sel(`data-sbf="role" data-i="${i}"`, [''].concat(T().ROLES), s.role || '').replace('<option >', '<option value="">').replace(/<option( selected)?><\/option>/, `<option value=""$1>Role</option>`)}
               <select class="lv-sel" data-sbf="secs" data-i="${i}" title="How long it runs">${!s.secs ? '<option value="0" selected>—</option>' : ''}${T().DURATIONS.map(d => `<option value="${d}" ${+s.secs === d ? 'selected' : ''}>${fmt(d)}</option>`).join('')}
                 ${s.secs && !T().DURATIONS.includes(+s.secs) ? `<option value="${s.secs}" selected>${fmt(s.secs)}</option>` : ''}</select>
               <label class="tp-done" title="Filmed"><input type="checkbox" data-sbf="done" data-i="${i}" ${s.done ? 'checked' : ''}></label></div>
+            <input class="lv-in" data-sbf="desc" data-i="${i}" value="${esc(s.desc || '')}" placeholder="Description — what we see in it">
             <div class="lv-row">${sel(`data-sbf="framing" data-i="${i}"`, T().SIZES, s.framing || '—', 'Shot type')}
               ${sel(`data-sbf="movement" data-i="${i}"`, T().MOVES, s.movement || '—', 'Move')}</div>
-            ${i < shots.length - 1 ? `<div class="lv-row"><span class="tp-then">THEN</span>${thenSel(s, i)}</div>` : ''}
             ${global.PagesEditor && hasLib() ? `<div class="lv-row">${nseq
               ? `<button class="lv-btn sm" data-sbseq="${i}">▦ ${s.seq.slots.filter(x => x.item).length}/${nseq} Open sequence</button>
                  ${A.host ? `<button class="lv-btn sm ghost" data-sbshoot="${i}" title="Shoot mode from this shot: it, then the shots inside it, then the next">▶ Shoot</button>` : ''}
                  <button class="lv-btn sm ghost" data-sbunseq="${i}" title="Back to one picture (the sequence is removed)">✕</button>`
               : `<button class="lv-btn sm ghost" data-sbmkseq="${i}" title="Hold up to nine more shots inside this one">▦ Task sequence</button>`}</div>` : ''}
+            ${s.clip ? '' : `<div class="lv-row"><button class="lv-btn sm ghost" data-sbclip="${i}" title="This shot is a short or clip you made (or will make)">＋ Attach a short or clip</button></div>`}
             <textarea class="lv-in lv-ta" data-sbf="note" data-i="${i}" rows="2" placeholder="Notes: lens, audio, line…">${esc(s.note || '')}</textarea>
             <div class="lv-row tp-sfoot"><small></small>
               ${i > 0 ? `<button class="lv-btn sm ghost" data-sbmv="${i}" data-d="-1" title="Earlier" aria-label="Earlier">←</button>` : ''}
               ${i + 1 < shots.length ? `<button class="lv-btn sm ghost" data-sbmv="${i}" data-d="1" title="Later" aria-label="Later">→</button>` : ''}
               <button class="lv-btn sm ghost" data-sbdup="${i}" title="Duplicate" aria-label="Duplicate">⧉</button>
               <button class="lv-btn sm ghost" data-sbrm="${i}" title="Remove" aria-label="Remove">✕</button>
-              ${allOpen ? '' : `<button class="lv-btn sm ghost" data-sbmore="${esc(s.id)}" aria-expanded="true">Fold ⌃</button>`}</div>
+              </div>
             </div>`}
+            ${i < shots.length - 1 ? `<div class="sb-then${s.tr && (s.tr.n || s.tr.id) ? ' set' : ''}"><span class="tp-then">THEN</span>${thenSel(s, i)}
+              ${s.tr && s.tr.id ? `<button class="lv-btn sm ghost" data-sbwatch="${esc(s.tr.id)}" data-trn="${esc(s.tr.n || '')}" title="Watch it" aria-label="Watch the transition">▶</button>` : ''}</div>` : ''}
           </article>`; }).join('')}
           ${hasLib() ? `<button class="tp-addcard" data-sbframes><b>＋</b><span>Add frames from the Library</span></button>` : ''}
         </div>
-        <div class="lv-row" style="margin-top:12px"><button class="lv-btn ghost" data-sbempty title="Plan a shot you still have to film">＋ Empty shot</button></div>
+        <div class="lv-row" style="margin-top:12px;flex-wrap:wrap"><button class="lv-btn ghost" data-sbempty title="Plan a shot you still have to film">＋ Empty shot</button>
+          <button class="lv-btn ghost" data-sbaddclip title="A short or clip that plays in this sequence">＋ Short or clip</button></div>
       </div>`;
       box.querySelectorAll('.lv-ta').forEach(ta => { ta.style.height = 'auto'; ta.style.height = Math.max(46, ta.scrollHeight) + 'px'; });
       if(global.ShotList) ShotList.fillPics(box);
@@ -136,6 +177,25 @@
     box.addEventListener('click', async e => {
       e.stopPropagation();
       const g = e.target;
+      const co = g.closest('[data-sbclipopen]');
+      if(co) return Screens.push('clip', { id:co.dataset.sbclipopen, onChange: async () => { await loadClips(); draw(); } });
+      const cf = g.closest('[data-sbclipoff]');
+      if(cf){ delete shots[+cf.dataset.sbclipoff].clip; await save(); return draw(); }
+      const ca = g.closest('[data-sbclip]');
+      if(ca){ const i = +ca.dataset.sbclip; const c = await clipSheet(`A short or clip for shot ${i + 1}`); if(!c) return;
+        shots[i].clip = c.id; if(!shots[i].text || /^Shot \d+$/.test(shots[i].text)) shots[i].text = c.title || shots[i].text; await save(); return draw(); }
+      if(g.closest('[data-sbaddclip]')){
+        const c = await clipSheet('Add a short or clip to this sequence');
+        if(!c) return;
+        shots.push({ id:uid(), text:c.title || 'Short', note:'', role:'', item:'', framing:'', movement:'', done:false, clip:c.id });
+        await save(); return draw();
+      }
+      if(g.closest('[data-sbshootall]')){
+        clearTimeout(tt); await A.save(shots);
+        return Screens.push('shoot-run', { host:A.host(), onChange: async () => { shots = (await A.load()) || shots; draw(); if(o.onChange) await o.onChange(); } });
+      }
+      const wt = g.closest('[data-sbwatch]');
+      if(wt && global.Transitions) return Transitions.peek(wt.dataset.sbwatch, wt.dataset.trn);
       const mo = g.closest('[data-sbmore]');
       if(mo){ const id = mo.dataset.sbmore; opened.has(id) ? opened.delete(id) : opened.add(id); return draw(); }
       if(g.closest('[data-sballdet]')){ allOpen = !allOpen; opened.clear(); try { localStorage.setItem(DET_KEY, allOpen ? '1' : '0'); } catch(err){} return draw(); }
@@ -221,7 +281,7 @@
     /* words save as you type, without redrawing under you */
     box.addEventListener('input', e => {
       const g = e.target;
-      if(!(g.dataset && (g.dataset.sbf === 'text' || g.dataset.sbf === 'note'))) return;
+      if(!(g.dataset && ['text', 'note', 'desc'].includes(g.dataset.sbf))) return;
       shots[+g.dataset.i][g.dataset.sbf] = g.value;
       if(g.tagName === 'TEXTAREA'){ g.style.height = 'auto'; g.style.height = Math.max(46, g.scrollHeight) + 'px'; }
       clearTimeout(tt); tt = setTimeout(async () => { await A.save(shots); if(o.onChange) await o.onChange(); }, 500);
@@ -270,12 +330,23 @@
   .tp-shot.sb-done .tp-shead b{color:var(--green)}
   .sb .tp-shot > .lv-in{flex:0 0 auto}
   .sb-sum{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px}
-  .sb-alldet{margin-left:auto;height:26px;padding:0 10px;border:1px solid var(--line);border-radius:13px;background:transparent;color:var(--muted);font:inherit;font-size:12px;cursor:pointer}
+  .sb-sumacts{margin-left:auto;display:flex;gap:6px}
+  .sb-shootall{height:28px;padding:0 12px;border:0;border-radius:var(--r);background:var(--orange);color:#151515;font:inherit;font-weight:800;font-size:12.5px;cursor:pointer}
+  .sb-tog{margin-left:4px;height:24px;padding:0 9px;border:1px solid var(--line);border-radius:12px;background:transparent;color:var(--muted);font:inherit;font-size:11.5px;cursor:pointer;white-space:nowrap}
+  .sb-tog[aria-expanded="true"]{color:var(--cream);border-color:var(--muted)}
+  .sb-alldet{height:26px;padding:0 10px;border:1px solid var(--line);border-radius:13px;background:transparent;color:var(--muted);font:inherit;font-size:12px;cursor:pointer}
   .sb-fold{display:flex;align-items:center;gap:8px;min-height:32px}
   .sb-facts{flex:1;min-width:0;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .sb-facts i{color:var(--dim);font-style:normal}
   .sb-more{display:flex;flex-direction:column;gap:6px}
   .sb.narrow .tp-shots{grid-template-columns:1fr;gap:12px}
+  .sb-then{display:flex;align-items:center;gap:8px;margin-top:2px;padding:6px 8px;border:1px dashed var(--line);border-radius:var(--r)}
+  .sb-then .lv-sel{flex:1;min-width:0;height:28px}
+  .sb-then.set{border-style:solid;border-color:rgba(167,139,250,.45);background:rgba(167,139,250,.08)}
+  .sb-then.set .tp-then{color:#C9B8FF}
+  .sb-cliprow{display:flex;gap:6px;align-items:center}
+  .sb-clip{flex:1;min-width:0;height:32px;padding:0 10px;border:1px solid rgba(91,190,106,.45);border-radius:var(--r);background:rgba(91,190,106,.08);color:var(--cream);font:inherit;font-size:13px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+  .sb-q{width:100%;height:38px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--cream);font:inherit}
   .sb.narrow .tp-addcard{min-height:64px}
   .sb-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .sb-head h4{margin:0}`;

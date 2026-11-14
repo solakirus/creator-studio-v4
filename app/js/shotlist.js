@@ -47,6 +47,10 @@
     if(x.tr && (x.tr.id || x.tr.n)) o.tr = { id:String(x.tr.id || ''), n:String(x.tr.n || '') };
     /* v4: how long it runs (the Storyboard's length) */
     if(+x.secs > 0) o.secs = +x.secs;
+    /* v4: a short or clip this shot is (or shows) — its id in clips */
+    if(x.clip) o.clip = String(x.clip);
+    /* v4: the Storyboard's description line — what we see in it */
+    if(x.desc) o.desc = String(x.desc);
     /* v4: the shots inside this one (a notebook page — the Storyboard's ▦ task
        sequence), so shoot mode can go through them after it */
     if(x.seq && Array.isArray(x.seq.slots) && x.seq.slots.length) o.seq = x.seq;

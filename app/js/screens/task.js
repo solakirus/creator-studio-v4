@@ -99,6 +99,8 @@
       .tk-trtog[aria-pressed="true"]{color:var(--muted);border-color:var(--muted)}
       .tk-trm{display:flex;align-items:center;gap:8px;height:24px;margin:-2px 0;padding:0 0 0 30px}
       .tk-trm i{flex:1;border-top:1px dashed var(--line)}
+      .tk-trm .tk-trset{max-width:none;padding:0 7px}
+      .tk-trm .tk-trset.add{border-style:dashed;opacity:.8}
       .tk-trm button{max-width:60%;height:22px;padding:0 9px;border:1px solid var(--line);border-radius:11px;background:var(--bg);color:var(--dim);font:inherit;font-size:11.5px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .block.fold.tk-keep > .fbody{display:block!important}
       .block.fold.tk-keep.shut > h4 .fcv{transform:rotate(-90deg)}
@@ -804,7 +806,9 @@
     /* v4: the "Show transitions" toggle is one setting for every shot page */
     const TR_KEY = 'cs4-show-tr';
     const showTr = () => { try { return localStorage.getItem(TR_KEY) === '1'; } catch(e){ return false; } };
-    const trMark = tr => `<div class="tk-trm"><i></i><button ${tr.id ? `data-trpeek="${esc(tr.id)}" title="Watch it"` : 'disabled'} data-trn="${esc(tr.n || '')}">⇄ ${esc(tr.n || 'Transition')}</button><i></i></div>`;
+    const trMark = (tr, i) => `<div class="tk-trm"><i></i>${tr && (tr.id || tr.n)
+      ? `<button ${tr.id ? `data-trpeek="${esc(tr.id)}" title="Watch it"` : 'disabled'} data-trn="${esc(tr.n || '')}">⇄ ${esc(tr.n || 'Transition')}</button><button class="tk-trset" data-trset="${i}" title="Change it" aria-label="Change the transition">✎</button>`
+      : `<button class="tk-trset add" data-trset="${i}">+ transition</button>`}<i></i></div>`;
     /* the beat each shot starts, when the record has a structure (structures.js) */
     function beatAt(){
       const names = t.beatNames || [];
@@ -830,8 +834,11 @@
       let hidden = 0;
       /* v4: transitions out of the shots — out of sight while shooting until asked for */
       const nTr = onMain() ? slots.filter((_, i) => i < slots.length - 1 && (stepOf(i) || {}).tr).length : 0;
-      const trShown = nTr > 0 && showTr();
-      const trBtn = nTr ? `<button class="tk-trtog" data-a="trshow" aria-pressed="${trShown}">⇄ ${nTr} transition${nTr === 1 ? '' : 's'} · ${trShown ? 'Hide' : 'Show'}</button>` : '';
+      /* v4: on any page of two or more shots, so a transition can be added
+         here too — shown, every gap gets one (or a quiet + transition) */
+      const canTr = onMain() && isSteps && slots.length > 1 && !!window.Transitions;
+      const trShown = canTr && showTr();
+      const trBtn = canTr ? `<button class="tk-trtog" data-a="trshow" aria-pressed="${trShown}">⇄ ${nTr ? `${nTr} transition${nTr === 1 ? '' : 's'}` : 'Transitions'} · ${trShown ? 'Hide' : 'Show'}</button>` : '';
       const bAt = beatAt();
       let lastBeat = -1;
       const rows = slots.map((sl, i) => {
@@ -864,7 +871,7 @@
               <button class="mini" data-psmv="up:${i}" ${i === 0 ? 'disabled' : ''} aria-label="Move up">${UP}</button>
               <button class="mini" data-psmv="down:${i}" ${i === slots.length - 1 ? 'disabled' : ''} aria-label="Move down">${DOWN}</button>
               ${canShrink ? `<button class="mini rm" data-psdel="${i}" aria-label="Remove this shot">${CROSS}</button>` : ''}
-            </div>${lo ? linesHTML(i) : ''}${trShown && i < slots.length - 1 && onMain() && (stepOf(i) || {}).tr ? trMark(stepOf(i).tr) : ''}`;
+            </div>${lo ? linesHTML(i) : ''}${trShown && i < slots.length - 1 ? trMark((stepOf(i) || {}).tr, i) : ''}`;
       }).join('');
       const others = onMain() ? (t.subs || []).map((s2, i) => [s2, i]).filter(([s2]) => !hasShotNo(s2)) : [];
       const nav = pages.length > 1 ? `
@@ -1428,6 +1435,15 @@
     });
 
     el.addEventListener('click', async e => {
+      const trs = e.target.closest('[data-trset]');
+      if(trs && window.Transitions){
+        e.stopPropagation();
+        const i = +trs.dataset.trset, cur = (stepOf(i) || {}).tr;
+        const r = await Transitions.pick({ title:`After shot ${i + 1}`, current:cur });
+        if(!r) return;
+        Transitions.setGap(t, i, r === 'clear' ? null : r);
+        await save(); return render();
+      }
       const pk = e.target.closest('[data-trpeek]');
       if(pk){ e.stopPropagation(); if(window.Transitions) Transitions.peek(pk.dataset.trpeek, pk.dataset.trn); return; }
       const rm = e.target.closest('[data-rmshot]');

@@ -240,7 +240,7 @@
   function setGap(t, i, rec){
     let s2 = stepOf(t, i);
     if(!s2){ const sl = slotsOf(t)[i] || {}; s2 = { t:sl.text || 'Shot ' + (i + 1), done:false, shot:i, pg:1 }; (t.subs = t.subs || []).push(s2); }
-    if(rec) s2.tr = { id:rec.id, n:rec.title || techName((rec.tech || [])[0]) };
+    if(rec) s2.tr = { id:rec.id || '', n:rec.title || techName((rec.tech || [])[0]) };
     else delete s2.tr;
   }
   const shotName = (t, i) => (slotsOf(t)[i] || {}).text || 'Shot ' + (i + 1);
@@ -305,22 +305,29 @@
     o = o || {};
     return new Promise(async resolve => {
       const recs = await all();
-      if(!recs.length){ U.toast('No transitions yet — open Content → Transitions'); return resolve(null); }
       const list = await techs();
       let f = recs.some(r => r.kept) ? 'kept' : 'all';
+      /* the plain ones first — a cut is a choice too — then your Eyecandy ones */
+      const PLAIN = ((global.ShotTemplates && ShotTemplates.TRANSITIONS) || ['Cut', 'Match cut', 'Jump cut', 'Whip pan', 'Speed ramp', 'Dissolve', 'J-cut', 'L-cut']).filter(x => x !== 'End');
+      const cur = o.current && (o.current.n || o.current.id) ? o.current : null;
       const body = () => {
         const show = f === 'kept' ? recs.filter(r => r.kept) : f === 'all' ? recs : recs.filter(r => (r.tech || []).includes(f));
         return `<h2 style="margin:0 0 8px">${esc(o.title || 'Pick a transition')}</h2>
+          <div class="trs-plain">${PLAIN.map(x => `<button data-plain="${esc(x)}" aria-pressed="${cur ? !cur.id && cur.n === x : x === 'Cut'}">${esc(x)}</button>`).join('')}</div>
+          ${!recs.length ? '<p class="trs-none">Your Eyecandy transitions show here once they’re read — Content → Transitions.</p>' : `
+          <p class="k" style="margin:12px 0 6px;color:var(--muted);font-size:12px">Your Eyecandy transitions — tap one to link it</p>
           <div class="trs-pills">${[['kept', '★ Kept'], ['all', 'All']].concat(list.filter(x => recs.some(r => (r.tech || []).includes(x.slug))).map(x => [x.slug, x.name]))
             .map(([k, l]) => `<button data-f="${esc(k)}" aria-pressed="${f === k}">${esc(l)}</button>`).join('')}</div>
-          <div class="trs-grid" style="max-height:56vh;overflow:auto">${show.map(r => cellHTML(r, 'data-pick')).join('') || '<p class="trs-none">None here yet.</p>'}</div>
-          <div class="sheetcta">${o.current ? '<button class="btn-ghost" data-clear>No transition here</button>' : ''}<button class="btn-ghost" data-no>Cancel</button></div>`;
+          <div class="trs-grid" style="max-height:48vh;overflow:auto">${show.map(r => cellHTML(r, 'data-pick')).join('') || '<p class="trs-none">None here yet.</p>'}</div>`}
+          <div class="sheetcta">${cur ? '<button class="btn-ghost" data-clear>No transition here</button>' : ''}<button class="btn-ghost" data-no>Cancel</button></div>`;
       };
       App.sheet(body(), sh => {
         css(); wireImgs(sh);
         sh.addEventListener('click', e => {
           const b = e.target.closest('[data-f]');
           if(b){ f = b.dataset.f; sh.innerHTML = body(); wireImgs(sh); return; }
+          const pl = e.target.closest('[data-plain]');
+          if(pl){ App.closeSheet(); return resolve(pl.dataset.plain === 'Cut' ? 'clear' : { id:'', title:pl.dataset.plain, plain:true }); }
           const p = e.target.closest('[data-pick]');
           if(p){ App.closeSheet(); return resolve(recs.find(r => r.id === p.dataset.pick) || null); }
           if(e.target.closest('[data-clear]')){ App.closeSheet(); return resolve('clear'); }
@@ -473,6 +480,9 @@
   .trs-tl span button{width:26px;height:26px;border:0;background:transparent;color:var(--muted);font-size:16px;cursor:pointer}
   .trs-tl.add{max-height:30vh;overflow:auto}
   .trs-tl.add button{height:30px;padding:0 10px;border:1px dashed var(--line);border-radius:15px;background:transparent;color:var(--muted);font-size:13px;cursor:pointer}
+  .trs-plain{display:flex;flex-wrap:wrap;gap:6px}
+  .trs-plain button{height:32px;padding:0 12px;border-radius:16px;border:1px solid var(--line);background:transparent;color:var(--cream);font:inherit;font-size:13.5px;cursor:pointer}
+  .trs-plain button[aria-pressed="true"]{background:var(--cream);color:#151515;border-color:var(--cream);font-weight:700}
   .trs-none{margin:6px 0;color:var(--muted);font-size:14px}
   .trs-q{width:100%;height:40px;margin:0 0 8px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--cream);font:inherit}
   .trs-hosts{display:flex;flex-direction:column;gap:6px;max-height:52vh;overflow:auto}

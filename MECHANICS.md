@@ -256,3 +256,14 @@ GIF, 3–9 MB), the title in `<h1>`, "Technique / Director / Original Source" li
 | Storyboard cards | fold to frame, words, filmed and one line of facts; Details ⌄ per card, Show all details (cs4-sb-details) | person's request |
 | Sequence page | everything after the shots under "More about this sequence" (cs4-ep-fold-seqmore) | person's request |
 | Tested | v4-shotboard.browser.js 35/35 | round 8 |
+
+## Shorts, transitions and details on the Storyboard (2026-11-14)
+| Rule | Value | Source |
+|---|---|---|
+| THEN | always under each card but the last (not in Details); purple when set; ▶ watches an Eyecandy one | person's request: "not seeing it" |
+| Picker | plain transitions first (Cut clears), then your Eyecandy ones (Kept, All, by technique) — Storyboard THEN "⇄ Eyecandy transitions…", Steps gaps, Edit cut list | person's request |
+| Steps | "⇄ Transitions · Show" on any page of 2+ shots; shown, every gap has its name + ✎ or "+ transition" | person's request |
+| Shorts/clips | "＋ Short or clip" adds a shot pointing at a clip (pick, or make a new short by title); "＋ Attach a short or clip" in Details; shot.clip, carried on steps | person's request |
+| Details | toggle in the card's header (Details ⌄ / Less ⌃); a Description line (shot.desc) apart from Notes | person's request |
+| Shoot mode | ▶ Shoot mode on top of a sequence page's Storyboard (day columns keep ▶ Shoot it) | person's request |
+| Tested | v4-shotboard 47/47, v4-transitions 63/63 | round 9 |
