@@ -47,6 +47,9 @@
     if(x.tr && (x.tr.id || x.tr.n)) o.tr = { id:String(x.tr.id || ''), n:String(x.tr.n || '') };
     /* v4: how long it runs (the Storyboard's length) */
     if(+x.secs > 0) o.secs = +x.secs;
+    /* v4: the shots inside this one (a notebook page — the Storyboard's ▦ task
+       sequence), so shoot mode can go through them after it */
+    if(x.seq && Array.isArray(x.seq.slots) && x.seq.slots.length) o.seq = x.seq;
     return o;
   }
   const LINE_KINDS = { vo:'VO', cam:'On cam', txt:'Text' };
@@ -315,6 +318,8 @@
     };
     return {
       key,
+      /* the Steps host for the same shots (shoot mode goes through it) */
+      host: () => p[0] === 'beat' ? hostBeat(p[1], p[2]) : p[0] === 'clip' ? hostClip(p[1]) : hostVideo(p[1]),
       async load(){
         rec = await get();
         if(!rec) return null;

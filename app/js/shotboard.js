@@ -36,6 +36,7 @@
     o = o || {};
     if(!box || !A) return;
     let shots = (await A.load()) || [];
+    let tt = 0;
     const save = async () => { await A.save(shots); shots = (await A.load()) || shots; if(o.onChange) await o.onChange(); };
     const sel = (attr, list, v, title) => `<select class="lv-sel" ${attr} ${title ? `title="${title}"` : ''}>${list.map(x => `<option ${v === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>`;
 
@@ -86,6 +87,7 @@
             ${i < shots.length - 1 ? `<div class="lv-row"><span class="tp-then">THEN</span>${thenSel(s, i)}</div>` : ''}
             ${global.PagesEditor && hasLib() ? `<div class="lv-row">${nseq
               ? `<button class="lv-btn sm" data-sbseq="${i}">▦ ${s.seq.slots.filter(x => x.item).length}/${nseq} Open sequence</button>
+                 ${A.host ? `<button class="lv-btn sm ghost" data-sbshoot="${i}" title="Shoot mode from this shot: it, then the shots inside it, then the next">▶ Shoot</button>` : ''}
                  <button class="lv-btn sm ghost" data-sbunseq="${i}" title="Back to one picture (the sequence is removed)">✕</button>`
               : `<button class="lv-btn sm ghost" data-sbmkseq="${i}" title="Hold up to nine more shots inside this one">▦ Task sequence</button>`}</div>` : ''}
             <textarea class="lv-in lv-ta" data-sbf="note" data-i="${i}" rows="2" placeholder="Notes: lens, audio, line…">${esc(s.note || '')}</textarea>
@@ -165,6 +167,11 @@
       }
       const sq = g.closest('[data-sbseq]');
       if(sq) return openSeq(+sq.dataset.sbseq);
+      const sh = g.closest('[data-sbshoot]');
+      if(sh){
+        clearTimeout(tt); await A.save(shots);
+        return Screens.push('shoot-run', { host:A.host(), at:+sh.dataset.sbshoot, onChange: async () => { shots = (await A.load()) || shots; draw(); if(o.onChange) await o.onChange(); } });
+      }
       const us = g.closest('[data-sbunseq]');
       if(us){ delete shots[+us.dataset.sbunseq].seq; await save(); return draw(); }
     });
@@ -194,7 +201,6 @@
       if(['role', 'secs', 'framing', 'movement', 'done'].includes(f)) draw();
     });
     /* words save as you type, without redrawing under you */
-    let tt = 0;
     box.addEventListener('input', e => {
       const g = e.target;
       if(!(g.dataset && (g.dataset.sbf === 'text' || g.dataset.sbf === 'note'))) return;

@@ -243,3 +243,5 @@ GIF, 3–9 MB), the title in `<h1>`, "Technique / Director / Original Source" li
 | THEN | the shot's `tr`: plain ({id:'', n:'Dissolve'}) or an Eyecandy transition; shows on the shot page's hidden markers and the Edit cut list | transitions.js |
 | Kept through the Steps | framing, movement, length (secs), THEN, task sequence (seq), notes, lines — both hosts share `restore` | v4-shotboard.browser.js |
 | Remembered | localStorage cs4-shots-view, per device | estimated |
+| Shoot mode | a shot with a ▦ task sequence: the shot, then its parts (1.1, 1.2…, "part 1 of 3 · <shot>"), then the next shot; Got it on a part ticks that part only; the seq rides on the steps (shotlist.js extras) so a shoot task on a day has it too | person's request |
+| ▶ Shoot on a card | beside Open sequence: shoot mode from that shot; the sequence card's ▶ Shoot it still does the whole sequence | person's request |

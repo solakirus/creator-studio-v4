@@ -57,8 +57,13 @@
         /* a spot with no frame: an episode shot's Reference Library still, if it has one */
         const sh = !sl.item && (t.shots || [])[i];
         const ref = sh ? (sh.angles || []).flatMap(a => a.refIds || [])[0] : null;
-        return { i, item:sl.item || '', ref:ref || null, role:sl.role || '', text:sl.text || `Shot ${i + 1}`, note:step.note || sl.note || '', done:!!step.done, lines, beat };
-      });
+        const main = { i, item:sl.item || '', ref:ref || null, role:sl.role || '', text:sl.text || `Shot ${i + 1}`, note:step.note || sl.note || '', done:!!step.done, lines, beat };
+        /* v4: a shot with a task sequence inside it (the Storyboard's ▦):
+           the shot, then each of its parts, then on to the next shot */
+        const parts = step.seq && Array.isArray(step.seq.slots) ? step.seq.slots : [];
+        return [main].concat(parts.map((p, j) => ({ i, j, of:parts.length, parent:main.text, item:p.item || '', ref:null, role:p.role || '',
+          text:p.text || `${main.text} · part ${j + 1}`, note:p.note || '', done:!!p.done, lines:[], beat })));
+      }).flat();
     }
     /* steps: an episode sequence's shots keep their Reference Library stills on
        t.shots[i].angles[].refIds — the first one is the shot's frame */
@@ -72,15 +77,20 @@
 
   /* tick one shot — the same rule as the task screen: a page spot ticks the
      steps standing for it; every step ticked makes the task done */
-  async function setDone(id, i, v, k){
+  async function setDone(id, i, v, k, j){
     const t = await Store.get('tasks', id);
     if(!t) return null;
-    applyDone(t, i, v, k);
+    applyDone(t, i, v, k, j);
     await Store.put('tasks', t);
     if(global.Data && Data.invalidate) Data.invalidate('tasks');
     return t;
   }
-  function applyDone(t, i, v, k){
+  function applyDone(t, i, v, k, j){
+    /* a part of a shot's task sequence: ticked on that sequence's page */
+    if(!k && j != null){
+      (t.subs || []).forEach(s2 => { if(s2.shot === i && s2.seq && s2.seq.slots && s2.seq.slots[j]) s2.seq.slots[j].done = v; });
+      return t;
+    }
     if(k){ const P = pageAt(t, k); if(P && P.slots && P.slots[i]) P.slots[i].done = v; return t; }
     if(t.page && Array.isArray(t.page.slots) && t.page.slots.length){
       if(global.TaskPages) TaskPages.match(t);
@@ -103,6 +113,7 @@
   .sr-dots{display:flex;gap:3px;padding:0 12px 6px;position:relative;z-index:2}
   .sr-dots i{flex:1;height:4px;border-radius:2px;background:#ffffff26;cursor:pointer}
   .sr-dots i.done{background:#5BBE6A}.sr-dots i.on{background:#FB6900}
+  .sr-dots i.part{flex:.5;height:3px;margin-top:.5px;opacity:.85}
   .sr-pic{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;background:#000;touch-action:pan-y}
   .sr-holdtip{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#ddd;font-size:12px;padding:4px 10px;border-radius:99px;pointer-events:none;white-space:nowrap}
   .sr.clean .sr-holdtip{display:none}
@@ -153,15 +164,19 @@
   @media (min-width:900px){ .sr-cap{padding:14px 28px 6px} .sr-bar{grid-template-columns:90px minmax(240px,420px) 90px;justify-content:center} }`;
 
   /* swap one shot's frame on this task (the template it came from stays) */
-  async function setFrame(id, i, uid, k){
+  async function setFrame(id, i, uid, k, j){
     const t = await Store.get('tasks', id);
     if(!t) return null;
-    applyFrame(t, i, uid, k);
+    applyFrame(t, i, uid, k, j);
     await Store.put('tasks', t);
     if(global.Data && Data.invalidate) Data.invalidate('tasks');
     return t;
   }
-  function applyFrame(t, i, uid, k){
+  function applyFrame(t, i, uid, k, j){
+    if(!k && j != null){
+      (t.subs || []).forEach(s2 => { if(s2.shot === i && s2.seq && s2.seq.slots && s2.seq.slots[j]) s2.seq.slots[j].item = uid || ''; });
+      return t;
+    }
     if(k){ const P = pageAt(t, k); if(P && P.slots && P.slots[i]) P.slots[i].item = uid || ''; return t; }
     if(t.page && Array.isArray(t.page.slots) && t.page.slots[i]) t.page.slots[i].item = uid || '';
     else if(t.subs && t.subs[i]) t.subs[i].frame = uid || '';
@@ -212,7 +227,9 @@
     if(!shots.length){ el.innerHTML = `<div class="sr"><div class="sr-top"><button class="sr-x" data-x>✕</button></div><div class="sr-pic"><div class="sr-none"><b>No shots</b>Add steps or a shot page first.</div></div></div>`;
       el.querySelector('[data-x]').onclick = () => Screens.pop(); return; }
     function firstOpen(){ const k = shots.findIndex(s => !s.done); return k < 0 ? 0 : k; }
-    let at = params.at != null && shots[params.at] ? params.at : firstOpen();
+    /* params.at is a shot on the page; its parts (if any) come after it */
+    const atShot = params.at != null ? shots.findIndex(x => x.i === +params.at && x.j == null) : -1;
+    let at = atShot >= 0 ? atShot : firstOpen();
     let clean = false, allShown = false;
     /* the script: see the shot first, then reveal its lines. Stays open or shut
        as you move between shots, and between visits. */
@@ -248,6 +265,8 @@
 
     const nextAfter = k => { for(let j = 1; j <= shots.length; j++){ const n = (k + j) % shots.length; if(!shots[n].done) return n; } return -1; };
 
+    /* a shot's number: 2, or 2.3 for the third part of shot 2's sequence */
+    const num = x => x.j != null ? `${x.i + 1}.${x.j + 1}` : String(x.i + 1);
     async function render(){
       const s = shots[at];
       const nx = nextAfter(at);
@@ -262,17 +281,17 @@
         ${more ? `<div class="sr-pages"><button data-pgprev aria-label="Previous page" ${pi <= 0 ? 'disabled' : ''}>‹</button>
           <span>Page ${pi + 1} of ${pages.length} · <b>${esc(pageName(t, pg))}</b></span>
           <button data-pgnext aria-label="Next page" ${pi >= pages.length - 1 ? 'disabled' : ''}>›</button></div>` : ''}
-        <div class="sr-dots">${shots.map((x, k) => `<i class="${x.done ? 'done' : ''}${k === at ? ' on' : ''}" data-go="${k}" title="Shot ${k + 1}"></i>`).join('')}</div>
-        <div class="sr-pic" data-pic>${m ? picHTML(m) : `<div class="sr-none"><b>${at + 1}</b>No reference frame for this shot</div>`}
+        <div class="sr-dots">${shots.map((x, k) => `<i class="${x.done ? 'done' : ''}${k === at ? ' on' : ''}${x.j != null ? ' part' : ''}" data-go="${k}" title="Shot ${num(x)}"></i>`).join('')}</div>
+        <div class="sr-pic" data-pic>${m ? picHTML(m) : `<div class="sr-none"><b>${num(s)}</b>No reference frame for this shot</div>`}
           ${s.done ? '<span class="sr-taken">✓ Taken</span>' : ''}
           ${at === 0 && global.StarPick ? '<span class="sr-holdtip">Tap: clean view · Hold: swap the frame</span>' : ''}</div>
         <div class="sr-cap">
-          <p class="sr-k">Shot ${at + 1}${s.role ? ' · ' + esc(s.role) : ''}${s.beat ? ' · ' + esc(s.beat) : ''}</p>
+          <p class="sr-k">Shot ${num(s)}${s.j != null ? ` · part ${s.j + 1} of ${s.of} · ${esc(s.parent)}` : ''}${s.role ? ' · ' + esc(s.role) : ''}${s.beat ? ' · ' + esc(s.beat) : ''}</p>
           <p class="sr-t">${esc(s.text)}</p>
           ${s.note ? `<p class="sr-note">${esc(s.note)}</p>` : ''}
           ${s.lines.length ? `<button class="sr-tw${scriptOpen ? ' on' : ''}" data-script aria-expanded="${scriptOpen}">${TW} ${scriptOpen ? 'Hide the script' : `Script for this shot · ${s.lines.length} line${s.lines.length === 1 ? '' : 's'}`}</button>
             ${scriptOpen ? `<div class="sr-lines">${s.lines.map(l => `<div class="sr-line"><i class="${l.k || 'vo'}">${KIND[l.k] || 'VO'}</i><span>${esc(l.t)}</span></div>`).join('')}</div>` : ''}` : ''}
-          <div class="sr-next">${nx >= 0 && nx !== at ? `${mn ? `<span class="th">${picHTML(mn, true)}</span>` : ''}<span>Up next · <b>${nx + 1}. ${esc(shots[nx].text)}</b>${at === shots.length - 1 && pi < pages.length - 1 ? ` · › for ${esc(pageName(t, pages[pi + 1]))}` : ''}</span>`
+          <div class="sr-next">${nx >= 0 && nx !== at ? `${mn ? `<span class="th">${picHTML(mn, true)}</span>` : ''}<span>Up next · <b>${num(shots[nx])}. ${esc(shots[nx].text)}</b>${shots[nx].j === 0 ? ` · ▦ ${shots[nx].of} inside shot ${shots[nx].i + 1}` : ''}${at === shots.length - 1 && pi < pages.length - 1 ? ` · › for ${esc(pageName(t, pages[pi + 1]))}` : ''}</span>`
             : op != null ? `<span>Then the next page · <b>${esc(pageName(t, op))}</b></span>`
             : doneN === shots.length ? '<span>Every shot is taken</span>' : '<span>This is the last one left</span>'}</div>
         </div>
@@ -291,9 +310,9 @@
       const pic = el.querySelector('[data-pic]');
       if(pic && global.StarPick) U.onHold(pic, () => {
         const s2 = shots[at];
-        StarPick.open({ title:`Shot ${at + 1} — swap its frame for today`, clear:!!s2.item, onPick: async uid => {
-          if(HO){ applyFrame(t, s2.i, uid, pg); await HO.save(t); await reload(); return render(); }
-          const fresh = await setFrame(id, s2.i, uid, pg);
+        StarPick.open({ title:`Shot ${num(s2)} — swap its frame for today`, clear:!!s2.item, onPick: async uid => {
+          if(HO){ applyFrame(t, s2.i, uid, pg, s2.j); await HO.save(t); await reload(); return render(); }
+          const fresh = await setFrame(id, s2.i, uid, pg, s2.j);
           if(fresh){ t = fresh; pages = pagesOf(t); shots = shotsOf(t, pg); }
           await render();
           if(t.pageFrom && t.pageFrom.template) U.toast(`Swapped for today — “${t.pageFrom.template}” stays as it is`);
@@ -310,9 +329,9 @@
     async function got(){
       const s = shots[at];
       const v = !s.done;
-      if(HO){ applyDone(t, s.i, v, pg); await HO.save(t); await reload(); }
+      if(HO){ applyDone(t, s.i, v, pg, s.j); await HO.save(t); await reload(); }
       else {
-        const fresh = await setDone(id, s.i, v, pg);
+        const fresh = await setDone(id, s.i, v, pg, s.j);
         if(fresh){ t = fresh; pages = pagesOf(t); shots = shotsOf(t, pg); }
       }
       if(!v) return render();

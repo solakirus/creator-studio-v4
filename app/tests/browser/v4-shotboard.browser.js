@@ -60,6 +60,28 @@ const top = '.screen:last-child';
     v = await p.evaluate(() => Store.get('vlogs', 'v1'));
     const bs2 = v.acts[0].beats[0].shots;
     ok(bs2[1].done && bs2[1].framing === 'Medium' && bs2[1].text === 'Warm up' && bs2[0].text === 'Walk in the door' && bs2[0].tr && bs2[0].tr.n === 'Dissolve', 'ticking a sequence’s Steps keeps the shot type and THEN', JSON.stringify(bs2.map(s => [s.text, s.framing, s.done, s.tr && s.tr.n])));
+
+    /* shoot mode: shot 1, its sequence's parts, then shot 2 */
+    await p.evaluate(async () => {
+      const v = await Store.get('vlogs', 'v1'); const b = v.acts[0].beats[0];
+      const q = Notebook.copyNew(Notebook.stepsPage('Walk in the door'));
+      q.slots = [{ text: 'Hand on the handle', item: '' }, { text: 'Door swings', item: '' }, { text: 'Feet over the line', item: '' }];
+      b.shots[0].seq = q; b.shots[0].done = false; b.shots[1].done = false; b.shotsSig = '';
+      await Store.put('vlogs', v);
+      Screens.push('shoot-run', { host: ShotList.hostBeat('v1', 'b1') });
+    });
+    await p.waitForSelector('.sr-k', { timeout: 6000 }).catch(() => {}); await p.waitForTimeout(600);
+    const order = [];
+    for(let k = 0; k < 5; k++){ order.push((await p.textContent('.sr-k')).trim().split(' · ').slice(0, 2).join(' · ')); await p.click('[data-next]').catch(() => {}); await p.waitForTimeout(250); }
+    ok(/^Shot 1$/.test(order[0]) && /^Shot 1\.1 · part 1 of 3/.test(order[1]) && /^Shot 1\.3/.test(order[3]) && /^Shot 2/.test(order[4]), 'shoot mode: shot 1, then the 3 shots inside it, then shot 2', order.join(' → '));
+    await p.click('.sr-dots [data-go="1"]'); await p.waitForTimeout(300);
+    ok(/Hand on the handle/.test(await p.textContent('.sr-t')), 'a part shows its own words');
+    await p.screenshot({ path: path.join(out, `sb-shoot-${name}.png`) });
+    await p.click('[data-got]'); await p.waitForTimeout(900);
+    const vv = await p.evaluate(() => Store.get('vlogs', 'v1'));
+    const sh0 = vv.acts[0].beats[0].shots[0];
+    ok(sh0.seq && sh0.seq.slots[0].done && !sh0.done && /Door swings/.test(await p.textContent('.sr-t')), 'Got it ticks that part (not the whole shot) and moves to the next part', JSON.stringify(sh0.seq && sh0.seq.slots.map(x => x.done)));
+    await p.evaluate(() => Screens.pop()); await p.waitForTimeout(500);
     await ctx.close();
   }
   await b.close();
