@@ -23,7 +23,7 @@ const top = '.screen:last-child';
     const p = await ctx.newPage(); p.on('pageerror', e => errs.push(name + ': ' + e.message));
     await p.goto(url); await p.waitForFunction(() => window.App && window.ShotBoard && window.ShotList, null, { timeout: 15000 });
     await p.waitForTimeout(900);
-    await p.evaluate(() => localStorage.setItem('cs4-shots-view', 'steps'));
+    await p.evaluate(() => { localStorage.setItem('cs4-shots-view', 'steps'); localStorage.setItem('cs4-sb-details', '1'); });
     const cid = await p.evaluate(async () => (await Data.saveClip({ title: 'Gym day', state: 'raw', stage: 'planned',
       shotList: [{ text: 'Walking in, bag over shoulder', framing: 'Wide', movement: 'Tracking', role: 'Action' }, { text: 'Chalk / straps close-up', framing: 'Extreme close-up', movement: 'Static', role: 'Insert' },
         { text: 'Main lift, low angle', framing: 'Medium', movement: 'Static', role: 'B-roll' }] })).id);
@@ -36,15 +36,35 @@ const top = '.screen:last-child';
     /* an episode's sequence */
     await p.evaluate(async () => { await Store.put('vlogs', { id: 'v1', title: 'Week 7', week: 7, acts: [{ id: 'a1', title: 'Saturday', day: 0,
       beats: [{ id: 'b1', title: 'Gym', shots: [{ id: 'x1', text: 'Walk in' }, { id: 'x2', text: 'Warm up', framing: 'Medium' }] }] }] }); });
+    /* the episode's plan: folded sections, the week across */
+    await p.evaluate(async () => { const v = await Store.get('vlogs', 'v1'); v.acts.push({ id: 'a2', title: 'Sunday', beats: [{ id: 'b9', title: 'Wind down', shots: [] }] }); await Store.put('vlogs', v); });
+    await p.evaluate(() => Screens.push('vlog', { id: 'v1' })); await p.waitForTimeout(1500);
+    const ep = await p.evaluate(t => { const s = document.querySelector(t); return { folds: [...s.querySelectorAll('details.epfold')].map(d => d.open), cols: s.querySelectorAll('.wkcol').length,
+      seqs: s.querySelectorAll('.wkcol .wkc-seq').length, habits: !!s.querySelector('[data-ep5hab]'), stat: !!s.querySelector('[data-ep5stat]'), segs: !!s.querySelector('[data-ep5seg],[data-ep5segs]') }; }, top);
+    ok(ep.folds.length === 4 && ep.folds.every(o => !o), 'the plan: four sections folded to one line each', JSON.stringify(ep.folds));
+    ok(ep.cols === 2 && ep.seqs === 2, 'What to film: a column per day, its sequences down it', JSON.stringify(ep));
+    ok(!ep.habits && !ep.stat && !ep.segs, 'no habit days, stat card or segments');
+    await p.click(`${top} .wkcol .wkc-seq[data-beat="b1"]`); await p.waitForTimeout(1200);
+    ok(/Gym/.test(await p.textContent(`${top} .screenbar h1`)), 'a sequence in a column opens it');
+    ok(!!(await p.$(`${top} details.epfold[data-epfold="seqmore"]:not([open])`)), 'its page folds the rest under More about this sequence');
+    await p.evaluate(() => { Screens.pop(); Screens.pop(); }); await p.waitForTimeout(500);
+
     /* the day: every sequence on it, Steps or Storyboard */
     await p.evaluate(() => Screens.push('vlog-day', { vlogId: 'v1', actId: 'a1' })); await p.waitForTimeout(1500);
     ok(!!(await p.$(`${top} .sb-switch`)), 'the day has the Steps | Storyboard switch');
     if(!(await p.$(`${top} .sc-host`))) { await p.click(`${top} .seqcard .sc-head`).catch(() => {}); await p.waitForTimeout(800); }
     await p.click(`${top} .sb-switch [data-sbv="board"]`); await p.waitForTimeout(1200);
-    ok((await p.$$(`${top} .sc-host .tp-shot`)).length === 2, 'Storyboard: the day’s sequence shows as shot cards');
+    ok((await p.$$(`${top} .dcols .dcol .tp-shot`)).length === 2 && /Beginning|1 ·/.test(await p.textContent(`${top} .dcols`)) === false, 'Storyboard: the day’s sequence is a column of shot cards');
     await p.fill(`${top} .sc-host [data-sbf="text"][data-i="0"]`, 'Walk in the door'); await p.waitForTimeout(1000);
     ok((await p.evaluate(() => Store.get('vlogs', 'v1'))).acts[0].beats[0].shots[0].text === 'Walk in the door', 'and its edits land on the sequence');
     await p.screenshot({ path: path.join(out, `sb-day-${name}.png`) });
+    /* the details fold */
+    await p.evaluate(() => localStorage.setItem('cs4-sb-details', '0'));
+    await p.click(`${top} .sb-switch [data-sbv="steps"]`); await p.waitForTimeout(600); await p.click(`${top} .sb-switch [data-sbv="board"]`); await p.waitForTimeout(1000);
+    ok(!(await p.$(`${top} .dcol [data-sbf="role"]`)) && (await p.$$(`${top} .dcol .sb-facts`)).length === 2, 'cards fold to frame, words and one line of facts');
+    await p.click(`${top} .dcol .tp-shot:nth-child(2) [data-sbmore]`); await p.waitForTimeout(400);
+    ok((await p.$$(`${top} .dcol [data-sbf="role"]`)).length === 1, 'Details opens just that card');
+    await p.evaluate(() => localStorage.setItem('cs4-sb-details', '1'));
     await p.evaluate(() => Screens.pop()); await p.waitForTimeout(400);
     await p.evaluate(() => Screens.push('vlog-beat', { vlogId: 'v1', beatId: 'b1' })); await p.waitForSelector(`${top} .tp-shot`, { timeout: 6000 }).catch(() => {});
     await p.waitForTimeout(600);

@@ -2,6 +2,7 @@
    Outline > acts > beats > shots, with dates and real clips attached. */
 (function(){
   const { ICON } = U;
+  const esc = t => U.esc(t);
 
   const FORMATS = {
     daily:  { n:'Daily',     d:'Day in the life',     len:'8'  },
@@ -526,20 +527,7 @@
           : `<div style="grid-column:1/-1"><small>Dates</small><b style="color:var(--dim)">Assign a week to get film and release dates</b></div>`}
         </div>
 
-        ${window.Scoreboard ? (() => {
-          const hd = Scoreboard.habitDaysOf(v, monthRec);
-          const ks = Object.keys(hd);
-          return `<div class="ep5-h"><span>Habit days</span><i></i><em>${
-            ks.reduce((n, k) => n + hd[k], 0)}/${ks.length * 7}</em></div>
-          ${ks.length ? ks.map(k => `<div class="ep5-hab">
-            <span class="lb">${Scoreboard.habitLabel(k)}</span>
-            <span class="dots">${[1,2,3,4,5,6,7].map(n => `<i class="${n <= hd[k] ? 'on' : ''}"></i>`).join('')}</span>
-            <button data-ep5hab="${k}" data-d="-1" aria-label="One fewer day">−</button>
-            <b>${hd[k]}</b>
-            <button data-ep5hab="${k}" data-d="1" aria-label="One more day">+</button>
-          </div>`).join('') : `<p class="note" style="text-align:left;margin:0">No habits tracked this month.</p>`}
-          <button class="btn-ghost" data-ep5stat style="width:100%;margin:8px 0 0">Stat card</button>`;
-        })() : ''}
+        <!-- v4: habit days and the stat card left here — the habit dot grid (Today → Year in dots) counts them now -->
 
         <div class="ep5-h"><span>Result</span><i></i></div>
         <div class="mo-seg" role="group" aria-label="Vlog result" style="margin:0">
@@ -559,13 +547,7 @@
           <button class="ep5-link" data-a="month-open">Open ${e2(monthRec.name)} →</button>
         </div>` : ''}
 
-        <div class="ep5-h"><span>Segments</span><i></i><em>${segs.length ? `${done}/${segs.length} done${shot ? ` · ${shot} shot` : ''}` : ''}</em></div>
-        ${segs.length ? `<div class="ep5-segs">${segs.map((g, i) => `
-          <button class="ep5-seg ${g.status}" data-ep5seg="${i}">
-            <span class="dot"></span><span class="lb">${e2(g.label)}</span><span class="st">${SEG[g.status] || 'To do'}</span>
-          </button>`).join('')}</div>
-          <p class="note" style="text-align:left;margin:6px 0 0">Tap to move a segment on: to do → shot → done.</p>`
-        : `<button class="cp-add" data-ep5segs>+ Add the ten default segments</button>`}
+        <!-- v4: the fixed edit-order segments left: the sequences under What to film are the plan now (v.segments is kept) -->
 
         <details class="ep5-beats"${beatsOpen ? ' open' : ''}>
           <summary>Script beats<em>${beatsFilled}/5 written</em></summary>
@@ -1061,6 +1043,17 @@
           </div>`;
     }
 
+    /* v4: a section of the plan folded to one line until it's wanted
+       (open or shut is remembered on this device) */
+    function fold(k, title, sub, body){
+      let open = false;
+      try { open = localStorage.getItem('cs4-ep-fold-' + k) === '1'; } catch(e){}
+      return `<details class="epfold" data-epfold="${k}"${open ? ' open' : ''}>
+        <summary><span class="t">${title}</span><span class="s">${esc(sub || '')}</span>
+          <svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></summary>
+        <div class="epfold-b">${body}</div></details>`;
+    }
+
     function renderPlan(){
       const segs = everyBeat(v);
       /* Grouped by the day block they sit in, not by setup. A day holds several
@@ -1093,11 +1086,14 @@
           ${ICON.chevR}
         </button>`}
 
-        ${episodePanelHTML()}
+        ${fold('challenge', 'The challenge', (() => { if(!window.Months) return ''; const x = Months.withExtras(v);
+            return [x.skill, x.weeklyChallenge, x.result === 'W' ? 'Won' : x.result === 'L' ? 'Lost' : ''].filter(Boolean).join(' · ') || 'Skill, challenge, dates, result, script beats'; })(),
+          episodePanelHTML())}
 
-        ${standsHTML()}
+        ${fold('stands', 'Where this week stands', (() => { const all = everyBeat(v), dated = all.filter(x => x.beat.day);
+            return all.length ? `${all.length} beats · ${dated.length} dated` : 'Nothing written yet'; })(), standsHTML())}
 
-        <div class="sec"><h2>The week</h2><div class="rule"></div></div>
+        ${fold('week', 'The week', [v.experiment, v.angle].filter(Boolean).map(t => String(t).slice(0, 60)).join(' · ') || 'Goal, angle, hook question, through-line, who it is for', `
 
         <div class="sp-line">
           <label for="pl-exp">This week's goal</label>
@@ -1129,51 +1125,41 @@
           <textarea id="pl-aud" data-spine="audience"
             placeholder="Who is watching this one, and what are they hoping to get out of it?"
             >${v.audience || ''}</textarea>
-        </div>
+        </div>`)}
 
-        <div class="sec"><h2>Research</h2><div class="rule"></div>
-          <span class="alt">${weekSources.length}</span></div>
+        ${fold('research', 'Research', weekSources.length ? `${weekSources.length} source${weekSources.length === 1 ? '' : 's'}` : 'The quotes, studies and examples behind this week', `
         <p class="hintline" style="margin:0 0 12px">The quotes, studies and examples behind
           <em>this</em> week, by the segment they're for. The quarter holds what all twelve draw on.</p>
 
         ${window.Research ? Research.groupedHTML(weekSources) : ''}
 
-        <div style="display:flex;gap:8px;margin:${weekSources.length ? '8px' : '0'} 0 18px">
+        <div style="display:flex;gap:8px;margin:${weekSources.length ? '8px' : '0'} 0 4px">
           <button class="btn-ghost" data-a="rs-add" style="flex:1">+ Add</button>
           <button class="btn-ghost" data-a="rs-link" style="flex:1">Link existing</button>
-        </div>
+        </div>`)}
 
         <div class="sec"><h2>What to film</h2><div class="rule"></div>
           <span class="alt">${segs.length}</span></div>
-        <p class="hintline" style="margin:0 0 12px">A day holds its sequences. Open one to see
-          what is in it.</p>
+        <p class="hintline" style="margin:0 0 12px">Tap a sequence to plan its shots, or a day's name for the whole day.</p>
 
-        ${byAct.length ? byAct.map(({ act, items }) => {
+        ${byAct.length ? `<!-- v4: the week across, like a calendar: a column per day,
+             its sequences down it; the day's name opens the day -->
+          <div class="wkcols">${byAct.map(({ act, items }) => {
           const shots = items.reduce((n, x) => n + (x.beat.shots || []).length, 0);
           const got = items.reduce((n, x) => n + (x.beat.shots || []).filter(s2 => s2.done).length, 0);
-          return `
-            <button class="dayrow" data-day="${act.id}">
-              <span class="dr-t">
-                <b>${act.title}${act.day != null ? ` · ${dayLabel(act.day)}` : ''}</b>
-                <small>${items.length
-                  ? [`${items.length} sequence${items.length === 1 ? '' : 's'}`,
-                     (() => {
-                       /* which kinds are in this day, so you know what the day
-                          asks of you before opening it */
-                       if(!(window.Quarters && Quarters.setupOf)) return '';
-                       const kinds = [...new Set(items.map(x => x.beat.setup || 'talking'))];
-                       return kinds.map(k => Quarters.setupOf(k).label).join(', ');
-                     })(),
-                     shots ? `${got}/${shots} shots` : '',
-                     (() => { const c = VlogTasks.counts(items);
-                       return c.onTasks ? `${c.onTasks} on your days` : ''; })()
-                    ].filter(Boolean).join(' · ')
-                  : 'Nothing planned yet'}</small>
-              </span>
-              ${shots ? `<span class="dr-c${got === shots ? ' all' : ''}">${got}/${shots}</span>` : ''}
-              ${ICON.chevR}
-            </button>`;
-        }).join('')
+          return `<section class="wkcol${shots && got === shots ? ' all' : ''}">
+              <button class="wkc-h" data-day="${act.id}" title="Open ${esc(act.title)}">
+                <b>${esc(act.title)}</b>
+                <small>${act.day != null ? dayLabel(act.day) : 'No date'}${shots ? ` · ${got}/${shots}` : ''}</small></button>
+              ${items.map(({ beat:b }) => {
+                const sh = b.shots || [], dn = sh.filter(x => x.done).length;
+                return `<button class="wkc-seq${sh.length && dn === sh.length ? ' all' : ''}" data-beat="${b.id}">
+                  <b>${esc(b.title)}</b>
+                  <small>${sh.length ? `${dn}/${sh.length} shots` : 'no shots yet'}${(window.Quarters && Quarters.setupOf) ? ' · ' + esc(Quarters.setupOf(b.setup || 'talking').label) : ''}</small></button>`;
+              }).join('')}
+              <button class="wk-addseq" data-addbeat="${act.id}">＋ Sequence</button>
+            </section>`;
+        }).join('')}</div>`
           : `<div class="empty"><b>No days yet</b>
               Start from this quarter's template, or add a day block.</div>`}
 
@@ -1431,6 +1417,11 @@
         await save(); await load(); render();
       }
     });
+    /* v4: the plan's folded sections remember open or shut */
+    el.addEventListener('toggle', e => {
+      const d = e.target;
+      if(d && d.matches && d.matches('details[data-epfold]')) try { localStorage.setItem('cs4-ep-fold-' + d.dataset.epfold, d.open ? '1' : '0'); } catch(err){}
+    }, true);
     el.addEventListener('click', async e => {
       const er = e.target.closest('[data-ep5res]');
       if(er){
@@ -1905,6 +1896,10 @@
 
   /* ---------- one beat: purpose, shots, clip ---------- */
   async function mountBeat(el, params){
+    el.addEventListener('toggle', e => {
+      const d = e.target;
+      if(d && d.matches && d.matches('details[data-epfold]')) try { localStorage.setItem('cs4-ep-fold-' + d.dataset.epfold, d.open ? '1' : '0'); } catch(err){}
+    }, true);
     let v, act, b, clips = [], series = [], startDate = null;
     const dayLabel = n => {
       if(!startDate) return `Day ${n}`;
@@ -1984,6 +1979,12 @@
           <button class="addbeat" data-a="suggestshots" style="width:100%;margin-top:10px">✦ Suggest shots</button>
         </div>
 
+        <!-- v4: the shots are the page; the rest folds away until it's wanted -->
+        ${(() => { let o = false; try { o = localStorage.getItem('cs4-ep-fold-seqmore') === '1'; } catch(e){}
+          return `<details class="epfold" data-epfold="seqmore"${o ? ' open' : ''}><summary><span class="t">More about this sequence</span>
+            <span class="s">${esc([(window.Quarters && Quarters.setupOf) ? Quarters.setupOf(b.setup || 'talking').label : '', b.script ? 'the line written' : '', b.purpose ? 'why written' : '',
+              b.day ? 'scheduled' : 'not scheduled', b.clipId ? 'clip linked' : ''].filter(Boolean).join(' · '))}</span>
+            <svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></summary><div class="epfold-b">`; })()}
         <div class="block">
           <h4>How it gets shot</h4>
           <p class="hintline" style="margin:0 0 9px">This is what decides what can be
@@ -2041,6 +2042,7 @@
         </div>
 
         <button class="btn-ghost" data-a="delete" style="width:100%;color:var(--red);border-color:rgba(226,86,74,.4)">Delete sequence</button>
+        </div></details>
       </div>`;
       /* the shots: the task's own Steps + Shot page (shotlist.js host) */
       const shotsChanged = async () => {

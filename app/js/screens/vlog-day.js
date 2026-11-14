@@ -64,7 +64,21 @@
       .seqcard .sc-row .sc-head{flex:1;min-width:0}
       .seqcard .sc-cv{display:inline-flex;width:18px;color:var(--dim);flex:0 0 18px}
       .seqcard .sc-shoot{flex:0 0 auto;height:40px;padding:0 14px;margin-right:10px;border:0;border-radius:var(--r);background:var(--orange);color:#151515;font-family:var(--display),sans-serif;font-weight:900;font-size:13.5px;cursor:pointer}
-      .seqcard .sc-host{padding:4px 12px 8px;border-top:1px solid var(--line)}`;
+      .seqcard .sc-host{padding:4px 12px 8px;border-top:1px solid var(--line)}
+      .dcols{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(300px,1fr);gap:12px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x mandatory}
+      .dcol{scroll-snap-align:start;min-width:0;background:var(--surface-2);border:1px solid #2B2822;border-radius:var(--r);display:flex;flex-direction:column}
+      .dcol.all{border-color:rgba(91,190,106,.45)}
+      .dc-h{padding:10px 12px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:5px;position:sticky;top:0;background:var(--surface-2);z-index:1;border-radius:var(--r) var(--r) 0 0}
+      .dc-pos{font-family:var(--display),sans-serif;font-weight:900;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--orange)}
+      .dc-t{padding:0;border:0;background:none;color:var(--cream);text-align:left;cursor:pointer;font:inherit}
+      .dc-t b{font-size:17px}
+      .dc-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+      .dc-meta small{color:var(--muted);font-size:12.5px}
+      .dc-acts{display:flex;gap:6px;flex-wrap:wrap}
+      .dc-acts button{height:30px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r);background:transparent;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer}
+      .dc-acts .dc-shoot{background:var(--orange);border-color:var(--orange);color:#151515;font-weight:800}
+      .dcol .sc-host{padding:10px 12px 12px}
+      @media (max-width:700px){ .dcols{grid-auto-columns:86vw} }`;
 
     function render(){
       if(!act){
@@ -102,7 +116,25 @@
           </button>
 
           ${seqs.length && window.ShotBoard ? `<div class="sb-head" style="margin:0 0 4px"><small style="color:var(--muted);font-size:12.5px">Shots as</small>${ShotBoard.switchHTML(ShotBoard.view())}</div>` : ''}
-          ${seqs.map(b => {
+          ${window.ShotBoard && ShotBoard.view() === 'board' && seqs.length ? `
+          <!-- v4: the Storyboard reads across: one column per sequence, the
+               day's beginning, middle and end side by side, each one's shots
+               running down it like a shot list -->
+          <div class="dcols">${seqs.map((b, k) => {
+            const sh = b.shots || [];
+            const all = sh.length > 0 && sh.every(s => s.done);
+            const pos = seqs.length < 2 ? '' : k === 0 ? 'Beginning' : k === seqs.length - 1 ? 'End' : 'Middle';
+            return `<section class="dcol${all ? ' all' : ''}">
+              <div class="dc-h">
+                ${pos ? `<span class="dc-pos">${k + 1} · ${pos}</span>` : ''}
+                <button class="dc-t" data-seq="${b.id}" title="Open the sequence"><b>${esc(b.title)}</b></button>
+                <div class="dc-meta">${setupTag(b)}<small data-count="${b.id}">${countLine(b)}</small></div>
+                <div class="dc-acts">${sh.length ? `<button class="dc-shoot" data-shootseq="${b.id}">▶ Shoot it</button>` : ''}
+                  <button data-moveto="${b.id}">Move</button>${sh.length ? `<button data-keep="${b.id}">Save as template</button>` : ''}</div>
+              </div>
+              <div class="sc-host" data-host="${b.id}"></div>
+            </section>`;
+          }).join('')}</div>` : seqs.map(b => {
             const sh = b.shots || [];
             const done = sh.filter(s => s.done).length;
             const fr = sh.filter(s => s.item).length;
@@ -158,7 +190,7 @@
       el.querySelectorAll('[data-host]').forEach(c => {
         const id = c.dataset.host;
         /* v4: the day's sequences as a Storyboard, when that's the view (shotboard.js) */
-        if(window.ShotBoard && ShotBoard.view() === 'board') return ShotBoard.mount(c, ShotList.board('beat:' + v.id + ':' + id), { onChange: async () => {
+        if(window.ShotBoard && ShotBoard.view() === 'board') return ShotBoard.mount(c, ShotList.board('beat:' + v.id + ':' + id), { narrow:true, onChange: async () => {
           await load(); const b = ((act && act.beats) || []).find(x => x.id === id);
           const line = b && el.querySelector(`[data-count="${id}"]`); if(line) line.textContent = countLine(b); } });
         ShotList.embed(c, ShotList.hostBeat(v.id, id), async () => {

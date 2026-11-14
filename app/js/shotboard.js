@@ -37,6 +37,12 @@
     if(!box || !A) return;
     let shots = (await A.load()) || [];
     let tt = 0;
+    /* each card shows its frame and words; the rest folds under Details
+       (one card at a time, or all of them — remembered on this device) */
+    const DET_KEY = 'cs4-sb-details';
+    let allOpen = (() => { try { return localStorage.getItem(DET_KEY) === '1'; } catch(e){ return false; } })();
+    const opened = new Set();
+    const isOpen = s => allOpen || opened.has(s.id);
     const save = async () => { await A.save(shots); shots = (await A.load()) || shots; if(o.onChange) await o.onChange(); };
     const sel = (attr, list, v, title) => `<select class="lv-sel" ${attr} ${title ? `title="${title}"` : ''}>${list.map(x => `<option ${v === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>`;
 
@@ -57,10 +63,11 @@
       const miss = global.Notebook && Notebook.missingRoles ? Notebook.missingRoles(roles) : [];
       const total = shots.reduce((n, s) => n + (+s.secs || 0), 0);
       let start = 0;
-      box.innerHTML = `<div class="sb">
+      box.innerHTML = `<div class="sb${o.narrow ? ' narrow' : ''}">
         ${shots.length ? `<p class="hintline sb-sum">${[global.Notebook && Notebook.roleLine && roles.length ? esc(Notebook.roleLine(roles)) : '',
             miss.length ? `<span style="color:var(--red)">missing: ${esc(miss.join(', ').toLowerCase())}</span>` : '', total ? 'total ' + fmt(total) : '',
-            `${shots.filter(s => s.done).length} of ${shots.length} filmed`].filter(Boolean).join(' · ')}</p>` : ''}
+            `${shots.filter(s => s.done).length} of ${shots.length} filmed`].filter(Boolean).join(' · ')}
+          <button class="sb-alldet" data-sballdet aria-pressed="${allOpen}">${allOpen ? 'Hide details' : 'Show all details'}</button></p>` : ''}
         <div class="tp-shots">${shots.map((s, i) => {
           const s0 = start; start += Math.max(0, +s.secs || 0);
           const spec = [dash(s.framing), dash(s.movement)].filter(Boolean).join(' · ');
@@ -76,12 +83,18 @@
               ${s.item ? `<span class="tp-facts"><button class="tp-fbtn" data-sbpick="${i}" title="Pick another frame" aria-label="Pick another frame">↻</button>
                 <button class="tp-fbtn" data-sbclear="${i}" title="Take the frame off this shot" aria-label="Take the frame off this shot">✕</button></span>` : ''}
             </div>
+            <input class="lv-in" data-sbf="text" data-i="${i}" value="${esc(s.text || '')}" placeholder="What happens in this shot">
+            ${!isOpen(s) ? `<div class="sb-fold"><label class="tp-done" title="Filmed"><input type="checkbox" data-sbf="done" data-i="${i}" ${s.done ? 'checked' : ''}></label>
+              <span class="sb-facts">${[s.role, s.secs ? fmt(s.secs) : '', s.tr && (s.tr.n || s.tr.id) && i < shots.length - 1 ? '⇄ ' + (s.tr.n || 'Transition') : '',
+                nseq ? `▦ ${nseq}` : '', s.note ? '✎' : ''].filter(Boolean).map(esc).join(' · ') || '<i>Nothing set yet</i>'}</span>
+              ${nseq && A.host ? `<button class="lv-btn sm ghost" data-sbshoot="${i}" title="Shoot mode from this shot">▶</button>` : ''}
+              <button class="lv-btn sm ghost" data-sbmore="${esc(s.id)}" aria-expanded="false">Details ⌄</button></div>` : `
+            <div class="sb-more">
             <div class="lv-row"><span class="tp-drag" title="Drag to reorder">⠿</span>
               ${sel(`data-sbf="role" data-i="${i}"`, [''].concat(T().ROLES), s.role || '').replace('<option >', '<option value="">').replace(/<option( selected)?><\/option>/, `<option value=""$1>Role</option>`)}
               <select class="lv-sel" data-sbf="secs" data-i="${i}" title="How long it runs">${!s.secs ? '<option value="0" selected>—</option>' : ''}${T().DURATIONS.map(d => `<option value="${d}" ${+s.secs === d ? 'selected' : ''}>${fmt(d)}</option>`).join('')}
                 ${s.secs && !T().DURATIONS.includes(+s.secs) ? `<option value="${s.secs}" selected>${fmt(s.secs)}</option>` : ''}</select>
               <label class="tp-done" title="Filmed"><input type="checkbox" data-sbf="done" data-i="${i}" ${s.done ? 'checked' : ''}></label></div>
-            <input class="lv-in" data-sbf="text" data-i="${i}" value="${esc(s.text || '')}" placeholder="What happens in this shot">
             <div class="lv-row">${sel(`data-sbf="framing" data-i="${i}"`, T().SIZES, s.framing || '—', 'Shot type')}
               ${sel(`data-sbf="movement" data-i="${i}"`, T().MOVES, s.movement || '—', 'Move')}</div>
             ${i < shots.length - 1 ? `<div class="lv-row"><span class="tp-then">THEN</span>${thenSel(s, i)}</div>` : ''}
@@ -95,7 +108,9 @@
               ${i > 0 ? `<button class="lv-btn sm ghost" data-sbmv="${i}" data-d="-1" title="Earlier" aria-label="Earlier">←</button>` : ''}
               ${i + 1 < shots.length ? `<button class="lv-btn sm ghost" data-sbmv="${i}" data-d="1" title="Later" aria-label="Later">→</button>` : ''}
               <button class="lv-btn sm ghost" data-sbdup="${i}" title="Duplicate" aria-label="Duplicate">⧉</button>
-              <button class="lv-btn sm ghost" data-sbrm="${i}" title="Remove" aria-label="Remove">✕</button></div>
+              <button class="lv-btn sm ghost" data-sbrm="${i}" title="Remove" aria-label="Remove">✕</button>
+              ${allOpen ? '' : `<button class="lv-btn sm ghost" data-sbmore="${esc(s.id)}" aria-expanded="true">Fold ⌃</button>`}</div>
+            </div>`}
           </article>`; }).join('')}
           ${hasLib() ? `<button class="tp-addcard" data-sbframes><b>＋</b><span>Add frames from the Library</span></button>` : ''}
         </div>
@@ -121,6 +136,9 @@
     box.addEventListener('click', async e => {
       e.stopPropagation();
       const g = e.target;
+      const mo = g.closest('[data-sbmore]');
+      if(mo){ const id = mo.dataset.sbmore; opened.has(id) ? opened.delete(id) : opened.add(id); return draw(); }
+      if(g.closest('[data-sballdet]')){ allOpen = !allOpen; opened.clear(); try { localStorage.setItem(DET_KEY, allOpen ? '1' : '0'); } catch(err){} return draw(); }
       const pk = g.closest('[data-sbpick]');
       if(pk) return pickFor(+pk.dataset.sbpick);
       const cl = g.closest('[data-sbclear]');
@@ -251,6 +269,14 @@
   .sb .tp-frame .sb-pic i{display:none}
   .tp-shot.sb-done .tp-shead b{color:var(--green)}
   .sb .tp-shot > .lv-in{flex:0 0 auto}
+  .sb-sum{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px}
+  .sb-alldet{margin-left:auto;height:26px;padding:0 10px;border:1px solid var(--line);border-radius:13px;background:transparent;color:var(--muted);font:inherit;font-size:12px;cursor:pointer}
+  .sb-fold{display:flex;align-items:center;gap:8px;min-height:32px}
+  .sb-facts{flex:1;min-width:0;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sb-facts i{color:var(--dim);font-style:normal}
+  .sb-more{display:flex;flex-direction:column;gap:6px}
+  .sb.narrow .tp-shots{grid-template-columns:1fr;gap:12px}
+  .sb.narrow .tp-addcard{min-height:64px}
   .sb-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .sb-head h4{margin:0}`;
   function css(){ if(document.getElementById('sb-css')) return; const st = document.createElement('style'); st.id = 'sb-css'; st.textContent = CSS; document.head.appendChild(st); }

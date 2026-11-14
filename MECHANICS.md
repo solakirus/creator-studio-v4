@@ -245,3 +245,14 @@ GIF, 3–9 MB), the title in `<h1>`, "Technique / Director / Original Source" li
 | Remembered | localStorage cs4-shots-view, per device | estimated |
 | Shoot mode | a shot with a ▦ task sequence: the shot, then its parts (1.1, 1.2…, "part 1 of 3 · <shot>"), then the next shot; Got it on a part ticks that part only; the seq rides on the steps (shotlist.js extras) so a shoot task on a day has it too | person's request |
 | ▶ Shoot on a card | beside Open sequence: shoot mode from that shot; the sequence card's ▶ Shoot it still does the whole sequence | person's request |
+
+## Planning an episode, lighter (2026-11-14)
+| Rule | Value | Source |
+|---|---|---|
+| Episode plan folds | The challenge, Where this week stands, The week, Research: one line each with a summary; open/shut remembered (cs4-ep-fold-<k>) | person's request: "overwhelming" |
+| Removed from the episode | habit days ± and Stat card (the habit dot grid counts them); the ten fixed segments (data kept on v.segments) | person's request |
+| What to film | a column per day (week across), sequences down it, ＋ Sequence; the day's name opens the day | person's request: "like the week calendar" |
+| A day in Storyboard | one column per sequence, labelled 1 · Beginning / Middle / End, shots down it; Steps view unchanged | person's request |
+| Storyboard cards | fold to frame, words, filmed and one line of facts; Details ⌄ per card, Show all details (cs4-sb-details) | person's request |
+| Sequence page | everything after the shots under "More about this sequence" (cs4-ep-fold-seqmore) | person's request |
+| Tested | v4-shotboard.browser.js 35/35 | round 8 |
