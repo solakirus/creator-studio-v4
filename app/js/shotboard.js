@@ -80,6 +80,19 @@
     const save = async () => { await A.save(shots); shots = (await A.load()) || shots; if(o.onChange) await o.onChange(); };
     const sel = (attr, list, v, title) => `<select class="lv-sel" ${attr} ${title ? `title="${title}"` : ''}>${list.map(x => `<option ${v === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>`;
 
+    /* the script said over the shot — the same lines (VO / CAM / TXT) a
+       clip's script, the Steps and shoot mode show */
+    const SX = () => global.Structures || { KIND_SHORT:{ vo:'VO', cam:'CAM', txt:'TXT' }, KIND_NAME:{ vo:'VO', cam:'On cam', txt:'Text' }, KIND_NEXT:{ vo:'cam', cam:'txt', txt:'vo' } };
+    function linesHTML(s, i){
+      const ls = Array.isArray(s.lines) ? s.lines : [];
+      return `<div class="sb-lines">${ls.map((l, j) => { const k = SX().KIND_SHORT[l.k] ? l.k : 'vo';
+        return `<div class="sx-ln"><button class="sx-lk ${k}" data-sblk="${i}:${j}" title="Tap to change: VO voiceover → CAM said to camera → TXT words on screen" aria-label="${SX().KIND_NAME[k]} — tap to change">${SX().KIND_SHORT[k]}</button>${l.hook ? '<span class="sx-hook">HOOK</span>' : ''}
+          <textarea class="sx-lt" rows="1" data-sblt="${i}:${j}" placeholder="${k === 'txt' ? 'Words on screen' : 'What is said over this shot'}">${esc(l.t || '')}</textarea>
+          <button class="sx-lrm" data-sblrm="${i}:${j}" aria-label="Remove this line">×</button></div>`; }).join('')}
+        <button class="sx-add" data-sbladd="${i}">+ Add a line</button></div>`;
+    }
+    const grow = ta => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
+
     function thenSel(s, i){
       const tr = s.tr;
       const plain = T().TRANSITIONS.filter(x => x !== 'End');
@@ -101,7 +114,7 @@
         ${shots.length ? `<p class="hintline sb-sum">${[global.Notebook && Notebook.roleLine && roles.length ? esc(Notebook.roleLine(roles)) : '',
             miss.length ? `<span style="color:var(--red)">missing: ${esc(miss.join(', ').toLowerCase())}</span>` : '', total ? 'total ' + fmt(total) : '',
             `${shots.filter(s => s.done).length} of ${shots.length} filmed`].filter(Boolean).join(' · ')}
-          <span class="sb-sumacts">${shots.some(s => s.item) && global.ShotList && ShotList.motionBtn ? ShotList.motionBtn() : ''}${A.host && !o.narrow ? `<button class="sb-shootall" data-sbshootall>▶ Shoot mode</button>` : ''}
+          <span class="sb-sumacts">${o.motion !== false && shots.some(s => s.item) && global.ShotList && ShotList.motionBtn ? ShotList.motionBtn() : ''}${A.host && !o.narrow ? `<button class="sb-shootall" data-sbshootall>▶ Shoot mode</button>` : ''}
           <button class="sb-alldet" data-sballdet aria-pressed="${allOpen}">${allOpen ? 'Hide details' : 'Show all details'}</button></span></p>` : ''}
         <div class="tp-shots">${shots.map((s, i) => {
           const s0 = start; start += Math.max(0, +s.secs || 0);
@@ -122,6 +135,7 @@
             <input class="lv-in" data-sbf="text" data-i="${i}" value="${esc(s.text || '')}" placeholder="What happens in this shot">
             ${s.clip ? (() => { const c = clips.get(s.clip); return `<div class="sb-cliprow"><button class="sb-clip" data-sbclipopen="${esc(s.clip)}" title="Open it">▶ ${c ? `${kindOf(c)} · ${esc(c.title || 'Untitled')}` : 'A clip that isn’t on this device'}</button>
               <button class="lv-btn sm ghost" data-sbclipoff="${i}" title="Take it off this shot (the clip stays)" aria-label="Take the clip off this shot">✕</button></div>`; })() : ''}
+            ${linesHTML(s, i)}
             ${!isOpen(s) ? `<div class="sb-fold"><label class="tp-done" title="Filmed"><input type="checkbox" data-sbf="done" data-i="${i}" ${s.done ? 'checked' : ''}></label>
               <span class="sb-facts">${[s.role, s.secs ? fmt(s.secs) : '', nseq ? `▦ ${nseq}` : '', s.desc || s.note ? '✎' : ''].filter(Boolean).map(esc).join(' · ') || '<i>Nothing set yet</i>'}</span>
               ${nseq && A.host ? `<button class="lv-btn sm ghost" data-sbshoot="${i}" title="Shoot mode from this shot">▶</button>` : ''}
@@ -159,6 +173,8 @@
           <button class="lv-btn ghost" data-sbaddclip title="A short or clip that plays in this sequence">＋ Short or clip</button></div>
       </div>`;
       box.querySelectorAll('.lv-ta').forEach(ta => { ta.style.height = 'auto'; ta.style.height = Math.max(46, ta.scrollHeight) + 'px'; });
+      if(global.Structures && Structures.css) Structures.css();
+      box.querySelectorAll('.sb-lines .sx-lt').forEach(grow);
       if(global.ShotList) ShotList.fillPics(box);
     }
 
@@ -202,6 +218,32 @@
       const mo = g.closest('[data-sbmore]');
       if(mo){ const id = mo.dataset.sbmore; opened.has(id) ? opened.delete(id) : opened.add(id); return draw(); }
       if(g.closest('[data-sballdet]')){ allOpen = !allOpen; opened.clear(); try { localStorage.setItem(DET_KEY, allOpen ? '1' : '0'); } catch(err){} return draw(); }
+      const la = g.closest('[data-sbladd]');
+      if(la){
+        const i = +la.dataset.sbladd; clearTimeout(tt);
+        shots[i].lines = (Array.isArray(shots[i].lines) ? shots[i].lines : []).concat({ k:'vo', t:'' });
+        const j = shots[i].lines.length - 1;
+        await save(); draw();
+        const f = box.querySelector(`[data-sblt="${i}:${j}"]`); if(f) f.focus();
+        return;
+      }
+      const lk = g.closest('[data-sblk]');
+      if(lk){
+        const [i, j] = lk.dataset.sblk.split(':').map(Number), l = (shots[i].lines || [])[j];
+        if(!l) return;
+        l.k = SX().KIND_NEXT[l.k] || 'cam';
+        lk.className = 'sx-lk ' + l.k; lk.textContent = SX().KIND_SHORT[l.k];
+        const ta = lk.parentElement.querySelector('.sx-lt'); if(ta) ta.placeholder = l.k === 'txt' ? 'Words on screen' : 'What is said over this shot';
+        clearTimeout(tt); await A.save(shots); if(o.onChange) await o.onChange();
+        return;
+      }
+      const lr = g.closest('[data-sblrm]');
+      if(lr){
+        const [i, j] = lr.dataset.sblrm.split(':').map(Number);
+        if(!shots[i].lines) return;
+        shots[i].lines.splice(j, 1); clearTimeout(tt);
+        await save(); return draw();
+      }
       const pk = g.closest('[data-sbpick]');
       if(pk) return pickFor(+pk.dataset.sbpick);
       const cl = g.closest('[data-sbclear]');
@@ -284,6 +326,13 @@
     /* words save as you type, without redrawing under you */
     box.addEventListener('input', e => {
       const g = e.target;
+      if(g.dataset && g.dataset.sblt != null){
+        const [i, j] = g.dataset.sblt.split(':').map(Number), l = (shots[i].lines || [])[j];
+        if(!l) return;
+        l.t = g.value; grow(g);
+        clearTimeout(tt); tt = setTimeout(async () => { await A.save(shots); if(o.onChange) await o.onChange(); }, 500);
+        return;
+      }
       if(!(g.dataset && ['text', 'note', 'desc'].includes(g.dataset.sbf))) return;
       shots[+g.dataset.i][g.dataset.sbf] = g.value;
       if(g.tagName === 'TEXTAREA'){ g.style.height = 'auto'; g.style.height = Math.max(46, g.scrollHeight) + 'px'; }
@@ -343,6 +392,8 @@
   .sb-facts i{color:var(--dim);font-style:normal}
   .sb-more{display:flex;flex-direction:column;gap:6px}
   .sb.narrow .tp-shots{grid-template-columns:1fr;gap:12px}
+  .sb-lines{display:flex;flex-direction:column;gap:5px;margin:2px 0 0}
+  .sb-lines .sx-add{margin-top:1px}
   .sb-then{display:flex;align-items:center;gap:8px;margin-top:2px;padding:6px 8px;border:1px dashed var(--line);border-radius:var(--r)}
   .sb-then .lv-sel{flex:1;min-width:0;height:28px}
   .sb-then.set{border-style:solid;border-color:rgba(167,139,250,.45);background:rgba(167,139,250,.08)}

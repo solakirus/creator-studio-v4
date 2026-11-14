@@ -859,5 +859,5 @@
   /* the hook box changed: its words go on shot 1 (one view on screen is enough) */
   async function setHook(container, text){ if(container && container._st) await container._st.setHook(text); }
 
-  global.Structures = { BUILTIN, KINDS, KIND_NAME, KIND_SHORT, KIND_NEXT, KIND_TIP, all, custom, saveCustom, get, script, cuts, bar, pick, editor, setHook, stats, beatsOf, placeHook, hookLine, secsLabel };
+  global.Structures = { css, BUILTIN, KINDS, KIND_NAME, KIND_SHORT, KIND_NEXT, KIND_TIP, all, custom, saveCustom, get, script, cuts, bar, pick, editor, setHook, stats, beatsOf, placeHook, hookLine, secsLabel };
 })(window);

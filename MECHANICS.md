@@ -366,3 +366,13 @@ ShotList.fillPics — the clip script, the episode Storyboard and the Edit line
 show it whenever a shot has a frame. Stopped, a GIF is drawn once onto a
 canvas (its first frame) and the moving image is hidden; a video is paused.
 On a laptop the frame under the mouse still plays while stopped.
+
+### Script lines on the episode Storyboard
+
+Each card on a day's Storyboard (ShotBoard) now carries the shot's script
+lines, the same `shot.lines` ([{ k:'vo'|'cam'|'txt', t }]) a clip's columns
+edit: + Add a line, tap the kind chip VO → CAM → TXT, × to remove; typing saves
+as you go. The lines follow the shot into Steps and shoot mode's Script reveal.
+A day shows one ⏸ Stop GIFs switch beside "Shots as" (ShotBoard.mount
+`motion:false` hides the per-sequence one there), and frames on the day
+columns are capped at 230px tall so the words stay in view.

@@ -86,6 +86,7 @@
       .dc-acts button{height:30px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r);background:transparent;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer}
       .dc-acts .dc-shoot{background:var(--orange);border-color:var(--orange);color:#151515;font-weight:800}
       .dcol .sc-host{padding:10px 12px 12px}
+      .dcol .tp-frame{max-height:230px}
       @media (max-width:700px){ .dcols{grid-auto-columns:86vw} }`;
 
     function render(){
@@ -123,7 +124,7 @@
             ${ICON.chevR}
           </button>
 
-          ${seqs.length && window.ShotBoard ? `<div class="sb-head" style="margin:0 0 4px"><small style="color:var(--muted);font-size:12.5px">Shots as</small>${ShotBoard.switchHTML(ShotBoard.view())}</div>` : ''}
+          ${seqs.length && window.ShotBoard ? `<div class="sb-head" style="margin:0 0 4px"><small style="color:var(--muted);font-size:12.5px">Shots as</small>${ShotBoard.switchHTML(ShotBoard.view())}${ShotBoard.view() === 'board' && window.ShotList && ShotList.motionBtn && seqs.some(b => (b.shots || []).some(x => x && x.item)) ? `<span style="margin-left:auto">${ShotList.motionBtn()}</span>` : ''}</div>` : ''}
           ${window.ShotBoard && ShotBoard.view() === 'board' && seqs.length ? `
           <!-- v4: the Storyboard reads across: one column per sequence, the
                day's beginning, middle and end side by side, each one's shots
@@ -199,7 +200,7 @@
       el.querySelectorAll('[data-host]').forEach(c => {
         const id = c.dataset.host;
         /* v4: the day's sequences as a Storyboard, when that's the view (shotboard.js) */
-        if(window.ShotBoard && ShotBoard.view() === 'board') return ShotBoard.mount(c, ShotList.board('beat:' + v.id + ':' + id), { narrow:true, onChange: async () => {
+        if(window.ShotBoard && ShotBoard.view() === 'board') return ShotBoard.mount(c, ShotList.board('beat:' + v.id + ':' + id), { narrow:true, motion:false, onChange: async () => {
           await load(); const b = ((act && act.beats) || []).find(x => x.id === id);
           const line = b && el.querySelector(`[data-count="${id}"]`); if(line) line.textContent = countLine(b); } });
         ShotList.embed(c, ShotList.hostBeat(v.id, id), async () => {
