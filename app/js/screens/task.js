@@ -804,7 +804,7 @@
     /* v4: the "Show transitions" toggle is one setting for every shot page */
     const TR_KEY = 'cs4-show-tr';
     const showTr = () => { try { return localStorage.getItem(TR_KEY) === '1'; } catch(e){ return false; } };
-    const trMark = tr => `<div class="tk-trm"><i></i><button data-trpeek="${esc(tr.id)}" data-trn="${esc(tr.n || '')}" title="Watch it">⇄ ${esc(tr.n || 'Transition')}</button><i></i></div>`;
+    const trMark = tr => `<div class="tk-trm"><i></i><button ${tr.id ? `data-trpeek="${esc(tr.id)}" title="Watch it"` : 'disabled'} data-trn="${esc(tr.n || '')}">⇄ ${esc(tr.n || 'Transition')}</button><i></i></div>`;
     /* the beat each shot starts, when the record has a structure (structures.js) */
     function beatAt(){
       const names = t.beatNames || [];

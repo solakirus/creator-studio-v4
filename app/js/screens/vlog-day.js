@@ -101,6 +101,7 @@
             ${ICON.chevR}
           </button>
 
+          ${seqs.length && window.ShotBoard ? `<div class="sb-head" style="margin:0 0 4px"><small style="color:var(--muted);font-size:12.5px">Shots as</small>${ShotBoard.switchHTML(ShotBoard.view())}</div>` : ''}
           ${seqs.map(b => {
             const sh = b.shots || [];
             const done = sh.filter(s => s.done).length;
@@ -156,6 +157,10 @@
       if(!document.getElementById('seq-css')){ const st = document.createElement('style'); st.id = 'seq-css'; st.textContent = SEQ_CSS; document.head.appendChild(st); }
       el.querySelectorAll('[data-host]').forEach(c => {
         const id = c.dataset.host;
+        /* v4: the day's sequences as a Storyboard, when that's the view (shotboard.js) */
+        if(window.ShotBoard && ShotBoard.view() === 'board') return ShotBoard.mount(c, ShotList.board('beat:' + v.id + ':' + id), { onChange: async () => {
+          await load(); const b = ((act && act.beats) || []).find(x => x.id === id);
+          const line = b && el.querySelector(`[data-count="${id}"]`); if(line) line.textContent = countLine(b); } });
         ShotList.embed(c, ShotList.hostBeat(v.id, id), async () => {
           /* keep this screen's copy fresh, so its own saves don't undo the steps */
           await load();
@@ -278,6 +283,9 @@
     el.addEventListener('click', async e => {
       /* the Steps + Shot page block handles its own taps (screens/task.js) */
       if(e.target.closest && e.target.closest('.tk-host')) return;
+      /* v4: Steps | Storyboard for every sequence on the day */
+      const sbv = e.target.closest('.sb-switch [data-sbv]');
+      if(sbv){ if(sbv.getAttribute('aria-selected') !== 'true'){ ShotBoard.setView(sbv.dataset.sbv); render(); } return; }
       /* ticking a shot must win over opening the sequence it sits in */
       const sh = e.target.closest('[data-shot]');
       if(sh){

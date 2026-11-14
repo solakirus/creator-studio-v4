@@ -78,7 +78,7 @@ const head = s => console.log(`\n— ${s} —`);
     names: [...s.querySelectorAll('#beatShots .tk-name')].map(i => i.value), first: [...s.querySelectorAll('.block h4')].map(h => h.textContent.trim())[0] }; }, top);
   ok(ui.rows === 2 && ui.canvas && ui.split, 'Steps beside the Shot page, built from the sequence\'s old shots', JSON.stringify(ui.names));
   ok(ui.names[0] === 'Kettle on — Close', 'framing carried into the shot\'s name', ui.names[0]);
-  ok(/^Steps/.test(ui.first), 'and it is the first block', ui.first);
+  ok(/^(Steps|Shots)/.test(ui.first), 'and it is the first block', ui.first);
   await lap.click(`${top} #beatShots [data-tick="0"]`); await lap.waitForTimeout(600);
   let bt = await beat(lap);
   ok(bt.shots[0].done && bt.page && bt.subs.find(x => x.shot === 0).done, 'ticking a step lands on the sequence (page, steps and its shot list)');

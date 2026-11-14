@@ -347,8 +347,8 @@
     /* v4: between two cuts — the transition into the next one, or a quiet way to add one */
     function trRow(i, tr){
       if(!global.Transitions) return '';
-      return tr && tr.id ? `<div class="sx-tr" data-trat="${i}"><span class="ic">⇄</span><b>${esc(tr.n || 'Transition')} into shot ${i + 2}</b>
-          <button data-trwatch="${esc(tr.id)}" data-trn="${esc(tr.n || '')}">▶ Watch</button><button data-trset="${i}">Change</button>
+      return tr && (tr.id || tr.n) ? `<div class="sx-tr" data-trat="${i}"><span class="ic">⇄</span><b>${esc(tr.n || 'Transition')} into shot ${i + 2}</b>
+          ${tr.id ? `<button data-trwatch="${esc(tr.id)}" data-trn="${esc(tr.n || '')}">▶ Watch</button>` : ''}<button data-trset="${i}">Change</button>
           <button class="x" data-troff="${i}" aria-label="Take the transition off">×</button></div>`
         : `<button class="sx-trgap" data-trset="${i}" aria-label="Add a transition between shot ${i + 1} and ${i + 2}">+ transition</button>`;
     }

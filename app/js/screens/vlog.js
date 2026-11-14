@@ -1979,7 +1979,7 @@
         <!-- v4: the shots first — what you film, each with its frame, the same
              list as a task's (shotlist.js). The rest is the thinking behind it. -->
         <div class="block">
-          <h4>Steps</h4>
+          <div class="sb-head"><h4>Shots</h4>${window.ShotBoard ? ShotBoard.switchHTML(ShotBoard.view()) : ''}</div>
           <div id="beatShots"></div>
           <button class="addbeat" data-a="suggestshots" style="width:100%;margin-top:10px">✦ Suggest shots</button>
         </div>
@@ -2043,10 +2043,27 @@
         <button class="btn-ghost" data-a="delete" style="width:100%;color:var(--red);border-color:rgba(226,86,74,.4)">Delete sequence</button>
       </div>`;
       /* the shots: the task's own Steps + Shot page (shotlist.js host) */
-      ShotList.embed(el.querySelector('#beatShots'), ShotList.hostBeat(v.id, b.id), async () => {
+      const shotsChanged = async () => {
         const fresh = migrate(await Store.get('vlogs', v.id));
         for(const a2 of fresh.acts){ const f = a2.beats.find(x => x.id === b.id); if(f){ v = fresh; act = a2; b = f; break; } }
         params.onChange && params.onChange();
+      };
+      /* v4: Steps, or the same shots as a Storyboard (shotboard.js) */
+      const shotsIn = () => {
+        const host = el.querySelector('#beatShots');
+        const fresh = host.cloneNode(false); host.replaceWith(fresh);
+        if(window.ShotBoard && ShotBoard.view() === 'board') ShotBoard.mount(fresh, ShotList.board('beat:' + v.id + ':' + b.id), { onChange:shotsChanged });
+        else ShotList.embed(fresh, ShotList.hostBeat(v.id, b.id), shotsChanged);
+      };
+      shotsIn();
+      const sw = el.querySelector('.sb-head .sb-switch');
+      if(sw) sw.addEventListener('click', e => {
+        const bt = e.target.closest('[data-sbv]');
+        if(!bt || bt.getAttribute('aria-selected') === 'true') return;
+        e.stopPropagation();
+        ShotBoard.setView(bt.dataset.sbv);
+        sw.querySelectorAll('[data-sbv]').forEach(x => x.setAttribute('aria-selected', String(x === bt)));
+        shotsIn();
       });
     }
 

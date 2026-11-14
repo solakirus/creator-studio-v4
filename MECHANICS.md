@@ -233,3 +233,13 @@ GIF, 3–9 MB), the title in `<h1>`, "Technique / Director / Original Source" li
 | More techniques | "Add all N" adds the rest of Eyecandy's 136; "Check Eyecandy for new ones" (laptop) scans the front page's /technique/ links | person's request |
 | Hover | with stills on, the mouse over a clip plays it; leaving puts the still back | person's request |
 | Tested | v4-transitions.browser.js 63/63 | round 7 |
+
+## Storyboard view for episode sequences (2026-11-14)
+| Rule | Value | Source |
+|---|---|---|
+| Where | the day screen (Vlog → episode → What to film → a day: "Shots as Steps \| Storyboard", every sequence on it) and a sequence's own page; not clips | person's request |
+| Look | the Templates' Shots cards: frame, role, length, filmed, words, shot type, move, THEN, ▦ task sequence (laptop), notes, ← → ⧉ ✕, drag to reorder | Templates editor (shot-templates.js) |
+| Same shots | edits the sequence's own shot list (ShotList.board); shotsSig '' rebuilds the page next time the Steps open | shotlist.js |
+| THEN | the shot's `tr`: plain ({id:'', n:'Dissolve'}) or an Eyecandy transition; shows on the shot page's hidden markers and the Edit cut list | transitions.js |
+| Kept through the Steps | framing, movement, length (secs), THEN, task sequence (seq), notes, lines — both hosts share `restore` | v4-shotboard.browser.js |
+| Remembered | localStorage cs4-shots-view, per device | estimated |

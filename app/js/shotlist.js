@@ -42,8 +42,11 @@
     if(Array.isArray(x.lines) && x.lines.length) o.lines = x.lines.map(l => ({ k:LINE_KINDS[l.k] ? l.k : 'vo', t:String(l.t || ''), ...(l.hook ? { hook:true } : {}) }));
     if(x.editNote) o.editNote = String(x.editNote);
     if(x.beat != null && x.beat !== '' && !isNaN(+x.beat)) o.beat = +x.beat;
-    /* v4: the transition out of this shot into the next ({ id, n }: transitions.js) */
-    if(x.tr && x.tr.id) o.tr = { id:String(x.tr.id), n:String(x.tr.n || '') };
+    /* v4: the transition out of this shot into the next — { id, n } for one
+       of Eyecandy's (transitions.js), { id:'', n } for a plain one (Dissolve) */
+    if(x.tr && (x.tr.id || x.tr.n)) o.tr = { id:String(x.tr.id || ''), n:String(x.tr.n || '') };
+    /* v4: how long it runs (the Storyboard's length) */
+    if(+x.secs > 0) o.secs = +x.secs;
     return o;
   }
   const LINE_KINDS = { vo:'VO', cam:'On cam', txt:'Text' };
@@ -242,6 +245,29 @@
     };
   }
 
+  /* v4: the page only holds a shot's words and frame, so what else a shot
+     carries (framing, movement, the lines said over it, its task sequence)
+     is kept from the shot of the same words — saving the steps doesn't strip
+     a plan's detail. Shared by every host. */
+  const KEEP = ['framing', 'movement', 'editNote', 'seq'];
+  function restore(old, list){
+    const was = (old || []).map(x => x == null ? null : typeof x === 'string' ? norm([x])[0] : { ...x, ...(norm([x])[0] || {}) }).filter(Boolean);
+    return list.map(s => {
+      const t = String(s.text || '').toLowerCase();
+      /* the page writes a shot as "Grinder — Close-up — Push in" (lineOf) */
+      const o = was.find(x => x.text && x.text.toLowerCase() === t) || was.find(x => x.text && lineOf(x).toLowerCase() === t);
+      if(!o) return s;
+      const m = { ...s };
+      if(lineOf(o).toLowerCase() === t && o.text.toLowerCase() !== t){ m.text = o.text; m.framing = o.framing; m.movement = o.movement; }
+      if(o.id && !m.id) m.id = o.id;
+      KEEP.forEach(k => { if(!m[k] && o[k]) m[k] = o[k]; });
+      if(!(m.lines && m.lines.length) && o.lines && o.lines.length) m.lines = o.lines;
+      if(m.beat == null && o.beat != null) m.beat = o.beat;
+      if(!m.note && o.note) m.note = o.note;
+      return m;
+    });
+  }
+
   /* an episode's sequence (a beat inside vlogs) */
   function hostBeat(vlogId, beatId){
     let v = null;
@@ -252,7 +278,8 @@
       shots: b => b.shots || [],
       /* the beat's shots keep their ids, so a task or a board pointing at one still does */
       mirror: (b, list) => { const old = b.shots || [];
-        b.shots = list.map((s, i) => extras({ id:(old[i] && old[i].id) || uid(), text:s.text, note:s.note, role:s.role, item:s.item, done:s.done }, s)); }
+        b.shots = restore(old, list).map((s, i) => { const m = extras({ id:s.id || (old[i] && old[i].id) || uid(), text:s.text, note:s.note, role:s.role, item:s.item, done:s.done,
+          framing:s.framing || '', movement:s.movement || '' }, s); if(s.seq) m.seq = s.seq; return m; }); }
     });
   }
   const listHost = (key, kicker, get, put, beats) => host({ key, kicker, get, put, beats,
@@ -262,21 +289,7 @@
        carries (framing, movement, the lines said over it) is kept from the
        shot of the same words — saving the steps doesn't strip a plan's detail */
     mirror: (r, list) => {
-      const old = norm(Array.isArray(r.shotList) ? r.shotList : r.shots);
-      r.shotList = list.map(s => {
-        const t = String(s.text || '').toLowerCase();
-        /* the page writes a shot as "Grinder — Close-up — Push in" (lineOf) */
-        const o = old.find(x => x.text && x.text.toLowerCase() === t) || old.find(x => x.text && lineOf(x).toLowerCase() === t);
-        if(!o) return s;
-        const m = { ...s };
-        if(lineOf(o).toLowerCase() === t && o.text.toLowerCase() !== t){ m.text = o.text; m.framing = o.framing; m.movement = o.movement; }
-        if(o.id && !m.id) m.id = o.id;
-        ['framing', 'movement', 'editNote'].forEach(k => { if(!m[k] && o[k]) m[k] = o[k]; });
-        if(!(m.lines && m.lines.length) && o.lines && o.lines.length) m.lines = o.lines;
-        if(m.beat == null && o.beat != null) m.beat = o.beat;
-        if(!m.note && o.note) m.note = o.note;
-        return m;
-      });
+      r.shotList = restore(Array.isArray(r.shotList) ? r.shotList : (r.shots || []), list);
       r.shots = r.shotList.map(s => s.text || 'Shot');
     }
   });
@@ -286,6 +299,45 @@
   /* a series' video */
   const hostVideo = id => listHost('video:' + id, 'Video', () => Store.get('videos', id).catch(() => null), r => Videos.save(r),
     r => r.beats || []);
+
+  /* v4: the Storyboard view (shotboard.js) edits the record's own shot list —
+     every field, task sequences too — and the page is rebuilt from it the
+     next time the Steps open (shotsSig '' never matches), like the board. */
+  function board(key){
+    const p = String(key).split(':');
+    let rec = null, v = null;
+    const raw = r => (Array.isArray(r.shotList) ? r.shotList : (r.shots || [])).filter(x => x != null && (typeof x !== 'string' || x.trim()));
+    const get = async () => {
+      if(p[0] === 'clip') return Store.get('clips', p[1]).catch(() => null);
+      if(p[0] === 'video') return Store.get('videos', p[1]).catch(() => null);
+      if(p[0] === 'beat'){ v = await Store.get('vlogs', p[1]).catch(() => null); for(const a of (v && v.acts) || []) for(const b of a.beats || []) if(b.id === p[2]) return b; }
+      return null;
+    };
+    return {
+      key,
+      async load(){
+        rec = await get();
+        if(!rec) return null;
+        const list = raw(rec);
+        /* every shot an object with an id, its words, frame and the rest */
+        return norm(list).map((x, i) => { const r0 = typeof list[i] === 'object' ? list[i] : {};
+          return { ...x, id:x.id || r0.id || uid(), ...(r0.seq ? { seq:r0.seq } : {}) }; });
+      },
+      title: () => rec ? rec.title || 'Shots' : 'Shots',
+      async save(shots){
+        rec = (await get()) || rec;
+        if(!rec) return;
+        const clean = shots.map(s => { const m = extras({ id:s.id || uid(), text:s.text || '', note:s.note || '', framing:s.framing || '', movement:s.movement || '',
+          role:s.role || '', item:s.item || '', done:!!s.done }, s); if(s.seq) m.seq = s.seq; return m; });
+        if(p[0] === 'beat'){ rec.shots = clean; rec.shotsSig = ''; await Store.put('vlogs', v); }
+        else {
+          rec.shotList = clean; rec.shots = clean.map(s => s.text || 'Shot'); rec.shotsSig = '';
+          if(p[0] === 'clip') await Data.saveClip(rec); else await Videos.save(rec);
+        }
+        if(global.Data && Data.invalidate) Data.invalidate();
+      }
+    };
+  }
 
   /* ------------------------------------------------------------ the drop-down
      The steps under a card, like a task's on Today: "1 / 6 shots ⌄" opens
@@ -380,6 +432,6 @@
     return Screens.mountInto('task', container, { host:h, embedded:true, onChange });
   }
 
-  global.ShotList = { LINE_KINDS, extras, hostBeat, hostClip, hostVideo, embed, counts, dropChip, fillDrop, wireDrops, toggleDrop, fromTask, toTask, copyPage, putOnDay, daySheet, norm, texts, frames, lineOf,
+  global.ShotList = { LINE_KINDS, extras, restore, board, hostBeat, hostClip, hostVideo, embed, counts, dropChip, fillDrop, wireDrops, toggleDrop, fromTask, toTask, copyPage, putOnDay, daySheet, norm, texts, frames, lineOf,
     fromTplShot, stripHTML, thumbHTML, fillPics, css };
 })(window);
