@@ -787,6 +787,17 @@
           SwipePlayer.open(shownRows, idx, { cover: coverFor,
             openSwipe: s => Screens.push('swipe', { id:s.id, onChange:render }),
             onClose: render,
+            /* a Facebook share link → the video's own address (the phone app can
+               read Facebook's page; LinkMeta), kept on the swipe as playUrl */
+            resolve: async s => {
+              if(!window.LinkMeta || !LinkMeta.native()) return null;
+              const m = await LinkMeta.get(s.url);
+              const fu = m && m.finalUrl;
+              if(!fu || !/facebook\.com\/(reels?\/|watch|[^/]+\/videos\/)/i.test(fu)) return null;
+              const rec = await Store.get('swipes', s.id);
+              if(rec && rec.playUrl !== fu){ rec.playUrl = fu; await Store.put('swipes', rec); }
+              return fu;
+            },
             /* Sort it: your filters' options and your folders, under the video */
             panel: {
               groups: async s => {
@@ -1110,10 +1121,10 @@
 
       el.innerHTML = Screens.bar({ kicker:'Swipe file', title:s.title || 'Untitled swipe' }) + `
       <div class="view">
-        ${(window.Embed && !thumbs[s.id] && Embed.can(s.url))
+        ${(window.Embed && !thumbs[s.id] && Embed.can(s.playUrl || s.url))
           ? `<!-- the platform's own player: it draws its poster frame for free,
                   which is what you wanted rather than a downloaded copy -->
-             ${Embed.html(s.url)}`
+             ${Embed.html(s.playUrl || s.url)}`
           : `<div class="thumb" style="aspect-ratio:16/9;border-radius:var(--r);background-size:cover;
                background-position:center;background-color:#221F1A;border:1px solid #2B2822;margin:0 0 12px;
                background-image:${coverFor(s)}"></div>`}

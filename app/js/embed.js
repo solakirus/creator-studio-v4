@@ -42,15 +42,42 @@
     return m ? m[1] : null;
   }
 
-  /* Facebook's plugin takes the original url whole rather than an id, which
-     saves unpicking the half-dozen shapes a video link comes in. Reels, watch
-     pages and story-style permalinks all work. */
+  /* Facebook's plugin takes the video's address whole. It answers "video
+     unavailable" for anything but the plain address of a public video, so a
+     link is tidied first: www, not m./web./mbasic.; no tracking on the end; a
+     reel as /reel/<id>/. A share link (/share/r/…, fb.watch) can't be tidied
+     here — the swipe player resolves it to the real address first. */
   function facebookUrl(url){
     const u = String(url || '');
     if(!/(?:^|\.)facebook\.com\//i.test(u) && !/(?:^|\/\/)fb\.watch\//i.test(u)) return null;
     /* a profile or a page is not a video, and the plugin shows an error box */
-    if(!/\/(?:videos?|reel|watch|share\/[rv])\//i.test(u) && !/fb\.watch\//i.test(u)) return null;
-    return u;
+    if(!/\/(?:videos?|reels?|watch|share\/[rv])\//i.test(u) && !/fb\.watch\//i.test(u)) return null;
+    let p;
+    try { p = new URL(u); } catch(e){ return u; }
+    if(/fb\.watch$/i.test(p.hostname) || /^\/share\//i.test(p.pathname)) return u;
+    const v = p.searchParams.get('v');
+    if(v && /^\d+$/.test(v)) return `https://www.facebook.com/watch/?v=${v}`;
+    const reel = (p.pathname.match(/\/reels?\/(\d{6,})/i) || [])[1];
+    if(reel) return `https://www.facebook.com/reel/${reel}/`;
+    return `https://www.facebook.com${p.pathname.replace(/\/+$/, '')}/`;
+  }
+  /* a link Facebook's player can't use as it is: it has to be followed to
+     the video's real address first */
+  const facebookNeedsResolving = url => /(?:^|\/\/)fb\.watch\//i.test(String(url || '')) ||
+    /facebook\.com\/share\//i.test(String(url || ''));
+
+  /* YouTube's player is loaded through yt.html on the app's own site, so it
+     has a real origin and referrer (see yt.html for why). The page itself
+     when it is served over https from a real host (GitHub Pages, nastime over
+     Tailscale); otherwise — the Android app, the laptop app, a file — the
+     GitHub Pages copy. */
+  const PAGES = 'https://solakirus.github.io/creator-studio-v4/';
+  function relayBase(){
+    try {
+      const l = global.location;
+      if(l && l.protocol === 'https:' && !/^(localhost|127\.|\[::1\])/i.test(l.hostname)) return new URL('.', l.href).href;
+    } catch(e){}
+    return PAGES;
   }
 
   /* posts, reels and tv all embed the same way */
@@ -65,8 +92,8 @@
 
     const yt = youtubeId(url);
     if(yt) return { kind:'youtube',
-                    /* no autoplay, no related videos at the end */
-                    src:`https://www.youtube.com/embed/${yt}?rel=0`,
+                    /* through yt.html: no autoplay unless asked, no related videos */
+                    src:`${relayBase()}yt.html?v=${yt}`,
                     ratio:'56.25%' };
 
     const tt = tiktokId(url);
@@ -104,12 +131,12 @@
     const o = opts || {};
     const ratio = o.ratio || e.ratio;
     return `<span class="embed embed-${e.kind}" style="padding-bottom:${ratio}">
-      <iframe src="${e.src}" loading="lazy" frameborder="0" scrolling="no"
+      <iframe src="${e.src}" loading="lazy" frameborder="0" scrolling="no" referrerpolicy="strict-origin-when-cross-origin"
         allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowfullscreen title="Preview"></iframe>
     </span>`;
   }
 
-  global.Embed = { forUrl, can, poster, html,
+  global.Embed = { forUrl, can, poster, html, relayBase, facebookNeedsResolving,
                    youtubeId, tiktokId, instagramCode, facebookUrl };
 })(window);

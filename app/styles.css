@@ -4207,6 +4207,7 @@ html.spl-open,html.spl-open body{overflow:hidden}
   display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:12px;padding:18px;text-align:center;
   box-shadow:inset 0 -160px 120px -40px rgba(8,7,6,.9)}
 .spl-none p{margin:0;font-size:14.5px;color:var(--cream)}
+.spl-wait{color:var(--muted);font-size:14px}
 .spl-none a{text-decoration:none;display:inline-flex;align-items:center;justify-content:center;padding:0 22px}
 .spl-foot{text-align:center;padding-top:10px}
 .spl-title{margin:0 auto 10px;max-width:640px;font-family:var(--display),sans-serif;font-weight:900;font-size:17px;

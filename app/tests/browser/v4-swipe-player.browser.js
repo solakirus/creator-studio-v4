@@ -24,6 +24,11 @@ const stub = name => `<html><body style="margin:0;background:#222;color:#fff;fon
     await ctx.route(/instagram\.com\/p\/.*\/embed/, r => { loads++; r.fulfill({ contentType: 'text/html', body: stub('Instagram') }); });
     await ctx.route(/tiktok\.com\/embed/, r => { loads++; r.fulfill({ contentType: 'text/html', body: stub('TikTok') }); });
     await ctx.route(/youtube\.com\/embed/, r => { loads++; r.fulfill({ contentType: 'text/html', body: stub('YouTube') }); });
+    /* yt.html on the app's site, served from this folder */
+    await ctx.route(/solakirus\.github\.io\/creator-studio-v4\/yt\.html/, r => { loads++; r.fulfill({ contentType: 'text/html',
+      body: fs.readFileSync(path.resolve(__dirname, '../../yt.html'), 'utf8') }); });
+    await ctx.route(/youtube-nocookie\.com\/embed/, r => r.fulfill({ contentType: 'text/html', body: stub('YouTube') }));
+    await ctx.route(/facebook\.com\/plugins\/video\.php/, r => r.fulfill({ contentType: 'text/html', body: stub('Facebook') }));
     const p = await ctx.newPage(); p.on('pageerror', e => errs.push(name + ': ' + e.message));
     await p.goto(url); await p.waitForFunction(() => window.App && window.SwipePlayer && window.SwipeFolders, null, { timeout: 15000 });
     await p.waitForTimeout(800);
@@ -63,8 +68,18 @@ const stub = name => `<html><body style="margin:0;background:#222;color:#fff;fon
     ok(await p.$eval('.spl-g[data-pg="__fold"]', x => x.getAttribute('aria-expanded')) === 'true', 'the open filter stays open for the next one');
     for(let k = 0; k < 3; k++){ await p.evaluate(() => { const n = document.querySelector('[data-spl="next"]'); if(!n.disabled) n.click(); }); await p.waitForTimeout(250); }
     ok(/4 of 4/.test(await p.textContent('.spl-count')) && await p.$eval('[data-spl="next"]', x => x.disabled), 'the last one: › is off');
+    /* the YouTube one (3 of 4) went through yt.html */
     const noPlayer = await p.textContent('.spl-stage');
     ok(/Open on X/.test(noPlayer), 'X has no player: its cover and Open on X');
+
+    /* YouTube through yt.html, with a real origin for the player */
+    await p.evaluate(() => { document.querySelector('[data-spl="prev"]').click(); });
+    await p.waitForTimeout(700);
+    const yt = await p.evaluate(() => { const f = document.querySelector('.spl-frame'); return f ? f.src : ''; });
+    ok(/solakirus\.github\.io\/creator-studio-v4\/yt\.html\?v=dQw4w9WgXcQ.*autoplay=1/.test(yt), 'YouTube plays through yt.html on the app\'s site', yt);
+    const inner = await p.evaluate(() => new Promise(r => setTimeout(() => {
+      try { const d = document.querySelector('.spl-frame').contentDocument; r(d && d.querySelector('iframe') ? d.querySelector('iframe').src : 'cross-origin'); } catch(e){ r('cross-origin'); } }, 600)));
+    ok(inner === 'cross-origin' || /youtube-nocookie\.com\/embed\/dQw4w9WgXcQ\?.*autoplay=1/.test(inner), 'and yt.html loads the player from there', inner);
 
     /* close */
     if(w > 600) await p.keyboard.press('Escape'); else await p.evaluate(() => App.goBack());
@@ -78,6 +93,57 @@ const stub = name => `<html><body style="margin:0;background:#222;color:#fff;fon
     ok(!(await p.evaluate(() => SwipePlayer.isOpen())) && !!(await p.$('#screens [data-f="title"]')), 'Open the swipe goes to its page');
     await ctx.close();
   }
+  console.log('\n— yt.html itself —');
+  {
+    const ctx = await b.newContext(); const p = await ctx.newPage();
+    await p.route(/youtube-nocookie/, r => r.fulfill({ contentType:'text/html', body:'ok' }));
+    await p.goto('file:///' + path.resolve(__dirname, '../../yt.html').replace(/\\/g, '/') + '?v=dQw4w9WgXcQ&autoplay=1&t=12');
+    const src = await p.$eval('iframe', f => f.src + ' | ' + f.referrerPolicy + ' | ' + f.allow);
+    ok(/youtube-nocookie\.com\/embed\/dQw4w9WgXcQ\?/.test(src) && /autoplay=1/.test(src) && /start=12/.test(src) && /playsinline=1/.test(src)
+      && /strict-origin-when-cross-origin/.test(src) && /autoplay/.test(src), 'yt.html builds the player with autoplay, start, playsinline and a referrer', src.slice(0, 160));
+    await p.goto('file:///' + path.resolve(__dirname, '../../yt.html').replace(/\\/g, '/') + '?v=<script>');
+    ok(/embed\/script\?/.test(await p.$eval('iframe', f => f.src)), 'a bad id is cleaned, not run');
+    await ctx.close();
+  }
+
+  console.log('\n— Facebook —');
+  {
+    const ctx = await b.newContext({ viewport: { width: 400, height: 860 } });
+    await ctx.route(/facebook\.com\/plugins\/video\.php/, r => r.fulfill({ contentType: 'text/html', body: stub('Facebook') }));
+    const p = await ctx.newPage(); p.on('pageerror', e => errs.push('fb: ' + e.message));
+    await p.goto(url); await p.waitForFunction(() => window.App && window.SwipePlayer && window.Embed, null, { timeout: 15000 });
+    await p.waitForTimeout(900);
+    const tidy = await p.evaluate(() => [
+      Embed.facebookUrl('https://m.facebook.com/reel/1234567890123/?mibextid=abc&rdid=x'),
+      Embed.facebookUrl('https://web.facebook.com/watch/?v=987654321&ref=sharing'),
+      Embed.facebookUrl('https://www.facebook.com/somepage/videos/55555555555/?__tn__=x'),
+      Embed.facebookNeedsResolving('https://www.facebook.com/share/r/1AbCdEf/'),
+      Embed.facebookNeedsResolving('https://fb.watch/abcDEF/') ]);
+    ok(tidy[0] === 'https://www.facebook.com/reel/1234567890123/' && tidy[1] === 'https://www.facebook.com/watch/?v=987654321'
+      && tidy[2] === 'https://www.facebook.com/somepage/videos/55555555555/' && tidy[3] && tidy[4],
+      'Facebook links are tidied to the video\'s plain address; share links are spotted', JSON.stringify(tidy));
+    await p.evaluate(async () => {
+      await Store.put('swipes', { id:'fb1', title:'FB share', url:'https://www.facebook.com/share/r/1AbCdEf/', source:'facebook', createdAt:2 });
+      await Store.put('swipes', { id:'fb2', title:'FB reel', url:'https://m.facebook.com/reel/1234567890123/?mibextid=abc', source:'facebook', createdAt:1 });
+    });
+    await p.evaluate(() => App.go('series')); await p.waitForSelector('.ctnav [data-v="swipe"]'); await p.waitForTimeout(400);
+    await p.click('.ctnav [data-v="swipe"]'); await p.waitForSelector('.swipecard[data-open="fb1"] [data-watch]'); await p.waitForTimeout(400);
+    /* a browser can't read Facebook's page: it says so instead of "video unavailable" */
+    await p.click('.swipecard[data-open="fb1"] [data-watch]'); await p.waitForTimeout(700);
+    ok(/share link/.test(await p.textContent('.spl-stage')) && !(await p.$('.spl-frame')), 'an unresolved share link explains itself, with Open on Facebook');
+    await p.click('[data-spl="next"]'); await p.waitForTimeout(500);
+    const fsrc = await p.$eval('.spl-frame', f => decodeURIComponent(f.src));
+    ok(/plugins\/video\.php\?href=https:\/\/www\.facebook\.com\/reel\/1234567890123\/&/.test(fsrc), 'a reel plays from its plain address', fsrc.slice(0, 120));
+    await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+    /* the phone app: the share link is followed, then kept */
+    await p.evaluate(() => { LinkMeta.native = () => true; LinkMeta.get = async () => ({ finalUrl:'https://www.facebook.com/reel/42424242424242/' }); });
+    await p.click('.swipecard[data-open="fb1"] [data-watch]'); await p.waitForTimeout(900);
+    const rs = await p.$eval('.spl-frame', f => decodeURIComponent(f.src)).catch(() => '');
+    ok(/href=https:\/\/www\.facebook\.com\/reel\/42424242424242\//.test(rs), 'on the phone a share link is followed to the reel and plays', rs.slice(0, 120));
+    ok((await p.evaluate(async () => (await Store.get('swipes', 'fb1')).playUrl)) === 'https://www.facebook.com/reel/42424242424242/', 'and kept on the swipe, so it is looked up once');
+    await ctx.close();
+  }
+
   ok(!errs.length, 'no page errors', errs.join(' | '));
   await b.close();
   console.log(`\n${pass} passed, ${fail} failed`);

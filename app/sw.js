@@ -17,7 +17,7 @@
    The database is untouched by any of this. IndexedDB is not part of the cache
    and a service worker update never clears it. */
 
-const BUILD = '0cfc2972ee4f';
+const BUILD = 'c1c3ceff85f3';
 const CACHE = 'cs4-' + BUILD;
 const FILES = [
   "./index.html",
@@ -229,7 +229,8 @@ const FILES = [
   "./library.css",
   "./manifest.webmanifest",
   "./paper.css",
-  "./styles.css"
+  "./styles.css",
+  "./yt.html"
 ];
 
 self.addEventListener('install', e => {

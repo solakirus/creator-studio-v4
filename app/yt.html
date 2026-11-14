@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Player</title>
+<!-- YouTube's player, from a real web address.
+
+     Inside the apps (Android's https://localhost, the laptop's app://) YouTube
+     can't tell what site its player is on, so it took the player for a bot and
+     asked for a sign-in — which Google won't let happen inside an embedded
+     player (a blank screen). Loaded from this page on the app's own site
+     (GitHub Pages, or nastime over https), the player gets a proper origin and
+     referrer. embed.js points every YouTube embed here:
+       yt.html?v=<id>[&autoplay=1][&t=<seconds>] -->
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}
+iframe{position:fixed;inset:0;width:100%;height:100%;border:0}</style>
+</head>
+<body>
+<script>
+(function(){
+  var q = new URLSearchParams(location.search);
+  var v = (q.get('v') || '').replace(/[^\w-]/g, '').slice(0, 20);
+  if(!v) return;
+  var p = new URLSearchParams({ playsinline:'1', rel:'0', modestbranding:'1', origin: location.origin,
+    autoplay: q.get('autoplay') === '1' ? '1' : '0' });
+  var t = parseInt(q.get('t') || '0', 10);
+  if(t > 0) p.set('start', String(t));
+  var f = document.createElement('iframe');
+  f.src = 'https://www.youtube-nocookie.com/embed/' + v + '?' + p.toString();
+  f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen; accelerometer; gyroscope; clipboard-write; web-share';
+  f.allowFullscreen = true;
+  f.referrerPolicy = 'strict-origin-when-cross-origin';
+  f.title = 'YouTube video';
+  document.body.appendChild(f);
+})();
+</script>
+</body>
+</html>

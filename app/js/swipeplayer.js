@@ -27,7 +27,7 @@
     let w, h, src = e.src;
     if(e.kind === 'youtube'){
       const tall = /\/shorts\//i.test(url);
-      src += (src.includes('?') ? '&' : '?') + 'autoplay=1&playsinline=1';
+      src += (src.includes('?') ? '&' : '?') + 'autoplay=1';
       if(tall){ h = Math.min(maxH, 760); w = Math.min(maxW, Math.round(h * 9 / 16)); h = Math.round(w * 16 / 9); }
       else { w = Math.min(maxW, 1000); h = Math.round(w * 9 / 16); if(h > maxH){ h = maxH; w = Math.round(h * 16 / 9); } }
     } else if(e.kind === 'tiktok'){ w = Math.min(maxW, 340); h = Math.min(maxH, 740); }
@@ -75,15 +75,28 @@
     /* room for one options row even while folded, so opening one never
        pushes the video about */
     const room = 70 + box.querySelector('.spl-foot').offsetHeight + 20 + (opts.panel && !openGroup ? 42 : 0);
-    const f = frame(s.url, room);
+    /* a Facebook share link: followed to the video's own address first
+       (opts.resolve), which is kept on the swipe as playUrl */
+    let playUrl = s.playUrl || s.url;
+    let why = '';
+    if(global.Embed && Embed.facebookNeedsResolving && Embed.facebookNeedsResolving(playUrl)){
+      const stage = box.querySelector('.spl-stage');
+      stage.innerHTML = '<p class="spl-wait">Finding the video…</p>';
+      let r = null;
+      try { r = opts.resolve ? await opts.resolve(s) : null; } catch(e){}
+      if(!box || list[i] !== s) return;          /* moved on meanwhile */
+      if(r){ playUrl = r; s.playUrl = r; }
+      else why = 'This is a Facebook share link, and Facebook\'s player can only open the video\'s own address. The phone app looks it up the first time you play it there.';
+    }
+    const f = why ? null : frame(playUrl, room);
     const title = s.title && !/^untitled swipe$/i.test(s.title) ? s.title : (s.author ? '@' + s.author : 'Untitled swipe');
     const cover = opts.cover ? opts.cover(s) : '';
     box.querySelector('.spl-stage').innerHTML = f
-      ? `<iframe class="spl-frame" src="${f.src}" style="width:${f.w}px;height:${f.h}px" frameborder="0"
+      ? `<iframe class="spl-frame" src="${f.src}" style="width:${f.w}px;height:${f.h}px" frameborder="0" referrerpolicy="strict-origin-when-cross-origin"
           allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
           allowfullscreen title="${esc(title)}"></iframe>`
       : `<div class="spl-none" style="background-image:${cover}">
-          <p>${esc(siteOf(s.url))} doesn't let its videos play inside other apps.</p>
+          <p>${esc(why || siteOf(s.url) + ' doesn\'t let its videos play inside other apps.')}</p>
           ${s.url ? `<a class="btn-primary" href="${esc(s.url)}" target="_blank" rel="noopener">Open on ${esc(siteOf(s.url))}</a>` : ''}</div>`;
     box.querySelector('.spl-title').textContent = title;
     box.querySelector('.spl-count').textContent = list.length > 1 ? `${i + 1} of ${list.length}` : '';

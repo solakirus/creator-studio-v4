@@ -158,7 +158,13 @@ app.whenReady().then(() => {
   /* YouTube embeds refuse to play without a referrer. */
   session.defaultSession.webRequest.onBeforeSendHeaders(
     { urls: ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*', '*://*.ytimg.com/*', '*://*.googlevideo.com/*'] },
-    (details, cb) => { details.requestHeaders['Referer'] = 'https://creatorstudio3.app/'; cb({ requestHeaders: details.requestHeaders }); });
+    (details, cb) => {
+      /* only when there is none (or it's the app's own app:// address):
+         yt.html on the app's site sends a real one, which YouTube trusts */
+      const r = details.requestHeaders['Referer'] || details.requestHeaders['referer'] || '';
+      if(!r || /^(app|file):/i.test(r)) details.requestHeaders['Referer'] = 'https://creatorstudio3.app/';
+      cb({ requestHeaders: details.requestHeaders });
+    });
 
   protocol.handle('cs3lib', req => Library.serve(req));
 
