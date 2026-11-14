@@ -40,11 +40,16 @@
         : cur ? `<button class="btn-sm${cur.readAt ? '' : ' accent'}" data-a="read">${cur.readAt ? 'Read it again' : 'Read from Eyecandy'}</button>`
         : unread.length ? `<button class="btn-sm accent" data-a="readall">Read ${plural(unread.length, 'technique')} from Eyecandy</button>` : '';
       host.innerHTML = `<div class="pagehead"><h1 class="page-title">Transitions</h1><span class="count">${recs.length}</span></div>
-        <div class="trs-pills">
+        <div class="trs-pills trs-top">
           <button data-p="kept" aria-pressed="${pick === 'kept'}">★ Kept<i>${kept}</i></button>
           <button data-p="all" aria-pressed="${pick === 'all'}">All<i>${recs.length}</i></button>
-          ${techs.map(t => `<button data-p="${esc(t.slug)}" aria-pressed="${pick === t.slug}">${esc(t.name)}<i>${count(t.slug) || (t.readAt ? 0 : '·')}</i></button>`).join('')}
-          <button data-a="techs" aria-label="Add or remove techniques">＋ Technique</button>
+          <label class="trs-selw${cur ? ' on' : ''}"><select data-tech aria-label="Technique">
+            <option value="" ${cur ? '' : 'selected'}>Technique…</option>
+            ${[['Read', techs.filter(t => t.readAt)], ['Not read yet', techs.filter(t => !t.readAt)]].filter(([, l]) => l.length).map(([g, l]) =>
+              `<optgroup label="${g} (${l.length})">${l.slice().sort((a, b) => a.name.localeCompare(b.name)).map(t =>
+                `<option value="${esc(t.slug)}" ${pick === t.slug ? 'selected' : ''}>${esc(t.name)}${t.readAt ? ' · ' + count(t.slug) : ''}</option>`).join('')}</optgroup>`).join('')}
+            <option value="__edit">＋ Add or remove techniques…</option>
+          </select></label>
         </div>
         <div class="trs-bar"><span>${status ? esc(status) : cur ? `${esc(cur.name)} · ${plural(list.length, 'clip')}${cur.readAt ? '' : ' · not read yet'}`
             : pick === 'kept' ? 'The ones you keep coming back to' : plural(recs.length, 'clip') + ' from ' + plural(techs.filter(t => t.readAt).length, 'technique')}</span>
@@ -81,7 +86,9 @@
         App.sheet(`<h2 style="margin:0 0 4px">Techniques</h2>
           <p class="hintline" style="margin:0 0 10px">Yours, then the rest of Eyecandy’s. Tap × to drop one (its clips stay under All).</p>
           <div class="trs-tl">${list.map(t => `<span>${esc(t.name)}<button data-rm="${esc(t.slug)}" aria-label="Remove ${esc(t.name)}">×</button></span>`).join('')}</div>
-          <p class="k" style="margin:14px 0 6px;color:var(--muted);font-size:12px">Add from Eyecandy</p>
+          <p class="k" style="margin:14px 0 6px;color:var(--muted);font-size:12px">Add from Eyecandy${rest.length ? ` · ${rest.length} more` : ''}</p>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px">${rest.length ? `<button class="btn-sm accent" data-addall>＋ Add all ${rest.length}</button>` : ''}
+            ${Transitions.canRead() ? '<button class="btn-sm" data-a="discover">Check Eyecandy for new ones</button>' : ''}</div>
           <div class="trs-tl add">${rest.map(s => `<button data-add="${esc(s)}">＋ ${esc(Transitions.techName(s))}</button>`).join('')}</div>
           <p class="k" style="margin:14px 0 6px;color:var(--muted);font-size:12px">Or paste a link — a technique page or one moving picture</p>
           <div style="display:flex;gap:6px"><input class="trs-q" style="margin:0" data-link placeholder="https://eyecannndy.com/technique/…" aria-label="Link">
@@ -89,6 +96,20 @@
           <div class="sheetcta"><button class="btn-ghost" data-no>Done</button></div>`, sh => {
           sh.addEventListener('click', async e => {
             if(e.target.closest('[data-no]')){ App.closeSheet(); return render(); }
+            if(e.target.closest('[data-addall]')){
+              const l = await Transitions.techs(), have2 = new Set(l.map(t => t.slug));
+              await Transitions.setTechs(l.concat(Transitions.ALL_TECHS.filter(x => !have2.has(x)).map(slug => ({ slug }))));
+              U.toast('All of Eyecandy’s techniques added — read them under All');
+              setPick('all'); App.closeSheet(); return render();
+            }
+            if(e.target.closest('[data-a="discover"]')){
+              e.target.closest('[data-a="discover"]').textContent = 'Looking…';
+              try {
+                const n = await Transitions.discover();
+                U.toast(n.length ? `${plural(n.length, 'new technique')} found: ${n.map(Transitions.techName).join(', ')}` : 'No new techniques — you have the full list');
+              } catch(err){ U.toast(err.message || 'That didn’t work'); }
+              App.closeSheet(); techSheet(); return;
+            }
             const rm = e.target.closest('[data-rm]'), ad = e.target.closest('[data-add]');
             if(rm || ad){
               const l = await Transitions.techs();
@@ -111,6 +132,12 @@
       })();
     }
 
+    host.addEventListener('change', e => {
+      const sel = e.target.closest('[data-tech]');
+      if(!sel) return;
+      if(sel.value === '__edit'){ sel.value = Transitions.ALL_TECHS.includes(pick) ? pick : ''; return techSheet(); }
+      if(sel.value){ setPick(sel.value); render(); }
+    });
     host.addEventListener('click', async e => {
       const p = e.target.closest('[data-p]');
       if(p){ setPick(p.dataset.p); return render(); }

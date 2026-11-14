@@ -58,11 +58,12 @@ const top = '.screen:last-child';
     const tabs = await p.$$eval('.ctnav [data-v]', x => x.map(y => y.dataset.v));
     ok(tabs.indexOf('transitions') === tabs.indexOf('swipe') + 1 && !tabs.includes('boards'), 'Transitions sits next to Swipe; Boards is gone', tabs.join(', '));
     await p.click('.ctnav [data-v="transitions"]'); await p.waitForSelector('#trHost .trs-pills'); await p.waitForTimeout(300);
-    const pills = await p.$$eval('#trHost .trs-pills button', x => x.map(y => y.textContent.trim()));
-    ok(pills.some(x => /^Crash cut/.test(x)) && pills.some(x => /^Whip pan/.test(x)), 'starts with Eyecandy’s transition techniques', pills.slice(0, 6).join(' | '));
+    const pills = await p.$$eval('#trHost [data-tech] option', x => x.map(y => y.textContent.trim()));
+    ok(pills.some(x => /^Crash cut/.test(x)) && pills.some(x => /^Whip pan/.test(x)), 'starts with Eyecandy’s transition techniques, in one drop-down', pills.slice(0, 6).join(' | '));
+    ok((await p.$$('#trHost .trs-top > button')).length === 2, 'the top row is just Kept, All and the drop-down');
 
     if(name === 'laptop'){
-      await p.click('#trHost [data-p="crash-transition"]'); await p.waitForTimeout(300);
+      await p.selectOption('#trHost [data-tech]', 'crash-transition'); await p.waitForTimeout(300);
       ok(/Read from Eyecandy/.test(await p.textContent('#trHost .trs-bar')), 'a technique not read yet offers Read from Eyecandy');
       await p.click('#trHost [data-a="read"]'); await p.waitForFunction(() => document.querySelectorAll('#trHost .trs-cell').length === 7, null, { timeout: 8000 }).catch(() => {});
       const scans = await p.evaluate(() => window.__scans);
@@ -77,17 +78,34 @@ const top = '.screen:last-child';
         return c.querySelector('canvas.trs-cv') ? 'canvas' : im && /^data:image\/jpeg/.test(im.getAttribute('src') || '') ? 'still' : im && im.getAttribute('src') ? 'moving' : 'none'; }));
       ok(still.every(x => x === 'canvas' || x === 'still'), 'the grid shows stills by default, nothing animating', still.join(','));
       ok(/Play all/.test(await p.textContent('#trHost [data-a="move"]')), 'with a Play all button');
+      const live = sel => p.evaluate(s => { const im = document.querySelector(s + ' img'); return /asset\.eyecannndy/.test(im.getAttribute('src') || '') && !im.hidden; }, sel);
+      await p.hover('#trHost .trs-cell:nth-child(2)'); await p.waitForTimeout(300);
+      ok(await live('#trHost .trs-cell:nth-child(2)') && !(await live('#trHost .trs-cell:nth-child(1)')), 'hovering a still plays just that one');
+      await p.mouse.move(5, 5); await p.waitForTimeout(300);
+      ok(!(await live('#trHost .trs-cell:nth-child(2)')), 'moving off puts the still back');
       await p.click('#trHost [data-a="move"]'); await p.waitForTimeout(700);
       const mv = await p.evaluate(() => [...document.querySelectorAll('#trHost .trs-cell img')].filter(im => /asset\.eyecannndy/.test(im.getAttribute('src') || '')).length);
       ok(mv >= 1 && /Stop all/.test(await p.textContent('#trHost [data-a="move"]')), 'Play all animates the ones on screen; the button becomes Stop all', mv);
       await p.click('#trHost [data-a="move"]'); await p.waitForTimeout(900);
       ok(await p.evaluate(() => ![...document.querySelectorAll('#trHost .trs-cell img')].some(im => /asset\.eyecannndy/.test(im.getAttribute('src') || ''))), 'Stop all stills them again');
-      ok(/Crashcut7/.test((await p.$$eval('#trHost .trs-pills button', x => x.map(y => y.textContent.replace(/\s/g, '')))).join('|').replace(/\s/g, '')), 'the pill counts its clips');
+      ok(/Crash cut · 7/.test((await p.$$eval('#trHost [data-tech] option', x => x.map(y => y.textContent))).join('|')), 'the drop-down counts its clips');
+      /* more techniques: all of Eyecandy's, and ones it added since */
+      await p.selectOption('#trHost [data-tech]', '__edit'); await p.waitForTimeout(500);
+      ok(/Add all 118/.test(await p.textContent('#sheet')), 'the technique sheet offers all of Eyecandy’s at once');
+      await p.click('#sheet [data-addall]'); await p.waitForTimeout(600);
+      ok((await p.evaluate(() => Transitions.techs())).length === 136, 'Add all gives all 136');
+      await p.screenshot({ path: path.join(out, `tr-top-${name}.png`) });
+      await p.evaluate(() => { const g = window.CS3Lib.grabRun; window.CS3Lib.grabRun = async o => { if(/eyecannndy\.com\/$/.test(o.url)){
+          setTimeout(() => { window.__fire = 1; }, 0); } return g(o); }; });
+      await p.selectOption('#trHost [data-tech]', '__edit'); await p.waitForTimeout(400);
+      await p.click('#sheet [data-a="discover"]'); await p.waitForTimeout(900);
+      ok((await p.evaluate(() => window.__scans.some(x => /eyecannndy\.com\/$/.test(x.url)))), 'Check Eyecandy for new ones scans its front page');
+      await p.evaluate(() => App.closeSheet()); await p.selectOption('#trHost [data-tech]', 'crash-transition'); await p.waitForTimeout(400);
     }
     await p.waitForTimeout(400);
     await p.screenshot({ path: path.join(out, `tr-tab-${name}.png`) });
     if(name === 'phone'){
-      await p.click('#trHost [data-p="whip-pan"]'); await p.waitForTimeout(800);
+      await p.selectOption('#trHost [data-tech]', 'whip-pan'); await p.waitForTimeout(800);
       ok(await p.$eval('#trHost .trs-cell[data-w="ec_bad"]', x => x.classList.contains('bad')), 'a picture that won’t load says so instead of a blank box');
       ok(!(await p.$('#trHost [data-a="read"]')) && /laptop/.test(await p.textContent('#trHost').catch(() => '')) === false, 'the phone has no Read button');
       await p.screenshot({ path: path.join(out, `tr-tab-${name}.png`) });

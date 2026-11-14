@@ -145,6 +145,19 @@
     } finally { offs.forEach(f => { try { f(); } catch(e){} }); }
     return links;
   }
+  /* techniques Eyecandy has added since ALL_TECHS was written: every page
+     links to all of them; new ones are kept in the list (settings) */
+  async function discover(){
+    if(!canRead()) throw new Error('Checking Eyecandy needs the laptop app');
+    const links = await scanPage('https://eyecannndy.com/', {});
+    const found = [...new Set(links.map(l => slugOf(l.url)).filter(Boolean))];
+    const list = await techs(), have = new Set(list.map(t => t.slug));
+    const fresh = found.filter(x => !ALL_TECHS.includes(x));
+    fresh.forEach(x => ALL_TECHS.push(x));
+    const add = found.filter(x => !have.has(x) && fresh.includes(x));
+    if(add.length) await setTechs(list.concat(add.map(slug => ({ slug }))));
+    return add;
+  }
   async function read(slugs, o){
     o = o || {};
     if(!canRead()) throw new Error('Reading Eyecandy needs the laptop app');
@@ -357,8 +370,32 @@
     }
   }
   const observers = new WeakMap();
+  /* stills: the mouse over one plays it, and leaving puts the still back */
+  function hoverPlay(root){
+    if(root._trHover) return; root._trHover = true;
+    root.addEventListener('pointerover', e => {
+      if(e.pointerType !== 'mouse' || moving()) return;
+      const c = e.target.closest('.trs-cell[data-trsrc]');
+      if(!c || c._live || c.classList.contains('bad')) return;
+      c._live = true;
+      const im = c.querySelector('img');
+      c._still = im.hidden ? null : im.getAttribute('src');
+      const cv = c.querySelector('.trs-cv'); if(cv) cv.hidden = true;
+      im.src = c.dataset.trsrc; im.hidden = false;
+    });
+    root.addEventListener('pointerout', e => {
+      const c = e.target.closest('.trs-cell[data-trsrc]');
+      if(!c || !c._live || (e.relatedTarget && c.contains(e.relatedTarget))) return;
+      c._live = false;
+      if(moving()) return;
+      const im = c.querySelector('img'), cv = c.querySelector('.trs-cv');
+      if(c._still) im.src = c._still; else { im.removeAttribute('src'); im.hidden = true; }
+      if(cv) cv.hidden = false;
+    });
+  }
   /* fill a grid's cells: stills, or the moving pictures while on screen */
   function wireImgs(root){
+    hoverPlay(root);
     const cells = [...root.querySelectorAll('.trs-cell[data-trsrc]')];
     const old = observers.get(root); if(old){ old.disconnect(); observers.delete(root); }
     if(!moving()){
@@ -381,14 +418,20 @@
   const CSS = `
   .trs-pills{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
   .trs-pills button{flex:0 0 auto;height:34px;padding:0 12px;border-radius:var(--r);border:1px solid var(--line);background:var(--surface-1);color:var(--cream);font-size:14px;white-space:nowrap;cursor:pointer}
-  @media (min-width:900px){ #trHost .trs-pills{flex-wrap:wrap;overflow:visible} }
+  .trs-top{overflow:visible;flex-wrap:nowrap}
+  .trs-selw{position:relative;flex:0 1 auto;min-width:0;display:flex}
+  .trs-selw select{height:34px;max-width:min(260px,52vw);padding:0 30px 0 12px;border-radius:var(--r);border:1px solid var(--line);background:var(--surface-1);color:var(--cream);font:inherit;font-size:14px;-webkit-appearance:none;appearance:none;cursor:pointer;text-overflow:ellipsis}
+  .trs-selw::after{content:'';position:absolute;right:12px;top:13px;width:7px;height:7px;border:solid var(--muted);border-width:0 2px 2px 0;transform:rotate(45deg);pointer-events:none}
+  .trs-selw.on select{background:var(--cream);color:#151515;border-color:var(--cream);font-weight:700}
+  .trs-selw.on::after{border-color:#151515}
+  .trs-selw select option,.trs-selw select optgroup{background:var(--surface-1);color:var(--cream);font-weight:400}
   .trs-pills button i{font-style:normal;color:var(--dim);margin-left:6px;font-size:12px}
   .trs-pills button[aria-pressed="true"]{background:var(--cream);color:#151515;border-color:var(--cream);font-weight:700}
   .trs-pills button[aria-pressed="true"] i{color:#555}
   .trs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
   .trs-cell{position:relative;padding:0;border:0;background:var(--surface-2);border-radius:4px;overflow:hidden;aspect-ratio:16/9;cursor:pointer}
   .trs-cell img,.trs-cell .trs-cv{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
-  .trs-cell img[hidden]{display:none}
+  .trs-cell img[hidden],.trs-cell .trs-cv[hidden]{display:none}
   .trs-cell > i{display:none;position:absolute;inset:0;align-items:center;justify-content:center;font-style:normal;font-size:12px;color:var(--dim)}
   .trs-cell.bad img,.trs-cell.bad .trs-cv{display:none}.trs-cell.bad > i{display:flex}
   .trs-cell span{position:absolute;left:0;right:0;bottom:0;padding:14px 7px 5px;font-size:11.5px;line-height:1.25;color:#fff;text-align:left;background:linear-gradient(#0000,#000c);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -420,5 +463,5 @@
   }
 
   global.Transitions = { ALL_TECHS, STARTERS, SITE, techName, slugOf, techs, setTechs, all, get, put, keep, idFor, save, addLink,
-    canRead, read, watch, peek, hostsList, hostFor, setGap, assign, pick, cellHTML, wireImgs, moving, setMoving, css };
+    canRead, read, discover, watch, peek, hostsList, hostFor, setGap, assign, pick, cellHTML, wireImgs, moving, setMoving, css };
 })(window);
