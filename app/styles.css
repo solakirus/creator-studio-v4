@@ -4167,3 +4167,24 @@ html{-webkit-text-size-adjust:100%}
 .stg-bi{display:flex;gap:10px;align-items:center;margin:0 0 8px;font-size:14.5px;cursor:pointer}
 .stg-bi input{width:18px;height:18px;margin:0}
 .filterwrap select.on{border-color:var(--orange);color:var(--orange)}
+
+/* ---------- Content cards: a long title runs on below ----------
+   The card was a fixed 92px with the words pinned to its foot, so a title on
+   two lines climbed up over the channel chip. Now the title sits right under
+   the chip and a long one runs on to a second line, the card growing to fit.
+   The stage stamp (IDEA) keeps clear room on the right of the details line,
+   and an empty length badge isn't drawn. Phone always; on the laptop in Big
+   (Cards, Grid and List have their own layouts). */
+.dur:empty{display:none}
+@media (max-width: 899px){
+  #ctWrap .mediacard .card{height:auto;min-height:92px}
+  #ctWrap .mediacard .card .body{position:relative;left:auto;right:auto;bottom:auto;padding:38px 13px 11px}
+  #ctWrap #clipList .mediacard .card .meta{padding-right:52px}
+  #ctWrap #clipList .mediacard .card .meta > *{white-space:nowrap}
+}
+@media (min-width: 900px){
+  #ctWrap .list.lay-big .mediacard .card{height:auto;min-height:92px}
+  #ctWrap .list.lay-big .mediacard .card .body{position:relative;left:auto;right:auto;bottom:auto;padding:38px 13px 11px}
+  #ctWrap #clipList.lay-big .mediacard .card .meta{padding-right:52px}
+  #ctWrap #clipList.lay-big .mediacard .card .meta > *{white-space:nowrap}
+}
