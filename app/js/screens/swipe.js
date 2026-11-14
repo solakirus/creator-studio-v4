@@ -187,14 +187,14 @@
       const groups = await SwipeTags.all();
       const recs = (await Promise.all(ids.map(id => Store.get('swipes', id)))).filter(Boolean);
       const state = t => { const n = recs.filter(s => (s.tagIds || []).includes(t.id)).length; return n === recs.length && n ? 'all' : n ? 'some' : 'none'; };
-      sh.innerHTML = `<h2>Tag ${recs.length} swipe${recs.length === 1 ? '' : 's'}</h2>
-        <p class="hintline" style="margin:0 0 12px">Tap a tag to put it on all of them; tap again to take it off.</p>
+      sh.innerHTML = `<h2>Sort ${recs.length} swipe${recs.length === 1 ? '' : 's'}</h2>
+        <p class="hintline" style="margin:0 0 12px">Tap an option to put it on all of them; tap again to take it off.</p>
         ${groups.map(g => `<div class="field"><label>${escT(g.name)}</label><div class="opts" style="flex-wrap:wrap">
           ${g.tags.map(t => { const st = state(t); return `<button type="button" class="opt" data-bt="${t.id}" data-st="${st}" aria-pressed="${st === 'all'}"
             ${st === 'some' ? 'style="border-style:dashed"' : ''}><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${t.color};margin-right:7px"></span>${escT(t.name)}${st === 'some' ? ' · some' : ''}</button>`; }).join('')}
         </div></div>`).join('')}
         <div class="sheetcta"><button class="btn-primary" data-btdone>Done</button>
-          <button class="btn-ghost" data-btedit>Edit your tags</button></div>`;
+          <button class="btn-ghost" data-btedit>Edit filters</button></div>`;
     };
     App.sheet('', sh => {
       draw(sh);
@@ -210,27 +210,30 @@
   /* add, rename, recolour and remove your groups and tags */
   async function editTags(after){
     const draw = async sh => {
-      const groups = await SwipeTags.all();
-      sh.innerHTML = `<h2>Your tags</h2>
-        <p class="hintline" style="margin:0 0 12px">Sort swipes your way. Tap a dot to change its colour; rename by typing.
-          Removing a tag takes it off every swipe.</p>
+      const groups = await SwipeTags.all(), bi = await SwipeTags.builtins();
+      sh.innerHTML = `<h2>Edit filters</h2>
+        <p class="hintline" style="margin:0 0 12px">Each of these is a dropdown in your swipe file, and its options are what
+          you pick on a swipe. Rename by typing; tap a dot to change its colour. Removing an option takes it off every swipe.</p>
         ${groups.map(g => `<div class="block stg-group" style="margin:0 0 12px">
           <div style="display:flex;gap:8px;align-items:center;margin:0 0 8px">
-            <input class="stg-in" data-gname="${g.id}" value="${escT(g.name)}" aria-label="Group name" style="flex:1;font-weight:700">
-            <button class="btn-sm" data-gdel="${g.id}" style="color:var(--red)" aria-label="Delete the group ${escT(g.name)}">Delete group</button>
+            <input class="stg-in" data-gname="${g.id}" value="${escT(g.name)}" aria-label="Filter name" style="flex:1;font-weight:700">
+            <button class="btn-sm" data-gdel="${g.id}" style="color:var(--red)" aria-label="Delete the filter ${escT(g.name)}">Delete</button>
           </div>
           ${g.tags.map(t => `<div style="display:flex;gap:8px;align-items:center;margin:0 0 6px">
             <button class="stg-dot" data-tcolor="${t.id}" style="background:${t.color}" aria-label="Change colour"></button>
-            <input class="stg-in" data-tname="${t.id}" value="${escT(t.name)}" aria-label="Tag name" style="flex:1">
+            <input class="stg-in" data-tname="${t.id}" value="${escT(t.name)}" aria-label="Option name" style="flex:1">
             <button class="btn-sm" data-tdel="${t.id}" aria-label="Remove ${escT(t.name)}">✕</button></div>`).join('')}
           <div style="display:flex;gap:8px;margin-top:6px">
-            <input class="stg-in" data-tnew="${g.id}" placeholder="+ Add a tag to ${escT(g.name)}" style="flex:1">
+            <input class="stg-in" data-tnew="${g.id}" placeholder="+ Add an option to ${escT(g.name)}" style="flex:1">
             <button class="btn-sm" data-tadd="${g.id}">Add</button></div>
         </div>`).join('')}
         <div style="display:flex;gap:8px;margin:4px 0 12px">
-          <input class="stg-in" id="stg-newgroup" placeholder="+ New group — e.g. Hook type, Topic, Energy" style="flex:1">
-          <button class="btn-sm accent" data-gadd>Add group</button></div>
-        <div class="sheetcta"><button class="btn-primary" data-tdone>Done</button></div>`;
+          <input class="stg-in" id="stg-newgroup" placeholder="+ New filter — e.g. Hook type, Topic, Energy" style="flex:1">
+          <button class="btn-sm accent" data-gadd>Add filter</button></div>
+        <h4 style="margin:18px 0 4px">Built-in filters</h4>
+        <p class="hintline" style="margin:0 0 8px">Read from what's already on each swipe. Switch on the ones you want as dropdowns.</p>
+        ${SwipeTags.BUILTINS.map(x => `<label class="stg-bi"><input type="checkbox" data-bi="${x.k}"${bi[x.k] ? ' checked' : ''}> ${escT(x.label)}</label>`).join('')}
+        <div class="sheetcta" style="margin-top:14px"><button class="btn-primary" data-tdone>Done</button></div>`;
     };
     App.sheet('', sh => {
       draw(sh);
@@ -251,12 +254,12 @@
         }
         if(b.dataset.tdel){
           const t = (await SwipeTags.byId())[b.dataset.tdel];
-          if(t && !confirm(`Remove the tag “${t.tag.name}”? It comes off every swipe that has it.`)) return;
+          if(t && !confirm(`Remove “${t.tag.name}”? It comes off every swipe that has it.`)) return;
           await SwipeTags.removeTag(b.dataset.tdel); return draw(sh);
         }
         if(b.dataset.gdel){
           const g = (await SwipeTags.all()).find(x => x.id === b.dataset.gdel);
-          if(g && !confirm(`Delete the group “${g.name}” and its ${g.tags.length} tag${g.tags.length === 1 ? '' : 's'}? Your swipes stay.`)) return;
+          if(g && !confirm(`Delete the filter “${g.name}” and its ${g.tags.length} option${g.tags.length === 1 ? '' : 's'}? Your swipes stay.`)) return;
           await SwipeTags.removeGroup(b.dataset.gdel); return draw(sh);
         }
         if(b.dataset.tadd) return addTagFrom(b.dataset.tadd);
@@ -274,6 +277,7 @@
         const t = e.target;
         if(t.dataset.gname && t.value.trim()) await SwipeTags.renameGroup(t.dataset.gname, t.value);
         if(t.dataset.tname && t.value.trim()) await SwipeTags.editTag(t.dataset.tname, { name: t.value.trim() });
+        if(t.dataset.bi) await SwipeTags.setBuiltin(t.dataset.bi, t.checked);
       });
     });
   }
@@ -282,13 +286,13 @@
     if(!window.SwipeTags) return '';
     const groups = await SwipeTags.all();
     return `<div class="block">
-      <div style="display:flex;align-items:center;gap:8px;margin:0 0 8px"><h4 style="margin:0;flex:1">Tags</h4>
-        <button class="btn-sm" data-a="edittags">Edit your tags</button></div>
+      <div style="display:flex;align-items:center;gap:8px;margin:0 0 8px"><h4 style="margin:0;flex:1">Sort it</h4>
+        <button class="btn-sm" data-a="edittags">Edit filters</button></div>
       ${groups.map(g => `<p class="hintline" style="margin:8px 0 6px">${escT(g.name)}</p><div class="opts" style="flex-wrap:wrap">
         ${g.tags.map(t => `<button class="opt" data-stag="${t.id}" aria-pressed="${(s.tagIds || []).includes(t.id)}"><span
           style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${t.color};margin-right:7px"></span>${escT(t.name)}</button>`).join('')
-          || '<span class="hintline">No tags in this group yet</span>'}</div>`).join('')
-        || '<p class="hintline" style="margin:0">No tags yet — Edit your tags to make some.</p>'}
+          || '<span class="hintline">No options yet</span>'}</div>`).join('')
+        || '<p class="hintline" style="margin:0">No filters of your own yet — Edit filters to make some.</p>'}
     </div>`;
   }
 
@@ -299,6 +303,7 @@
     let q = '';
     /* your filters (swipetags.js), kept while the app is open */
     let f = lastFilter.f || (window.SwipeTags ? SwipeTags.blank() : null), viewId = lastFilter.viewId || null;
+    if(f && window.SwipeTags) f = SwipeTags.norm(f);
     const remember = () => { lastFilter.f = f; lastFilter.viewId = viewId; };
     /* 'all' is the grid as it always was; 'folders' is the folder tiles; a
        folder id (or '__none') is one folder open */
@@ -315,6 +320,8 @@
       const inboxN = everything.filter(x => x.inbox).length;
       const tmap = window.SwipeTags ? await SwipeTags.byId() : {};
       const svs = window.SwipeTags ? await SwipeTags.views() : [];
+      const groups = window.SwipeTags ? await SwipeTags.all() : [];
+      const bi = window.SwipeTags ? await SwipeTags.builtins() : {};
       const fids = new Set(folders.map(x => x.id));
       const tagWords = s => (s.tagIds || []).map(id => tmap[id] ? tmap[id].tag.name : '').join(' ');
       const rows = everything.filter(s =>
@@ -350,8 +357,9 @@
         })() : ''}
         <div class="filterwrap">
           <input class="wide" id="q" type="text" placeholder="${inFolder() ? 'Search this folder…' : inInbox() ? 'Search the Inbox — a creator, a word…' : 'Search swipes…'}" value="${esc(q)}">
+          ${window.SwipeTags ? filterSelects(groups, bi) : ''}
         </div>
-        ${window.SwipeTags ? filterBar(svs, tmap) : ''}
+        ${window.SwipeTags ? filterLinks(svs) : ''}
 
         ${(() => {
           /* the same video saved twice (two devices, two imports): swipekey.js */
@@ -405,88 +413,33 @@
     }
     let keepFocus = false;
 
-    /* views you saved, the Filter button, and what's filtering now */
-    function filterBar(svs, tmap){
-      const on = SwipeTags.active(f);
-      const n = on ? f.tags.length + (f.src ? 1 : 0) + (f.angle ? 1 : 0) + (f.nofolder ? 1 : 0) + (f.when ? 1 : 0) : 0;
-      const chip = (k, label, color) => `<button class="stg-chip" data-unf="${k}"${color ? ` style="border-color:${color}"` : ''}>${esc(label)} <span aria-hidden="true">✕</span></button>`;
-      return `<div class="stg-bar">
-          <button class="pill" data-sv="" aria-pressed="${!viewId && !on}">All</button>
-          ${svs.map(v => `<button class="pill" data-sv="${v.id}" aria-pressed="${viewId === v.id}">${esc(v.name)}</button>`).join('')}
-          <button class="pill stg-filter" data-a="filters" aria-pressed="false">Filter${n ? ` · ${n}` : ''}</button>
-        </div>
-        ${on ? `<div class="stg-active">
-          ${f.tags.map(id => tmap[id] ? chip('tag:' + id, tmap[id].tag.name, tmap[id].tag.color) : '').join('')}
-          ${f.tags.length > 1 ? `<span class="stg-note">${f.match === 'any' ? 'any of these' : 'all of these'}</span>` : ''}
-          ${f.src ? chip('src', (SOURCES[f.src] || {}).n || f.src) : ''}
-          ${f.angle ? chip('angle', f.angle === 'none' ? 'No angle yet' : 'Has my angle') : ''}
-          ${f.nofolder ? chip('nofolder', 'Not in a folder') : ''}
-          ${f.when ? chip('when', SwipeTags.WHEN[f.when][0]) : ''}
-          <button class="stg-link" data-a="clearf">Clear</button>
-          ${viewId ? '' : `<button class="stg-link" data-a="saveview">Save as a view</button>`}
-        </div>` : ''}`;
+    /* the dropdowns: one per filter you made (swipetags.js), then the
+       built-in ones you've switched on in Edit filters */
+    function filterSelects(groups, bi){
+      const sel = (attr, v, cur, first, opts) => `<select ${attr}="${v}"${cur ? ' class="on"' : ''}><option value="">${esc(first)}</option>
+        ${opts.map(([k, l]) => `<option value="${esc(k)}"${cur === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+      return groups.map(g => sel('data-fg', g.id, (f.sel || {})[g.id] || '', g.name, g.tags.map(t => [t.id, t.name]))).join('') +
+        (bi.src ? sel('data-fb', 'src', f.src, 'Any source', Object.entries(SOURCES).map(([k, v]) => [k, v.n])) : '') +
+        (bi.angle ? sel('data-fb', 'angle', f.angle, 'Any angle', [['none', 'No angle yet'], ['has', 'Has my angle']]) : '') +
+        (bi.when ? sel('data-fb', 'when', f.when, 'Saved any time', Object.entries(SwipeTags.WHEN).map(([k, v]) => [k, v[0]])) : '') +
+        (bi.folder ? sel('data-fb', 'folder', f.nofolder ? 'none' : '', 'In a folder or not', [['none', 'Not in a folder yet']]) : '') +
+        (bi.intent ? sel('data-fb', 'intent', f.intent, 'All intents', INTENTS.map(i => [i, i])) : '') +
+        (bi.channel ? sel('data-fb', 'channel', f.channel, 'Any channel', CHANNELS.map(c => [c.n, c.n])) : '') +
+        (bi.target ? sel('data-fb', 'target', f.target, 'Any target', Object.entries(SOURCES).map(([k, v]) => [k, v.n])) : '');
     }
-
-    async function openFilters(){
-      const groups = await SwipeTags.all(), svs = await SwipeTags.views();
-      const everything = await all();
-      const fids = new Set(((window.SwipeFolders ? await SwipeFolders.all() : [])).map(x => x.id));
-      const d = JSON.parse(JSON.stringify(f));
-      const cur = svs.find(v => v.id === viewId);
-      const opt = (attr, v, label, on, color) => `<button type="button" class="opt" ${attr}="${v}" aria-pressed="${on}">${
-        color ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:7px"></span>` : ''}${esc(label)}</button>`;
-      const draw = sh => {
-        const count = everything.filter(s => SwipeTags.matches(s, d, fids)).length;
-        sh.innerHTML = `<h2>Filter swipes</h2>
-          ${groups.map(g => `<div class="field"><label>${esc(g.name)}</label><div class="opts" style="flex-wrap:wrap">
-            ${g.tags.map(t => opt('data-ft', t.id, t.name, d.tags.includes(t.id), t.color)).join('') || '<span class="hintline">No tags yet</span>'}</div></div>`).join('')}
-          ${d.tags.length > 1 ? `<div class="field"><label>Show swipes with</label><div class="opts">
-            ${opt('data-fm', 'all', 'All of these tags', d.match !== 'any')}${opt('data-fm', 'any', 'Any of them', d.match === 'any')}</div></div>` : ''}
-          <div class="field"><label>Where it's from</label><div class="opts" style="flex-wrap:wrap">
-            ${opt('data-fs', '', 'Anywhere', !d.src)}${Object.entries(SOURCES).map(([k, v]) => opt('data-fs', k, v.n, d.src === k, v.c)).join('')}</div></div>
-          <div class="field"><label>My angle</label><div class="opts">
-            ${opt('data-fa', '', 'Any', !d.angle)}${opt('data-fa', 'none', 'No angle yet', d.angle === 'none')}${opt('data-fa', 'has', 'Has my angle', d.angle === 'has')}</div></div>
-          <div class="field"><label>Saved</label><div class="opts" style="flex-wrap:wrap">
-            ${opt('data-fw', '', 'Any time', !d.when)}${Object.entries(SwipeTags.WHEN).map(([k, v]) => opt('data-fw', k, v[0], d.when === k)).join('')}</div></div>
-          <div class="field"><label>Folders</label><div class="opts">
-            ${opt('data-fn', '', 'Any', !d.nofolder)}${opt('data-fn', '1', 'Not in a folder yet', !!d.nofolder)}</div></div>
-          <div class="sheetcta">
-            <button class="btn-primary" data-fgo>Show ${count} swipe${count === 1 ? '' : 's'}</button>
-            <button class="btn-ghost" data-fclear>Clear</button>
-          </div>
-          ${cur ? `<div class="sheetcta" style="margin-top:8px">
-            <button class="btn-ghost" data-fupdate>Update “${esc(cur.name)}”</button>
-            <button class="btn-ghost" data-fdelview style="color:var(--red)">Delete this view</button></div>`
-            : `<button class="btn-ghost" data-fsave style="width:100%;margin-top:8px">Save as a view…</button>`}
-          <button class="btn-ghost" data-fedit style="width:100%;margin-top:8px">Edit your tags</button>`;
-      };
-      App.sheet('', sh => {
-        draw(sh);
-        sh.addEventListener('click', async e => {
-          const b = e.target.closest('button'); if(!b) return;
-          if(b.dataset.ft){ d.tags = d.tags.includes(b.dataset.ft) ? d.tags.filter(x => x !== b.dataset.ft) : d.tags.concat(b.dataset.ft); return draw(sh); }
-          if(b.dataset.fm){ d.match = b.dataset.fm; return draw(sh); }
-          if(b.dataset.fs !== undefined){ d.src = b.dataset.fs; return draw(sh); }
-          if(b.dataset.fa !== undefined){ d.angle = b.dataset.fa; return draw(sh); }
-          if(b.dataset.fw !== undefined){ d.when = b.dataset.fw; return draw(sh); }
-          if(b.dataset.fn !== undefined){ d.nofolder = !!b.dataset.fn; return draw(sh); }
-          if(b.hasAttribute('data-fclear')){ Object.assign(d, SwipeTags.blank()); return draw(sh); }
-          if(b.hasAttribute('data-fedit')){ App.closeSheet(); return editTags(() => openFilters()); }
-          if(b.hasAttribute('data-fdelview')){
-            if(!confirm(`Delete the view “${cur.name}”? Your swipes and tags stay.`)) return;
-            await SwipeTags.removeView(cur.id); viewId = null; f = d;
-          } else if(b.hasAttribute('data-fupdate')){ await SwipeTags.saveView(cur.name, d, cur.id); f = d; U.toast('View updated'); }
-          else if(b.hasAttribute('data-fsave')){
-            const name = (prompt('Name this view — e.g. "Hooks with no angle"') || '').trim(); if(!name) return;
-            const v = await SwipeTags.saveView(name, d); f = d; viewId = v.id; U.toast(`Saved “${name}”`);
-          } else if(b.hasAttribute('data-fgo')){
-            /* changed from the view it came from: it's just a filter now */
-            if(cur && JSON.stringify(cur.f) !== JSON.stringify({ ...d, nofolder:!!d.nofolder })) viewId = null;
-            f = d;
-          } else return;
-          remember(); App.closeSheet(); render();
-        });
-      });
+    /* saved views, and what you can do with the filters as they are */
+    function filterLinks(svs){
+      const on = SwipeTags.active(f);
+      return `<div class="stg-bar">
+          ${svs.length ? `<button class="pill" data-sv="" aria-pressed="${!viewId && !on}">All</button>
+            ${svs.map(v => `<button class="pill" data-sv="${v.id}" aria-pressed="${viewId === v.id}">${esc(v.name)}</button>`).join('')}` : ''}
+          <span class="stg-links">
+            ${on ? `<button class="stg-link" data-a="clearf">Clear</button>` : ''}
+            ${on && !viewId ? `<button class="stg-link" data-a="saveview">Save as a view</button>` : ''}
+            ${viewId ? `<button class="stg-link" data-a="delview">Delete this view</button>` : ''}
+            <button class="stg-link" data-a="editfilters">Edit filters</button>
+          </span>
+        </div>`;
     }
 
     function viewSwitch(inboxN){
@@ -712,7 +665,13 @@
     });
     el.addEventListener('change', e => {
       const id = e.target.id;
-      if(/^f-/.test(id)) render();
+      const t = e.target;
+      if(t.dataset.fg !== undefined || t.dataset.fb !== undefined){
+        if(t.dataset.fg) f.sel = { ...(f.sel || {}), [t.dataset.fg]: t.value };
+        else if(t.dataset.fb === 'folder') f.nofolder = t.value === 'none';
+        else f[t.dataset.fb] = t.value;
+        viewId = null; remember(); render();
+      }
     });
     /* Hold one to pick several. The card is a button, so the guard in Select
        stops a tap from opening an entry while you are choosing. */
@@ -722,7 +681,7 @@
       idOf: n => n.dataset.open || null,
       warning: 'The entries go for good. Anything you wrote about them goes too.',
       extra: () => !window.SwipeFolders ? [] : [
-        ...(window.SwipeTags ? [{ label:'Tag…', run: (ids, done) => tagSheet(ids, done) }] : []),
+        ...(window.SwipeTags ? [{ label:'Sort…', run: (ids, done) => tagSheet(ids, done) }] : []),
         { label:'+ Folder', run: (ids, done) => pickFolder(ids, done) },
         ...(inInbox() ? [{ label:'Sorted', run: async (ids, done) => {
           const n = await markSorted(ids);
@@ -749,18 +708,16 @@
       const sv = e.target.closest('[data-sv]');
       if(sv && window.SwipeTags){
         const v = (await SwipeTags.views()).find(x => x.id === sv.dataset.sv);
-        f = v ? JSON.parse(JSON.stringify(v.f)) : SwipeTags.blank(); viewId = v ? v.id : null;
+        f = v ? SwipeTags.norm(v.f) : SwipeTags.blank(); viewId = v ? v.id : null;
         remember(); return render();
       }
-      const unf = e.target.closest('[data-unf]');
-      if(unf){
-        const k = unf.dataset.unf;
-        if(k.startsWith('tag:')) f.tags = f.tags.filter(x => x !== k.slice(4));
-        else if(k === 'nofolder') f.nofolder = false; else f[k] = '';
-        viewId = null; remember(); return render();
-      }
       const a = e.target.closest('[data-a]');
-      if(a && a.dataset.a === 'filters') return openFilters();
+      if(a && a.dataset.a === 'editfilters') return editTags(render);
+      if(a && a.dataset.a === 'delview'){
+        const v = (await SwipeTags.views()).find(x => x.id === viewId);
+        if(v && confirm(`Delete the view “${v.name}”? Your swipes stay as they are.`)){ await SwipeTags.removeView(v.id); viewId = null; f = SwipeTags.blank(); remember(); }
+        return render();
+      }
       if(a && a.dataset.a === 'clearf'){ f = SwipeTags.blank(); viewId = null; remember(); return render(); }
       if(a && a.dataset.a === 'saveview'){
         const name = (prompt('Name this view — e.g. "Hooks with no angle"') || '').trim(); if(!name) return;

@@ -17,7 +17,7 @@
      await SwipeTags.byId()             { tagId: { tag, group } }
      SwipeTags.addGroup / renameGroup / removeGroup / addTag / editTag / removeTag
      await SwipeTags.apply(swipeIds, tagId, on)
-     SwipeTags.matches(swipe, f)        f = { tags:[], match:'all'|'any', src, angle, nofolder, when }
+     SwipeTags.matches(swipe, f)        f = { sel:{ groupId: tagId }, src, angle, when, nofolder, intent, channel, target }
      await SwipeTags.views() / saveView(name, f) / removeView(id)          */
 (function(global){
   const KEY = 'swipe-tags', VIEWS = 'swipe-views';
@@ -44,7 +44,7 @@
     cache = Array.isArray(list) ? list : starters();
     return cache;
   }
-  const invalidate = () => { cache = null; vcache = null; };
+  const invalidate = () => { cache = null; vcache = null; bcache = null; };
   async function save(list){ cache = list; await Store.put('settings', list, KEY); return list; }
   const clone = v => JSON.parse(JSON.stringify(v));
   async function byId(){
@@ -102,18 +102,36 @@
     return n;
   }
 
-  /* ---- filters ---- */
+  /* ---- filters ----
+     The swipe file's row of dropdowns: one per group above (pick an option
+     to show swipes with that tag), and the built-in ones you switch on or
+     off in Edit filters. f = { sel:{ groupId: tagId }, src, angle, when,
+     nofolder, intent, channel, target }. */
   const DAY = 86400000;
-  const WHEN = { week:['This week', 7], month:['This month', 30], quarter:['Last 3 months', 91], older:['Older', 0] };
-  const blank = () => ({ tags:[], match:'all', src:'', angle:'', nofolder:false, when:'' });
-  const active = f => !!f && (f.tags.length || f.src || f.angle || f.nofolder || f.when);
+  const WHEN = { week:['This week', 7], month:['This month', 30], quarter:['Last 3 months', 91], older:['Older than 3 months', 0] };
+  const BUILTINS = [
+    { k:'src',     label:'Where it\'s from', on:true },
+    { k:'angle',   label:'My angle' },
+    { k:'when',    label:'When I saved it' },
+    { k:'folder',  label:'Folders' },
+    { k:'intent',  label:'Intent' },
+    { k:'channel', label:'Channel' },
+    { k:'target',  label:'Target platform' }
+  ];
+  const blank = () => ({ sel:{}, src:'', angle:'', when:'', nofolder:false, intent:'', channel:'', target:'' });
+  /* views saved before the dropdowns came back kept a list of tags */
+  function norm(f){
+    const o = { ...blank(), ...(f || {}) };
+    o.sel = { ...(o.sel || {}) };
+    if(Array.isArray(f && f.tags)) f.tags.forEach((t, i) => { o.sel['_' + i] = t; });
+    delete o.tags; delete o.match;
+    return o;
+  }
+  const active = f => !!f && (Object.values(f.sel || {}).some(Boolean) || f.src || f.angle || f.when || f.nofolder || f.intent || f.channel || f.target);
   function matches(s, f, folderIds){
     if(!f) return true;
     const mine = s.tagIds || [];
-    if(f.tags.length){
-      const ok = f.match === 'any' ? f.tags.some(t => mine.includes(t)) : f.tags.every(t => mine.includes(t));
-      if(!ok) return false;
-    }
+    for(const t of Object.values(f.sel || {})) if(t && !mine.includes(t)) return false;
     if(f.src && s.source !== f.src) return false;
     if(f.angle === 'none' && (s.myAngle || '').trim()) return false;
     if(f.angle === 'has' && !(s.myAngle || '').trim()) return false;
@@ -122,7 +140,24 @@
       const at = s.savedAt || s.createdAt || 0, age = Date.now() - at;
       if(f.when === 'older' ? age < 91 * DAY : age > WHEN[f.when][1] * DAY) return false;
     }
+    if(f.intent && s.intent !== f.intent) return false;
+    if(f.channel && !(s.channels || []).includes(f.channel)) return false;
+    if(f.target && !(s.targets || []).includes(f.target)) return false;
     return true;
+  }
+
+  /* which built-in dropdowns show: settings 'swipe-filter-builtins' (synced) */
+  let bcache = null;
+  async function builtins(){
+    if(bcache) return bcache;
+    let b; try { b = await Store.get('settings', 'swipe-filter-builtins'); } catch(e){}
+    bcache = {};
+    BUILTINS.forEach(x => { bcache[x.k] = b && typeof b[x.k] === 'boolean' ? b[x.k] : !!x.on; });
+    return bcache;
+  }
+  async function setBuiltin(k, on){
+    const b = { ...(await builtins()), [k]: !!on };
+    bcache = b; await Store.put('settings', b, 'swipe-filter-builtins');
   }
 
   let vcache = null;
@@ -134,7 +169,7 @@
   async function saveView(name, f, id){
     const n = String(name || '').trim(); if(!n) return null;
     const list = clone(await views());
-    const keep = { tags:f.tags.slice(), match:f.match, src:f.src, angle:f.angle, nofolder:!!f.nofolder, when:f.when };
+    const keep = JSON.parse(JSON.stringify(norm(f)));
     let v = list.find(x => x.id === id) || list.find(x => x.name.toLowerCase() === n.toLowerCase());
     if(v){ v.name = n; v.f = keep; }
     else { v = { id: sid('sv', n), name:n, f:keep }; list.push(v); }
@@ -146,6 +181,6 @@
     vcache = list; await Store.put('settings', list, VIEWS);
   }
 
-  global.SwipeTags = { COLORS, WHEN, all, byId, save, invalidate, addGroup, renameGroup, removeGroup, addTag, editTag,
-    removeTag, apply, blank, active, matches, views, saveView, removeView, starters };
+  global.SwipeTags = { COLORS, WHEN, BUILTINS, all, byId, save, invalidate, addGroup, renameGroup, removeGroup, addTag, editTag,
+    removeTag, apply, blank, norm, active, matches, builtins, setBuiltin, views, saveView, removeView, starters };
 })(window);

@@ -38,17 +38,15 @@ const url = 'file:///' + path.resolve(__dirname, '../../index.html').replace(/\\
     await mk('d', 'Voiceover edit', { myAngle:'Mine' });
   });
 
-  head('the old filters are gone; your tags are there');
+  head('the dropdowns are yours');
   await swipeFile(PH);
-  ok(!(await PH.$('#f-intent')) && !(await PH.$('#f-channel')) && !(await PH.$('#f-target')), 'no intent, channel or target filters');
-  ok(!!(await PH.$('[data-a="filters"]')) && !!(await PH.$('[data-sv=""]')), 'a Filter button and an All view instead');
-  const g = await PH.evaluate(async () => (await SwipeTags.all()).map(x => x.name + ':' + x.tags.length).join(', '));
-  ok(g === 'Use it for:5, Vibe:3, Format:3', 'starter groups to change or delete', g);
+  const dd = async p => p.evaluate(() => [...document.querySelectorAll('.filterwrap select')].map(x => x.options[0].textContent.trim()).join(' | '));
+  ok(await dd(PH) === 'Use it for | Vibe | Format | Any source', 'a dropdown per filter, plus Where it\'s from', await dd(PH));
+  ok(!(await PH.$('#f-intent')), 'intent, channel and target are off');
   ok((await PH.evaluate(() => Store.get('settings', 'swipe-tags'))) === undefined, 'the starters are not saved until you change them');
 
-  head('editing your tags');
-  await PH.click('[data-a="filters"]'); await PH.waitForTimeout(300);
-  await PH.click('#sheet [data-fedit]'); await PH.waitForTimeout(400);
+  head('Edit filters');
+  await PH.click('[data-a="editfilters"]'); await PH.waitForTimeout(400);
   await PH.fill('#stg-newgroup', 'Hook type'); await PH.click('#sheet [data-gadd]'); await PH.waitForTimeout(300);
   const hid = await PH.evaluate(async () => (await SwipeTags.all()).find(x => x.name === 'Hook type').id);
   await PH.fill(`[data-tnew="${hid}"]`, 'Question'); await PH.press(`[data-tnew="${hid}"]`, 'Enter'); await PH.waitForTimeout(300);
@@ -58,67 +56,57 @@ const url = 'file:///' + path.resolve(__dirname, '../../index.html').replace(/\\
   await PH.click(`[data-tcolor="${vibe.tags[1].id}"]`); await PH.waitForTimeout(200);
   const fmt = await PH.evaluate(async () => (await SwipeTags.all()).find(x => x.name === 'Format').id);
   await PH.click(`[data-gdel="${fmt}"]`); await PH.waitForTimeout(300);
-  await PH.screenshot({ path: path.join(out, 'swipetags-edit-phone.png') });
+  for(const k of ['angle', 'when']){ await PH.check(`#sheet [data-bi="${k}"]`); await PH.waitForTimeout(150); }
+  await PH.uncheck('#sheet [data-bi="src"]'); await PH.waitForTimeout(200);
+  await PH.screenshot({ path: path.join(out, 'swipetags-edit-phone.png'), fullPage: false });
   const after = await PH.evaluate(async () => (await SwipeTags.all()).map(x => x.name + ':' + x.tags.map(t => t.name).join('/')).join(' ; '));
   ok(/Hook type:Question\/Shock/.test(after) && /Vibe:Hilarious\/Cinematic/.test(after) && !/Format/.test(after),
-    'a new group with two tags, a tag renamed, a group deleted', after);
-  ok(Array.isArray(await PH.evaluate(() => Store.get('settings', 'swipe-tags'))), 'and now they are saved (and sync)');
-  await PH.click('#sheet [data-tdone]'); await PH.waitForTimeout(500);
-  await PH.evaluate(() => App.closeSheet()); await PH.waitForTimeout(300);
+    'a new filter with two options, an option renamed, a filter deleted', after);
+  await PH.click('#sheet [data-tdone]'); await PH.waitForTimeout(600);
+  ok(await dd(PH) === 'Use it for | Vibe | Hook type | Any angle | Saved any time', 'the dropdowns follow: built-ins switched on and off', await dd(PH));
+  await PH.screenshot({ path: path.join(out, 'swipetags-list-phone.png') });
 
-  head('tagging');
+  head('sorting swipes');
   const T = await PH.evaluate(async () => { const m = await SwipeTags.byId(); const by = n => Object.values(m).find(x => x.tag.name === n).tag.id;
-    return { hook: by('Hook'), q: by('Question'), cin: by('Cinematic') }; });
+    return { hook: by('Hook'), q: by('Question'), cin: by('Cinematic'), vibe: Object.values(m).find(x => x.tag.name === 'Cinematic').group.id }; });
   await PH.evaluate(() => Screens.push('swipe', { id:'a' })); await PH.waitForTimeout(700);
-  ok(/Tags/.test(await PH.textContent('#screens')) && !!(await PH.$(`[data-stag="${T.hook}"]`)), 'a swipe has a Tags section with your tags');
+  ok(/Sort it/.test(await PH.textContent('#screens')) && !!(await PH.$(`[data-stag="${T.hook}"]`)), 'a swipe has a Sort it section with your filters\' options');
   ok(!(await PH.$eval('details.stg-old', d => d.open)), 'intent, channels and platforms are folded away');
   await PH.click(`[data-stag="${T.hook}"]`); await PH.waitForTimeout(300);
   await PH.click(`[data-stag="${T.q}"]`); await PH.waitForTimeout(300);
   await PH.screenshot({ path: path.join(out, 'swipetags-swipe-phone.png') });
-  ok((await PH.evaluate(async () => (await Store.get('swipes', 'a')).tagIds.length)) === 2, 'tapping tags puts them on the swipe');
+  ok((await PH.evaluate(async () => (await Store.get('swipes', 'a')).tagIds.length)) === 2, 'tapping options puts them on the swipe');
   await PH.evaluate(() => Screens.pop()); await PH.waitForTimeout(500);
-  /* many at once, from the selection bar */
-  const n = await PH.evaluate(async t => SwipeTags.apply(['b', 'd'], t, true), T.cin);
-  ok(n === 2, 'Tag… puts a tag on many at once');
+  ok((await PH.evaluate(async t => SwipeTags.apply(['b', 'd'], t, true), T.cin)) === 2, 'Sort… puts an option on many at once');
   await swipeFile(PH);
-  ok(/Hook/.test(await PH.textContent('.swipecard[data-open="a"]')), 'a card shows its tags');
+  ok(/Hook/.test(await PH.textContent('.swipecard[data-open="a"]')), 'a card shows its options');
 
-  head('filters and smart views');
-  await PH.click('[data-a="filters"]'); await PH.waitForTimeout(300);
-  await PH.click(`#sheet [data-ft="${T.cin}"]`); await PH.waitForTimeout(200);
-  ok(/Show 2 swipes/.test(await PH.textContent('#sheet [data-fgo]')), 'the sheet counts as you pick');
-  await PH.click('#sheet [data-fa="has"]'); await PH.waitForTimeout(200);
-  await PH.screenshot({ path: path.join(out, 'swipetags-filter-phone.png') });
-  await PH.click('#sheet [data-fgo]'); await PH.waitForTimeout(500);
-  ok(await cards(PH) === 'Garden time-lapse | Voiceover edit', 'Cinematic + has my angle', await cards(PH));
-  ok(/Cinematic/.test(await PH.textContent('.stg-active')) && /Has my angle/.test(await PH.textContent('.stg-active')), 'what is filtering shows as chips');
+  head('filtering with the dropdowns');
+  await PH.selectOption(`select[data-fg="${T.vibe}"]`, T.cin); await PH.waitForTimeout(400);
+  ok(await cards(PH) === 'Garden time-lapse | Voiceover edit', 'Vibe: Cinematic', await cards(PH));
+  await PH.selectOption('select[data-fb="angle"]', 'has'); await PH.waitForTimeout(400);
+  ok(await cards(PH) === 'Garden time-lapse | Voiceover edit', 'and has my angle', await cards(PH));
   PH.__answer = 'Cinematic with an angle';
   await PH.click('[data-a="saveview"]'); await PH.waitForTimeout(500);
   ok(!!(await PH.$('.stg-bar [data-sv]:not([data-sv=""])')), 'saved as a one-tap view');
-  await PH.click(`[data-unf="angle"]`); await PH.waitForTimeout(300);
-  ok(await cards(PH) === 'Garden time-lapse | Voiceover edit', 'removing a chip widens it again');
-  await PH.click('[data-sv=""]'); await PH.waitForTimeout(300);
-  ok((await cards(PH)).split(' | ').length === 4, 'All shows everything');
-  /* conditions without tags */
-  await PH.evaluate(() => { document.querySelector('[data-a="filters"]').click(); });
-  await PH.waitForTimeout(300);
-  await PH.click('#sheet [data-fa="none"]'); await PH.click('#sheet [data-fw="older"]'); await PH.click('#sheet [data-fgo]'); await PH.waitForTimeout(400);
+  await PH.click('[data-a="clearf"]'); await PH.waitForTimeout(400);
+  ok((await cards(PH)).split(' | ').length === 4, 'Clear shows everything');
+  await PH.selectOption('select[data-fb="angle"]', 'none'); await PH.selectOption('select[data-fb="when"]', 'older'); await PH.waitForTimeout(400);
   ok(await cards(PH) === 'Old talking head', 'no angle yet + saved over 3 months ago', await cards(PH));
   const sv = await PH.evaluate(async () => (await SwipeTags.views())[0].id);
-  await PH.click(`[data-sv="${sv}"]`); await PH.waitForTimeout(300);
-  ok(await cards(PH) === 'Garden time-lapse | Voiceover edit', 'the saved view brings its filters back');
-  await PH.fill('#q', ''); await PH.click('[data-sv=""]'); await PH.waitForTimeout(300);
+  await PH.click(`[data-sv="${sv}"]`); await PH.waitForTimeout(400);
+  ok(await cards(PH) === 'Garden time-lapse | Voiceover edit' && await PH.$eval(`select[data-fg="${T.vibe}"]`, s => s.value) === T.cin,
+    'the saved view sets the dropdowns back');
+  await PH.click('[data-sv=""]'); await PH.waitForTimeout(300);
   await PH.fill('#q', 'question'); await PH.waitForTimeout(400);
-  ok(await cards(PH) === 'Cold open hook', 'search finds a swipe by its tag', await cards(PH));
+  ok(await cards(PH) === 'Cold open hook', 'search finds a swipe by its options too', await cards(PH));
 
   head('on the laptop');
   const LAP = await device('laptop', 1440);
   await LAP.evaluate(async () => { for(let i = 0; i < 6; i++) await Store.put('swipes', { id:'l' + i, title:'Laptop swipe ' + i, url:'https://example.com/l' + i, source:'reel', createdAt:Date.now() }); });
   await swipeFile(LAP);
-  await LAP.click('[data-a="filters"]'); await LAP.waitForTimeout(300);
-  await LAP.screenshot({ path: path.join(out, 'swipetags-filter-laptop.png') });
-  ok(!!(await LAP.$('#sheet [data-ft]')), 'the same filters on the laptop');
-  await LAP.evaluate(() => App.closeSheet());
+  await LAP.screenshot({ path: path.join(out, 'swipetags-list-laptop.png') });
+  ok((await LAP.$$('.filterwrap select')).length === 4, 'the same dropdowns on the laptop');
 
   head('tags made on two devices at once');
   await PH.evaluate(h => Sync.connect(h, 'tok', 'upload'), hub.url);
