@@ -183,6 +183,7 @@
         <div class="el-top">
           <span class="el-stat"><b>${guessed ? 'about ' : ''}${tc(total)}</b> runtime · ${filmed}/${flat.length} filmed · ${off}/${flat.length} on the computer · ${cut}/${flat.length} cut</span>
           <span class="el-acts">
+            ${flat.some(x => x.s && x.s.item) && global.ShotList && ShotList.motionBtn ? ShotList.motionBtn() : ''}
             <button class="btn-sm" data-elz="-1" ${zoom === ZOOMS[0] ? 'disabled' : ''} aria-label="Zoom out">−</button>
             <button class="btn-sm" data-elz="1" ${zoom === ZOOMS[ZOOMS.length - 1] ? 'disabled' : ''} aria-label="Zoom in">+</button>
             <button class="btn-sm" data-elcopy>Copy as markers</button>

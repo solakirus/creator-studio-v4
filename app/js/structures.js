@@ -273,7 +273,18 @@
   .sx.cols .sx-sn{min-width:0}
   .sx.cols .sx-mv{max-width:100%}
   .sx-addcol{min-height:90px;border:1px dashed var(--line);border-radius:var(--r);background:transparent;color:var(--muted);font:inherit;font-size:14px;cursor:pointer;scroll-snap-align:start;align-self:stretch;flex:0 0 110px}
-  .sx.cols .sx-shot .side:has(.sx-pic.none){display:none}
+  .sx-fadd{padding:0;cursor:pointer;color:var(--dim);font:inherit;display:flex;align-items:center;justify-content:center}
+  .sx-fadd span{font-size:18px}.sx-fadd em{display:none;font-style:normal;font-size:12.5px;margin-left:6px}
+  .sx-fadd:hover{border-color:var(--orange);color:var(--cream)}
+  .sx-frame{position:relative;display:block;cursor:pointer}
+  .sx-fx{display:none}
+  .sx.cols .sx-fadd em{display:inline}
+  .sx.cols .sx-frame{width:100%}
+  .sx.cols .sx-fx{display:flex;gap:5px;position:absolute;top:6px;right:6px}
+  .sx-fx button{width:28px;height:28px;padding:0;border:0;border-radius:var(--r);background:rgba(15,13,12,.72);color:var(--cream);font-size:13px;cursor:pointer}
+  .sx-fx button:hover{background:var(--orange);color:#151515}
+  .sx-adds{display:flex;gap:6px;flex-wrap:wrap}
+  .sx-head .sl-motion{height:30px}
   .sx.cols .sx-foot [data-st="addbeat"]{display:none}
   .sx-addcol:hover{border-color:var(--orange);color:var(--cream)}
   /* a phone: no frame column, tighter boxes, so the lines get the width */
@@ -293,7 +304,7 @@
     .sx-lt{font-size:14px;padding:3px 5px}
     .sx-lrm{width:22px;flex-basis:22px}
     .sx.cols .sx-beat{flex-basis:calc(100% - 34px)}
-    .sx.cols .sx-shot .side{display:none}
+    .sx.cols .sx-shot .side{display:flex}
   }`;
   function css(){
     if(document.getElementById('sx-css')) return;
@@ -308,6 +319,13 @@
   const COLS_KEY = 'cs4-sx-cols';
   const colsOn = () => { try { return localStorage.getItem(COLS_KEY) !== 'rows'; } catch(e){ return true; } };
   const pic = sl => sl.item ? `<span class="sx-pic" data-slpic="${esc(sl.item)}"></span>` : '<span class="sx-pic none"></span>';
+  const hasLib = () => !!(global.MediaLib && MediaLib.hasLibrary && MediaLib.hasLibrary() && !(MediaLib.phone && MediaLib.phone()));
+  /* the script's frame: tap to pick a GIF or still for the shot; on a
+     column card it is a full-width frame with ↻ / ✕ */
+  const framePick = (i, sl) => sl.item
+    ? `<span class="sx-frame" data-sxframe="${i}" title="Tap to change the frame"><span class="sx-pic" data-slpic="${esc(sl.item)}"></span>
+        <span class="sx-fx"><button data-sxpick="${i}" title="Pick another frame" aria-label="Pick another frame">↻</button><button data-sxclear="${i}" title="Take the frame off" aria-label="Take the frame off this shot">✕</button></span></span>`
+    : `<button class="sx-pic none sx-fadd" data-sxpick="${i}" title="Add a frame — a GIF or a still" aria-label="Add a frame to shot ${i + 1}"><span>＋</span><em>Add a frame / GIF</em></button>`;
   const grow = ta => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
 
   /* ------------------------------------------------------------ the views */
@@ -355,7 +373,7 @@
       const ls = s2.lines || [];
       const bn = beats();
       return `<div class="sx-shot" data-shot="${i}">
-        <span class="side"><span class="no">${String(i + 1).padStart(2, '0')}</span>${pic(sl)}</span>
+        <span class="side"><span class="no">${String(i + 1).padStart(2, '0')}</span>${framePick(i, sl)}</span>
         <div class="sx-body">
           <div class="sx-sh"><span class="sx-no">${String(i + 1).padStart(2, '0')}</span>${sl.role ? `<span class="sx-role">${esc(sl.role)}</span>` : ''}
             <input class="sx-sn" data-sn="${i}" value="${esc(sl.text || '')}" placeholder="Shot ${i + 1} — name it" aria-label="Shot ${i + 1} name">
@@ -429,11 +447,12 @@
               <button class="mini" data-brm="${k}" aria-label="Remove this beat">×</button></div>
             ${gd[k] ? `<p class="sx-guide">${esc(gd[k])}</p>` : ''}
             <div class="sx-shots">${groups[k].map(i => shotCard(i, k)).join('')}
-              <button class="sx-add" data-sadd="${k}">+ Add a shot to ${esc(b || 'this beat')}</button></div>
+              <span class="sx-adds"><button class="sx-add" data-sadd="${k}">+ Add a shot to ${esc(b || 'this beat')}</button>${hasLib() ? `<button class="sx-add" data-sxframes="${k}" title="Pick GIFs or stills — each one becomes a shot in this beat">+ Shots from frames</button>` : ''}</span></div>
           </section>`).join('');
       container.innerHTML = `<div class="sx${cols ? ' cols' : ''}">
         <div class="sx-head"><span class="k">Structure</span>
           <b>${p.structure && p.structure.name ? esc(p.structure.name) : bn.length ? 'Your own beats' : 'None yet'}</b>
+          ${slots(t).some(x => x.item) && global.ShotList && ShotList.motionBtn ? ShotList.motionBtn() : ''}
           ${bn.length ? `<span class="sx-view" role="group" aria-label="Lay the beats out as"><button data-sxv="rows" aria-pressed="${!cols}">Rows</button><button data-sxv="cols" aria-pressed="${cols}">Columns</button></span>` : ''}
           <button class="btn-sm" data-st="pick">${bn.length ? 'Change' : 'Pick a structure'}</button></div>
         ${bn.length ? `<div class="sx-jump">${bn.map((b, k) => `<button data-stjump="${k}">${esc(b || 'Beat ' + (k + 1))}<i>${groups[k].length}</i></button>`).join('')}</div>` : ''}
@@ -449,6 +468,19 @@
       container.querySelectorAll('.sx-lt').forEach(grow);
       if(global.ShotList) ShotList.fillPics(container);
       stat();
+    }
+
+    /* a frame for one shot: the Library on a laptop, starred frames on a phone */
+    async function pickFor(i){
+      const sl = slots(t)[i]; if(!sl) return;
+      const set = async u => {
+        sl.item = u || '';
+        if(u && !(sl.text || '').trim() && global.MediaLib){ try { const it = MediaLib.find(await MediaLib.load(), u); if(it && (it.label || it.name)){ sl.text = it.label || it.name; ensureStep(t, i).t = sl.text; } } catch(e){} }
+        await persist();
+      };
+      if(hasLib() && global.LibView){ const u = await LibView.pick({ title:'Pick a frame for shot ' + (i + 1) }); if(u) await set(u); return; }
+      if(global.StarPick) return StarPick.open({ title:'A frame for shot ' + (i + 1), clear:!!sl.item, onPick:set });
+      U.toast('Pick frames on the laptop, or star some there first');
     }
 
     /* a beat removed or moved: every shot's beat follows */
@@ -483,6 +515,31 @@
         if(a.dataset.st === 'paste') return pasteSheet();
         if(a.dataset.st === 'bme') return applyTpl(BUILTIN[0]);
         if(a.dataset.st === 'beats') return beatsSheet();
+      }
+      const fp = e.target.closest('[data-sxpick]');
+      if(fp) return pickFor(+fp.dataset.sxpick);
+      const fc = e.target.closest('[data-sxclear]');
+      if(fc){ const sl = slots(t)[+fc.dataset.sxclear]; if(sl){ sl.item = ''; await persist(); } return; }
+      const ff = e.target.closest('[data-sxframe]');
+      if(ff){ const sl = slots(t)[+ff.dataset.sxframe];
+        if(sl && sl.item && hasLib() && global.LibView && LibView.view) return LibView.view(sl.item);
+        return pickFor(+ff.dataset.sxframe); }
+      const fm = e.target.closest('[data-sxframes]');
+      if(fm){
+        const k = +fm.dataset.sxframes;
+        const uids = await LibView.pick({ multi:true, title:'Pick frames — each one becomes a shot' });
+        if(!uids || !uids.length) return;
+        const lib = await MediaLib.load();
+        let made = 0;
+        for(const u of uids){
+          const it = MediaLib.find(lib, u);
+          const ts = it && global.ShotTemplates ? await Promise.resolve().then(() => ShotTemplates.shotFromItem(lib, it)).catch(() => null) : null;
+          const i = addShot(t, k, (it && (it.label || it.name)) || '', ts ? ts.role || '' : '');
+          if(i < 0) break;
+          slots(t)[i].item = u; made++;
+        }
+        await persist();
+        return U.toast(made < uids.length ? `${made} shots added — the page is full` : `${made} shot${made === 1 ? '' : 's'} added`);
       }
       const sv = e.target.closest('[data-sxv]');
       if(sv){ try { localStorage.setItem(COLS_KEY, sv.dataset.sxv); } catch(e2){} return draw(); }

@@ -349,3 +349,20 @@ localStorage `cs4-sx-cols`.
 A clip with no beats yet offers **Start with Beginning · Middle · End**, the
 new first built-in structure (`b-bme`): three beats with a shot in each, or the
 clip's existing shots spread across them.
+
+### Frames on the clip columns, and Stop GIFs
+
+Every shot card in a clip's script has a frame: **＋ Add a frame / GIF** when
+empty (the Library on a laptop, starred frames on a phone), the moving frame
+with ↻ (pick another) and ✕ (take it off) once set; tapping a set frame opens
+it in the Library. Each beat also has **＋ Shots from frames** when the Library
+is on this device: pick several GIFs and each becomes a shot in that beat,
+named from the frame. On a phone the frame sits on top of the card in
+Columns (Rows still hides it for width).
+
+**⏸ Stop GIFs / ▶ Play GIFs** (ShotList.motionBtn / setMoving, localStorage
+`cs4-frames-still`) is one switch for every frame filled by
+ShotList.fillPics — the clip script, the episode Storyboard and the Edit line
+show it whenever a shot has a frame. Stopped, a GIF is drawn once onto a
+canvas (its first frame) and the moving image is hidden; a video is paused.
+On a laptop the frame under the mouse still plays while stopped.

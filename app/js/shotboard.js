@@ -101,7 +101,7 @@
         ${shots.length ? `<p class="hintline sb-sum">${[global.Notebook && Notebook.roleLine && roles.length ? esc(Notebook.roleLine(roles)) : '',
             miss.length ? `<span style="color:var(--red)">missing: ${esc(miss.join(', ').toLowerCase())}</span>` : '', total ? 'total ' + fmt(total) : '',
             `${shots.filter(s => s.done).length} of ${shots.length} filmed`].filter(Boolean).join(' · ')}
-          <span class="sb-sumacts">${A.host && !o.narrow ? `<button class="sb-shootall" data-sbshootall>▶ Shoot mode</button>` : ''}
+          <span class="sb-sumacts">${shots.some(s => s.item) && global.ShotList && ShotList.motionBtn ? ShotList.motionBtn() : ''}${A.host && !o.narrow ? `<button class="sb-shootall" data-sbshootall>▶ Shoot mode</button>` : ''}
           <button class="sb-alldet" data-sballdet aria-pressed="${allOpen}">${allOpen ? 'Hide details' : 'Show all details'}</button></span></p>` : ''}
         <div class="tp-shots">${shots.map((s, i) => {
           const s0 = start; start += Math.max(0, +s.secs || 0);

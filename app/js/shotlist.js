@@ -163,25 +163,70 @@
   .sl-dropchip.open .chev svg{transform:rotate(180deg)}
   .sl-dropnone{margin:0;padding:10px 13px;color:var(--muted);font-size:14px}
   .tk-host.embedded > .block{margin:0;border:0;background:transparent;padding:0}
+  [data-slpic] canvas{width:100%;height:100%;object-fit:cover;display:block}
+  [data-slpic] [hidden]{display:none!important}
+  .sl-motion{height:30px;padding:0 11px;border:1px solid var(--line);border-radius:var(--r);background:transparent;color:var(--cream);font:inherit;font-size:12.5px;cursor:pointer;white-space:nowrap}
+  .sl-motion:hover{border-color:var(--orange)}
   .tk-host.embedded > .block > h4{display:none}`;
   function css(){
     if(document.getElementById('sl-css')) return;
     const st = document.createElement('style'); st.id = 'sl-css'; st.textContent = CSS; document.head.appendChild(st);
   }
 
-  /* fill every [data-slpic] under host with its frame, moving */
+  /* fill every [data-slpic] under host with its frame. GIFs and videos move
+     unless they are stopped (one switch for the whole app, kept on this
+     device): a stopped GIF shows its first frame, a stopped video sits paused,
+     and on a laptop the one under the mouse plays. */
+  const MOTION_KEY = 'cs4-frames-still';
+  const moving = () => { try { return localStorage.getItem(MOTION_KEY) !== '1'; } catch(e){ return true; } };
+  const motionLabel = () => moving() ? '⏸ Stop GIFs' : '▶ Play GIFs';
+  const motionBtn = () => `<button class="sl-motion" data-motion title="${moving() ? 'Stop every GIF and video frame' : 'Let the frames move'}">${motionLabel()}</button>`;
+  function still(c){
+    const im = c.querySelector('img[data-anim]'), cv = c.querySelector('canvas');
+    if(!im || !cv) return;
+    const draw = () => { try { cv.width = im.naturalWidth || 1; cv.height = im.naturalHeight || 1; cv.getContext('2d').drawImage(im, 0, 0); cv.dataset.drawn = '1'; } catch(e){} };
+    if(!cv.dataset.drawn){ if(im.complete && im.naturalWidth) draw(); else im.addEventListener('load', draw, { once:true }); }
+  }
+  function motion(c, on){
+    const im = c.querySelector('img[data-anim]'), cv = c.querySelector('canvas'), v = c.querySelector('video');
+    if(im && cv){ still(c); im.hidden = !on; cv.hidden = on; }
+    if(v){ if(on){ const pr = v.play(); if(pr && pr.catch) pr.catch(() => {}); } else v.pause(); }
+  }
+  function applyMotion(root){
+    const on = moving();
+    (root || document).querySelectorAll('[data-slpic][data-filled]').forEach(c => motion(c, on));
+    document.querySelectorAll('[data-motion]').forEach(b => { b.textContent = motionLabel(); b.title = on ? 'Stop every GIF and video frame' : 'Let the frames move'; });
+  }
+  function setMoving(on){ try { localStorage.setItem(MOTION_KEY, on ? '0' : '1'); } catch(e){} applyMotion(); }
+  let hoverWired = false;
+  function wireMotion(){
+    if(hoverWired) return; hoverWired = true;
+    document.addEventListener('click', e => { if(e.target.closest('[data-motion]')){ e.preventDefault(); e.stopPropagation(); setMoving(!moving()); } }, true);
+    document.addEventListener('pointerover', e => {
+      if(e.pointerType !== 'mouse' || moving()) return;
+      const c = e.target.closest && e.target.closest('[data-slpic][data-filled]');
+      if(!c || c._hov) return;
+      c._hov = true; motion(c, true);
+      const off = ev => { if(c.contains(ev.relatedTarget)) return; c._hov = false; c.removeEventListener('pointerout', off); if(!moving()) motion(c, false); };
+      c.addEventListener('pointerout', off);
+    });
+  }
   async function fillPics(host){
-    css();
+    css(); wireMotion();
     const cells = [...host.querySelectorAll('[data-slpic]')];
     if(!cells.length || !global.MediaLib) return;
     let lib = null;
     try { lib = await MediaLib.load(); } catch(e){ return; }
+    const on = moving();
     for(const c of cells){
       const it = MediaLib.find(lib, c.dataset.slpic);
       const u = it ? await MediaLib.url(it).catch(() => null) : null;
       if(!c.isConnected) continue;
       c.innerHTML = !u ? '<i>on its way</i>' : it.kind === 'video'
-        ? `<video src="${esc(u)}" muted loop autoplay playsinline preload="metadata"></video>` : `<img src="${esc(u)}" alt="" loading="lazy">`;
+        ? `<video src="${esc(u)}" muted loop ${on ? 'autoplay ' : ''}playsinline preload="auto"></video>`
+        : it.kind === 'gif' ? `<img data-anim src="${esc(u)}" alt=""${on ? '' : ' hidden'}><canvas${on ? ' hidden' : ''}></canvas>`
+        : `<img src="${esc(u)}" alt="" loading="lazy">`;
+      if(u){ c.dataset.filled = '1'; if(!on) motion(c, false); }
     }
   }
 
@@ -447,5 +492,5 @@
   }
 
   global.ShotList = { LINE_KINDS, extras, restore, board, hostBeat, hostClip, hostVideo, embed, counts, dropChip, fillDrop, wireDrops, toggleDrop, fromTask, toTask, copyPage, putOnDay, daySheet, norm, texts, frames, lineOf,
-    fromTplShot, stripHTML, thumbHTML, fillPics, css };
+    fromTplShot, stripHTML, thumbHTML, fillPics, css, moving, setMoving, motionBtn, applyMotion };
 })(window);
