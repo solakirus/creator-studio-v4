@@ -369,7 +369,6 @@
       const pi = parts.findIndex(x => x.id === clip.id);
       el.innerHTML = Screens.bar({ kicker:seriesRec ? 'Series · ' + esc(seriesRec.title || '') : 'Clip', title:TAB_NAME[tab],
         actions:`<button class="btn-sm" data-a="aidraft" aria-label="Draft the empty parts of the plan with AI" title="Draft with AI">✦</button>
-                  <button class="btn-sm" data-a="board">Board</button>
                   <button class="btn-sm" data-a="open">Details</button>` }) + `
       <div class="view">
         <div class="cp-head">

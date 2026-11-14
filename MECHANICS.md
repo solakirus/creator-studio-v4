@@ -292,3 +292,10 @@ GIF, 3–9 MB), the title in `<h1>`, "Technique / Director / Original Source" li
 | Where | episode Edit (top, open until shut once); a clip's Edit tab (walkthrough + its shots in one line with footage); a long YouTube clip uses the vlog list | estimated |
 | Stored | rec.editSteps [{id, n, how, done, at}] on the vlog or clip | estimated |
 | Tested | v4-editline.browser.js 50/50 | round 11 |
+
+## Shoot's days, and Boards out (2026-11-14)
+| Rule | Value | Source |
+|---|---|---|
+| Weekday blocks | a block named Sunday…Saturday in an episode with a week takes that day of the week as its date (once, when the episode opens); its sequences without a date take it too | person's report: Shoot → No day yet → picking the day did nothing |
+| Shoot "Which day?" | picking the block it's already in gives it the block's date; a block with no date says so | same |
+| Boards | the episode's Board mode, the Plan's Board section, a day's Board button and a clip's Board button are gone (board data and the boards-home screen are kept); board.browser.js removed | person's request: boards become their own app again |

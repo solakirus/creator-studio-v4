@@ -432,6 +432,7 @@
     async function load(){
       v = migrate(await Store.get('vlogs', params.id));
       today = await Data.currentDay();
+      await dateWeekdays();
       clips = await Data.clips();
       startDate = (await Data.program()).start;
       milestones = v.week ? await Challenges.milestonesFor(v.week) : [];
@@ -687,7 +688,6 @@
             title="Plan this episode's days, sequences and shots with Claude">✦ Plan</button>
         <span class="modetog">
           <button data-a="mode-plan" aria-pressed="${mode==='plan'}">Plan</button>
-          <button data-a="mode-board" aria-pressed="false">Board</button>
           <button data-a="mode-week" aria-pressed="${mode==='week'}">Shoot</button>
           <button data-a="mode-outline" aria-pressed="${mode==='outline'}">Edit</button>
         </span>` }) + `
@@ -787,9 +787,6 @@
               </div>
               <div class="act-tools">
                 <button data-actday="${act.id}">${act.day != null ? dayLabel(act.day) : 'Set date'}</button>
-                <!-- the same board as the episode's, opened on this day's
-                     sections rather than the whole week -->
-                <button data-actboard="${act.id}">Board</button>
                 <button data-actname="${act.id}">Rename</button>
                 <button data-actmove="up:${act.id}" ${ai===0?'disabled':''}>↑</button>
                 <button data-actmove="down:${act.id}" ${ai===v.acts.length-1?'disabled':''}>↓</button>
@@ -804,6 +801,24 @@
     }
 
     /* ---- week view: the story laid out across seven days ---- */
+    /* v4: a block named for a weekday ("Sunday") is that day of the episode's
+       week, and its sequences are filmed on it — set once, so the Shoot strip
+       and Today see them. Shoot's "Which day?" used to move a sequence between
+       blocks that had no date, and nothing visible happened. */
+    async function dateWeekdays(){
+      if(!v || v.week == null || v.week === '') return;
+      const NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      let from = null, changed = false;
+      try { from = new Date(await Data.weekStartOf(+v.week)); } catch(e){ return; }
+      for(const a of v.acts || []){
+        const k = NAMES.indexOf(String(a.title || '').trim().toLowerCase());
+        if(k < 0) continue;
+        if(a.day == null){ const d = new Date(from); d.setDate(d.getDate() + k); a.day = await Data.dateToDay(d.getTime()); changed = true; }
+        (a.beats || []).forEach(b => { if(b.day == null){ b.day = a.day; changed = true; } });
+      }
+      if(changed){ await Store.put('vlogs', v); if(window.Data && Data.invalidate) Data.invalidate(); }
+    }
+
     function weekDays(){
       /* anchor on the first scheduled beat's week, or the current one */
       const days = everyBeat(v).map(x => x.beat.day).filter(Boolean);
@@ -942,7 +957,13 @@
           if(!to) return;
 
           const target = v.acts.find(a => a.id === to.dataset.to);
-          if(!target || target.id === from.id) return App.closeSheet();
+          if(!target) return App.closeSheet();
+          /* the block it's already in: give it the block's date (that's why it was asked) */
+          if(target.id === from.id){
+            if(target.day != null && b.day !== target.day){ b.day = target.day; await save(); App.closeSheet(); U.toast(`On ${dayLabel(target.day)}`); return render(); }
+            if(target.day == null){ App.closeSheet(); return U.toast(`${target.title} has no date yet — set it on the Plan tab (or give the episode a week)`); }
+            return App.closeSheet();
+          }
 
           from.beats = from.beats.filter(x => x.id !== b.id);
           b.day = target.day ?? b.day ?? null;      /* the block's date, if it has one */
@@ -950,7 +971,7 @@
 
           await save();
           App.closeSheet();
-          U.toast(`Moved to ${target.title}`);
+          U.toast(target.day != null ? `Moved to ${target.title} · ${dayLabel(target.day)}` : `Moved to ${target.title} — it has no date yet`);
           render();
         });
       });
@@ -1050,7 +1071,6 @@
       el.innerHTML = Screens.bar({ kicker:v.week ? `Vlog ${v.week}` : 'Vlog builder', title:v.title,
         actions:`<span class="modetog">
           <button data-a="mode-plan" aria-pressed="false">Plan</button>
-          <button data-a="mode-board" aria-pressed="false">Board</button>
           <button data-a="mode-week" aria-pressed="false">Shoot</button>
           <button data-a="mode-outline" aria-pressed="true">Edit</button>
         </span>` }) + `<div class="view">
@@ -1089,7 +1109,6 @@
       el.innerHTML = Screens.bar({ kicker:v.week ? `Vlog ${v.week}` : 'Vlog builder', title:v.title,
         actions:`<span class="modetog">
           <button data-a="mode-plan" aria-pressed="true">Plan</button>
-          <button data-a="mode-board" aria-pressed="false">Board</button>
           <button data-a="mode-week" aria-pressed="false">Shoot</button>
           <button data-a="mode-outline" aria-pressed="false">Edit</button>
         </span>` }) + `
@@ -1198,14 +1217,7 @@
             (quarter.template || []).length ? 'Edit the template' : 'Set up a week template'}</button>
         </div>` : ''}
 
-        <!-- Every episode has its own board, built in (Creator Studio 3). -->
-        <div class="sec" style="margin-top:22px"><h2>Board</h2><div class="rule"></div></div>
-        <button class="noterow" data-a="board">
-          <span class="dot" style="background:var(--orange)"></span>
-          <span class="t"><b>Open this week's board</b>
-            <small>The canvas for planning it — shots, stills, notes, music</small></span>
-          ${U.ICON.chevR}
-        </button>
+        <!-- v4: boards left for their own app again; the episode's board data is kept -->
       </div>`;
     }
 
@@ -1235,7 +1247,6 @@
       el.innerHTML = Screens.bar({ kicker:v.week ? `Vlog ${v.week}` : 'Vlog builder', title:v.title,
         actions:`<span class="modetog">
           <button data-a="mode-plan" aria-pressed="false">Plan</button>
-          <button data-a="mode-board" aria-pressed="false">Board</button>
           <button data-a="mode-week" aria-pressed="true">Shoot</button>
           <button data-a="mode-outline" aria-pressed="false">Edit</button>
         </span>` }) + `
