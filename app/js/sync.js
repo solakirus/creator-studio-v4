@@ -416,6 +416,34 @@
     return r;
   }
 
+  /* The server moved (nastime got a new IP, 13 Nov 2026): point this device at
+     the new address and keep everything else — its data, its device id and
+     the changes still waiting to go up. Disconnecting to do it threw all of
+     that away and then asked a question whose wrong answer wipes the device.
+     The cursor starts over so nothing is missed if the hub is not quite the
+     same one; anything this device changed and has not sent is kept, since
+     apply() never overwrites a newer unsent edit. An empty hub gets this
+     device's data, stamped old, as on a first connect. */
+  async function moveServer(server){
+    const c = await config();
+    if(!c.token) throw new Error('This device is not connected to a server');
+    const { cfg, records } = await probe(server, c.token);
+    await setMeta('config', { ...c, server: cfg.server });
+    await setMeta('cursor', 0);
+    await setMeta('status', {});
+    if(!records){
+      const waiting = new Set((await allDirty()).map(e => e.k));
+      const kp = await layout();
+      for(const st of Object.keys(kp)){
+        let keys = [];
+        try { keys = (await Store.all(st)).keys; } catch(e){}
+        await touchMany(st, keys.filter(k => !waiting.has(dirtyKey(st, k))), 1);
+      }
+    }
+    emit();
+    return syncNow();
+  }
+
   async function disconnect(){
     await setMeta('config', {});
     await setMeta('cursor', 0);
@@ -453,7 +481,7 @@
     }, EVERY);
   }
 
-  global.Sync = { syncNow, connect, disconnect, probe, localCount, status, setPaused, touch, touchMany, offerRestored, LOCAL_STORES,
+  global.Sync = { syncNow, connect, moveServer, disconnect, probe, localCount, status, setPaused, touch, touchMany, offerRestored, LOCAL_STORES,
                   onChange: f => listeners.push(f), APP };
   start();
 })(window);

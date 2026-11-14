@@ -454,6 +454,15 @@
           <button class="btn-primary" data-now>Sync now</button>
           <button class="btn-ghost" data-pause>${s.paused ? 'Resume sync' : 'Pause on this device'}</button>
         </div>
+        <button class="btn-ghost" data-move style="width:100%;margin-top:10px">Change server address</button>
+        <div id="sy-move" hidden style="margin-top:12px">
+          <div class="field"><label for="sy-new">New server address</label>
+            <input id="sy-new" type="url" inputmode="url" autocapitalize="off" spellcheck="false" value="${esc(s.server)}"></div>
+          <p class="hintline" style="margin:-4px 0 10px">For when nastime's address changed. Everything on this device stays,
+            including changes still waiting to send; the token stays the same.</p>
+          <button class="btn-primary" data-move-go style="width:100%">Switch to this address</button>
+          <p class="hintline" id="sy-move-msg" style="margin:8px 0 0"></p>
+        </div>
         <button class="btn-ghost" data-off style="width:100%;margin-top:10px;color:var(--red)">Disconnect this device</button>
         <p class="hintline" style="margin:8px 0 0">Disconnecting keeps everything on this device; it just stops swapping.</p>`,
       sheetEl => {
@@ -469,6 +478,27 @@
           if(e.target.closest('[data-pause]')){
             await Sync.setPaused(!s.paused);
             App.closeSheet(); U.toast(s.paused ? 'Sync resumed' : 'Sync paused'); after && after(); return;
+          }
+          if(e.target.closest('[data-move]')){
+            const box = sheetEl.querySelector('#sy-move');
+            box.hidden = false; e.target.closest('[data-move]').hidden = true;
+            const inp = sheetEl.querySelector('#sy-new'); inp.focus(); inp.select();
+            return;
+          }
+          if(e.target.closest('[data-move-go]')){
+            const b = e.target.closest('[data-move-go]'), m = sheetEl.querySelector('#sy-move-msg');
+            b.disabled = true; b.textContent = 'Checking the new address…'; m.textContent = ''; m.style.color = '';
+            try {
+              const r = await Sync.moveServer(sheetEl.querySelector('#sy-new').value);
+              App.closeSheet();
+              U.toast(r && r.ok ? `Switched — ${r.got} in, ${r.sent} out` : 'Switched — ' + ((r && r.error) || 'will sync shortly'));
+              after && after();
+            } catch(err){
+              b.disabled = false; b.textContent = 'Try again';
+              m.textContent = (err && err.message ? err.message : String(err)) + ' — the old address is still in use.';
+              m.style.color = 'var(--red)';
+            }
+            return;
           }
           if(e.target.closest('[data-off]')){
             if(!confirm('Stop syncing this device? Nothing here is deleted.')) return;
