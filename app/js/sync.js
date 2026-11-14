@@ -91,6 +91,40 @@
     } catch(e){ console.warn('sync: could not note a change', e); }
   }
 
+  /* Many keys at once, in one write: what a restore brought in. `at` is when
+     the change counts as made — now for a restore (it should win), 1 to only
+     fill gaps (anything the server already has is kept, as on first connect). */
+  async function touchMany(store, keys, at){
+    try {
+      const list = (keys || []).filter(k => k !== undefined && k !== null && !skip(store, k));
+      if(!list.length) return 0;
+      const when = at || Date.now();
+      await req('dirty', 'readwrite', s => { list.forEach(k => s.put({ k: dirtyKey(store, k), store, key: k, at: when })); });
+      soon();
+      return list.length;
+    } catch(e){ console.warn('sync: could not note changes', e); return 0; }
+  }
+
+  /* Restore from backup used to write past Store.put, so what it brought in
+     (13 Nov 2026: a whole Creator Studio 3 swipe file) was never offered to
+     the server and never reached the phone. Once per device, offer what is
+     in those stores again — gaps only, so nothing newer anywhere is undone. */
+  const OFFER = { key:'offer:restored-1', stores:['swipes', 'swipe-thumb', 'refs', 'ref-img', 'ref-poster'] };
+  async function offerRestored(){
+    const cfg = await config();
+    if(!cfg.server || !cfg.token || !cfg.ready || await meta(OFFER.key)) return 0;
+    const kp = await layout();
+    let n = 0;
+    for(const st of OFFER.stores){
+      if(!(st in kp)) continue;
+      let keys = [];
+      try { keys = (await Store.all(st)).keys; } catch(e){}
+      n += await touchMany(st, keys, 1);
+    }
+    await setMeta(OFFER.key, Date.now());
+    return n;
+  }
+
   Store.put = async function(store, value, key){
     const r = await raw.put(store, value, key);
     let k = key;
@@ -409,7 +443,7 @@
   /* ------------------------------------------------ when to run */
   function start(){
     if(typeof document === 'undefined') return;
-    setTimeout(() => syncNow(), 2500);
+    setTimeout(() => offerRestored().catch(() => 0).then(() => syncNow()), 2500);
     document.addEventListener('visibilitychange', () => {
       if(document.visibilityState === 'visible') syncNow();
     });
@@ -419,7 +453,7 @@
     }, EVERY);
   }
 
-  global.Sync = { syncNow, connect, disconnect, probe, localCount, status, setPaused, touch, LOCAL_STORES,
+  global.Sync = { syncNow, connect, disconnect, probe, localCount, status, setPaused, touch, touchMany, offerRestored, LOCAL_STORES,
                   onChange: f => listeners.push(f), APP };
   start();
 })(window);

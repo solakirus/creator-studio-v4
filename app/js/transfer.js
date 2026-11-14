@@ -200,7 +200,13 @@
     }
     if(mode === 'replace') for(const [s] of plan) await Store.clear(s);
     if(secrets.length) await putMany('settings', secrets, true);
-    for(const [s, items, keyed] of plan) report.records += await putMany(s, items, keyed);
+    for(const [s, items, keyed] of plan){
+      report.records += await putMany(s, items, keyed);
+      /* written past Store.put, so tell sync what came in — otherwise a
+         restore stays on this device and never reaches the others */
+      if(global.Sync && Sync.touchMany)
+        await Sync.touchMany(s, keyed ? items.map(it => it[0]) : items.map(it => it[shape[s]]));
+    }
     report.photos = stats.blobs;
     lastReport = report;
     return report.records;
