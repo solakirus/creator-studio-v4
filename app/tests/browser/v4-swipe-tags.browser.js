@@ -41,7 +41,7 @@ const url = 'file:///' + path.resolve(__dirname, '../../index.html').replace(/\\
   head('the dropdowns are yours');
   await swipeFile(PH);
   const dd = async p => p.evaluate(() => [...document.querySelectorAll('.filterwrap select')].map(x => x.options[0].textContent.trim()).join(' | '));
-  ok(await dd(PH) === 'Use it for | Vibe | Format | Any source', 'a dropdown per filter, plus Where it\'s from', await dd(PH));
+  ok(await dd(PH) === 'Use it for | Vibe | Format | Any source | Any channel', 'a dropdown per filter, plus Where it\'s from', await dd(PH));
   ok(!(await PH.$('#f-intent')), 'intent, channel and target are off');
   ok((await PH.evaluate(() => Store.get('settings', 'swipe-tags'))) === undefined, 'the starters are not saved until you change them');
 
@@ -63,7 +63,7 @@ const url = 'file:///' + path.resolve(__dirname, '../../index.html').replace(/\\
   ok(/Hook type:Question\/Shock/.test(after) && /Vibe:Hilarious\/Cinematic/.test(after) && !/Format/.test(after),
     'a new filter with two options, an option renamed, a filter deleted', after);
   await PH.click('#sheet [data-tdone]'); await PH.waitForTimeout(600);
-  ok(await dd(PH) === 'Use it for | Vibe | Hook type | Any angle | Saved any time', 'the dropdowns follow: built-ins switched on and off', await dd(PH));
+  ok(await dd(PH) === 'Use it for | Vibe | Hook type | Any angle | Saved any time | Any channel', 'the dropdowns follow: built-ins switched on and off', await dd(PH));
   await PH.screenshot({ path: path.join(out, 'swipetags-list-phone.png') });
 
   head('sorting swipes');
@@ -106,7 +106,7 @@ const url = 'file:///' + path.resolve(__dirname, '../../index.html').replace(/\\
   await LAP.evaluate(async () => { for(let i = 0; i < 6; i++) await Store.put('swipes', { id:'l' + i, title:'Laptop swipe ' + i, url:'https://example.com/l' + i, source:'reel', createdAt:Date.now() }); });
   await swipeFile(LAP);
   await LAP.screenshot({ path: path.join(out, 'swipetags-list-laptop.png') });
-  ok((await LAP.$$('.filterwrap select')).length === 4, 'the same dropdowns on the laptop');
+  ok((await LAP.$$('.filterwrap select')).length === 5, 'the same dropdowns on the laptop');
 
   head('tags made on two devices at once');
   await PH.evaluate(h => Sync.connect(h, 'tok', 'upload'), hub.url);

@@ -293,6 +293,9 @@
           style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${t.color};margin-right:7px"></span>${escT(t.name)}</button>`).join('')
           || '<span class="hintline">No options yet</span>'}</div>`).join('')
         || '<p class="hintline" style="margin:0">No filters of your own yet — Edit filters to make some.</p>'}
+      ${CHANNELS.length ? `<p class="hintline" style="margin:8px 0 6px">Channel</p><div class="opts" style="flex-wrap:wrap">
+        ${CHANNELS.map(c => `<button class="opt" data-tog="channels" data-v="${escT(c.n)}" aria-pressed="${(s.channels || []).includes(c.n)}"><span
+          style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${c.c};margin-right:7px"></span>${escT(c.n)}</button>`).join('')}</div>` : ''}
     </div>`;
   }
 
@@ -331,6 +334,7 @@
           : (s.folders || []).includes(view))) &&
         (!q || (s.title + ' ' + (s.hook||'') + ' ' + (s.myAngle||'') + ' ' + (s.author||'') + ' ' + tagWords(s)).toLowerCase().includes(q)) &&
         (!window.SwipeTags || SwipeTags.matches(s, f, fids)));
+      shownRows = rows;
 
       /* Icon-only actions keep the header on one line without truncating the title. */
       const IC_IMPORT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 18v-6"/><path d="M9 15l3 3 3-3"/></svg>`;
@@ -412,6 +416,7 @@
       if(keepFocus){ const qi = el.querySelector('#q'); if(qi){ qi.focus(); qi.setSelectionRange(qi.value.length, qi.value.length); } }
     }
     let keepFocus = false;
+    let shownRows = [];   /* what the grid shows now, for stepping through in the player */
 
     /* the dropdowns: one per filter you made (swipetags.js), then the
        built-in ones you've switched on in Edit filters */
@@ -775,6 +780,38 @@
       const w2 = e.target.closest('[data-watch]');
       if(w2){
         e.stopPropagation();
+        /* play it here, in a pop-out over the grid (swipeplayer.js) */
+        const card = w2.closest('[data-open]');
+        const idx = card ? shownRows.findIndex(x => x.id === card.dataset.open) : -1;
+        if(window.SwipePlayer && idx !== -1){
+          SwipePlayer.open(shownRows, idx, { cover: coverFor,
+            openSwipe: s => Screens.push('swipe', { id:s.id, onChange:render }),
+            onClose: render,
+            /* Sort it: your filters' options and your folders, under the video */
+            panel: {
+              groups: async s => {
+                const groups = window.SwipeTags ? await SwipeTags.all() : [];
+                const folders = window.SwipeFolders ? await SwipeFolders.sorted() : [];
+                return groups.map(g => ({ k:g.id, label:g.name,
+                    opts: g.tags.map(t => ({ p:'tag', v:t.id, label:t.name, color:t.color, on:(s.tagIds || []).includes(t.id) })) }))
+                  .concat([{ k:'__chan', label:'Channel',
+                    opts: CHANNELS.map(c => ({ p:'chan', v:c.n, label:c.n, color:c.c, on:(s.channels || []).includes(c.n) })) }])
+                  .concat([{ k:'__fold', label:'Folder',
+                    opts: folders.map(fd => ({ p:'fold', v:fd.id, label:`${fd.emoji || '📁'} ${fd.name}`, on:(s.folders || []).includes(fd.id) })) }]);
+              },
+              click: async (s, el) => {
+                const rec = await Store.get('swipes', s.id);
+                if(!rec) return null;
+                const id = el.dataset.v, k = { tag:'tagIds', chan:'channels', fold:'folders' }[el.dataset.p];
+                const has = (rec[k] || []).includes(id);
+                rec[k] = has ? rec[k].filter(x => x !== id) : (rec[k] || []).concat(id);
+                if(k === 'folders' && !has) rec.inbox = false;   /* filed means sorted */
+                await Store.put('swipes', rec);
+                return rec;
+              }
+            } });
+          return;
+        }
         try { window.open(w2.dataset.watch, '_blank', 'noopener'); } catch(err){}
         return;
       }
@@ -1142,18 +1179,11 @@
         <!-- the app's old sorting: still read by clip ideas and channel pages,
              folded away now that your own tags do the sorting -->
         <details class="block stg-old"${oldOpen ? ' open' : ''}>
-          <summary>Intent, channels and platforms</summary>
+          <summary>Intent, the bar and platforms</summary>
         <div class="block">
           <h4>Intent</h4>
           <div class="opts">${INTENTS.map(i =>
             `<button class="opt" data-set="intent" data-v="${i}" aria-pressed="${s.intent===i}">${i}</button>`).join('')}</div>
-        </div>
-
-        <div class="block">
-          <h4>Channels — which of your brands this suits</h4>
-          <div class="opts">${CHANNELS.map(c =>
-            `<button class="opt" data-tog="channels" data-v="${c.n}" aria-pressed="${(s.channels||[]).includes(c.n)}">
-              <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${c.c};margin-right:6px"></span>${c.n}</button>`).join('')}</div>
         </div>
 
         <div class="block">

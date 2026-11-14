@@ -353,6 +353,8 @@
      Today — and only lets the OS close the app once there is nothing left to
      close. Returns false when it has nothing to do. */
   function goBack(){
+    /* a swipe playing in its pop-out (swipeplayer.js) closes first */
+    if(global.SwipePlayer && SwipePlayer.isOpen()){ SwipePlayer.close(); return true; }
     const sheet = sheetEl();
     if(sheet && sheet.classList.contains('open')){ closeSheet(); return true; }
     if(toolsOpen()){ setTools(false); return true; }

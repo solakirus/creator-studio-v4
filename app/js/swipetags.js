@@ -115,7 +115,7 @@
     { k:'when',    label:'When I saved it' },
     { k:'folder',  label:'Folders' },
     { k:'intent',  label:'Intent' },
-    { k:'channel', label:'Channel' },
+    { k:'channel', label:'Channel', on:true },
     { k:'target',  label:'Target platform' }
   ];
   const blank = () => ({ sel:{}, src:'', angle:'', when:'', nofolder:false, intent:'', channel:'', target:'' });
