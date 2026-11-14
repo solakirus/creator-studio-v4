@@ -27,10 +27,21 @@ const GIF = 'R0lGODlhoABaAIEAAP+MAB48jAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQADAA
     const rec = () => p.evaluate(async id => { const c = await Store.get('clips', id);
       return { beats: c.plan.beats, st: (c.subs || []).filter(x => x.shot != null).sort((a, b) => a.shot - b.shot) }; }, cid);
     await p.evaluate(id => Screens.push('clip', { id, tab: 'plan' }), cid); await p.waitForTimeout(1500);
-    ok(!!(await p.$(`${S} [data-st="bme"]`)), 'a clip with no beats offers Beginning · Middle · End');
-    await p.click(`${S} [data-st="bme"]`); await p.waitForTimeout(1500);
     let r = await rec();
-    ok(r.beats.join() === 'Beginning,Middle,End' && r.st.map(x => x.beat).join() === '0,1,2', 'one tap: three beats, a shot in each', r.beats.join(' → '));
+    ok(r.beats.join() === 'Beginning,Middle,End' && r.st.map(x => x.beat).join() === '0,1,2' && !(await p.$(`${S} [data-st="bme"]`)), 'a new clip opens with three beats, a shot in each', r.beats.join(' → '));
+    await p.fill(`${S} [data-bn="0"]`, 'Cold open'); await p.dispatchEvent(`${S} [data-bn="0"]`, 'change'); await p.waitForTimeout(700);
+    ok((await rec()).beats[0] === 'Cold open', 'a beat is renamed by typing over its name');
+    await p.fill(`${S} [data-bn="0"]`, 'Beginning'); await p.dispatchEvent(`${S} [data-bn="0"]`, 'change'); await p.waitForTimeout(700);
+    /* an older clip with shots and no beats: its shots are spread over the three */
+    const old = await p.evaluate(async () => (await Data.saveClip({ title:'Old one', state:'raw', stage:'idea', plan:{ tab:'plan' }, shotList:[{ text:'A' }, { text:'B' }, { text:'C' }, { text:'D' }] })).id);
+    await p.evaluate(id => { Screens.pop(); Screens.push('clip', { id, tab:'plan' }); }, old); await p.waitForTimeout(1800);
+    const ob = await p.evaluate(async id => { const c = await Store.get('clips', id); return { beats:c.plan.beats, b:(c.subs || []).filter(x => x.shot != null).sort((a, b) => a.shot - b.shot).map(x => x.beat), n:(c.page && c.page.slots || []).length }; }, old);
+    ok(ob.beats.length === 3 && ob.n === 4 && ob.b.join() === '0,0,1,2', 'an older clip’s shots are spread across the three beats', JSON.stringify(ob));
+    /* take every beat off: it stays that way */
+    for(const k of [2, 1, 0]){ await p.click(`${S} [data-brm="${k}"]`); await p.waitForTimeout(1100); }
+    await p.evaluate(id => { Screens.pop(); Screens.push('clip', { id, tab:'plan' }); }, old); await p.waitForTimeout(1500);
+    ok(!(await p.evaluate(async id => (await Store.get('clips', id)).plan.beats.length, old)) && !!(await p.$(`${S} [data-st="bme"]`)), 'taking all the beats off sticks — Beginning · Middle · End is a tap away');
+    await p.evaluate(id => { Screens.pop(); Screens.push('clip', { id, tab:'plan' }); }, cid); await p.waitForTimeout(1500);
     const cols = await p.$$eval(`${S} .sx-cols > .sx-beat`, x => x.map(y => y.getBoundingClientRect().top));
     ok(cols.length === 3 && (name === 'phone' || Math.abs(cols[0] - cols[2]) < 2), 'the beats are columns, side by side', cols.map(Math.round).join(', '));
     ok(await p.textContent(`${S} .sx-bk`) === 'Beat 1 of 3', 'each column says which beat it is');

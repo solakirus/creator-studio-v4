@@ -44,7 +44,7 @@ const head = s => console.log(`\n— ${s} —`);
 
   head('a clip, opened on Plan');
   const cid = await lap.evaluate(async () => (await Data.saveClip({ title: 'Morning ritual, part 1', state: 'raw', stage: 'idea',
-    plan: { tab: 'plan', versions: [Versions.make('short', []), Versions.make('custom', [], 'Teaser')] } })).id);
+    plan: { tab: 'plan', noAutoBeats: true, versions: [Versions.make('short', []), Versions.make('custom', [], 'Teaser')] } })).id);
   await lap.evaluate(id => Screens.push('clip', { id, tab: 'plan' }), cid); await lap.waitForTimeout(1500);
   let ui = await lap.evaluate(t => { const s = document.querySelector(t);
     const sums = [...s.querySelectorAll('.view > details > summary')].map(x => x.firstChild.textContent.trim());
@@ -53,7 +53,7 @@ const head = s => console.log(`\n— ${s} —`);
       retain: /Holding the middle/.test(s.textContent) }; }, top);
   ok(ui.sums[0] === 'References' && ui.sums[1] === 'Purpose' && ui.sums[2] === 'Script', 'References first, then Purpose and Script', ui.sums.join(' · '));
   ok(['What it’s for', 'Type', 'Who it’s for', 'The promise', 'Length'].every(x => ui.subs.includes(x)), 'Purpose holds what it’s for, type, who, promise and length', ui.subs.join(', '));
-  ok(ui.script[0].startsWith('Hook') && ui.mount, 'Script holds the hook and the structure with its shots');
+  ok(!ui.script.some(x => /^Hook/.test(x)) && !(await lap.$(`${top} [data-f="hook"]`)) && ui.mount, 'Script is the structure with its shots — no separate Hook box');
   ok(!ui.retain, 'Holding the middle is gone');
   await lap.click(`${top} #s-purpose [data-v="trust"]`); await lap.waitForTimeout(500);
   ok((await clipRec(cid)).plan.purpose === 'trust', 'a purpose chip sets it');
@@ -69,9 +69,10 @@ const head = s => console.log(`\n— ${s} —`);
   ok(ui.secs === 6 && ui.jump === 6, 'each beat is a section, with chips to jump between them');
 
   head('lines on the shots, the hook on shot 1');
-  await lap.fill(`${top} [data-f="hook"]`, 'Five-fifteen. Every day.'); await lap.dispatchEvent(`${top} [data-f="hook"]`, 'change'); await lap.waitForTimeout(1500);
+  await lap.click(`${top} #clipScript [data-ladd="0"]`); await lap.waitForTimeout(1200);
+  await lap.fill(`${top} #clipScript [data-lt="0:0"]`, 'Five-fifteen. Every day.'); await lap.dispatchEvent(`${top} #clipScript [data-lt="0:0"]`, 'change'); await lap.waitForTimeout(1500);
   r = await clipRec(cid);
-  ok(steps(r)[0].lines && steps(r)[0].lines[0].hook && steps(r)[0].lines[0].t === 'Five-fifteen. Every day.', 'the hook box puts its words on shot 1 as its first line');
+  ok(r.plan.hook === 'Five-fifteen. Every day.' && /HOOK/.test(await lap.textContent(`${top} #clipScript [data-shot="0"]`)), 'the first line on the first shot is the hook', r.plan.hook);
   await lap.click(`${top} #clipScript [data-ladd="3"]`); await lap.waitForTimeout(1200);
   await lap.fill(`${top} #clipScript [data-lt="3:0"]`, 'When I started, I gave my mornings to my phone.');
   await lap.dispatchEvent(`${top} #clipScript [data-lt="3:0"]`, 'change'); await lap.waitForTimeout(1200);
@@ -89,7 +90,7 @@ const head = s => console.log(`\n— ${s} —`);
   await lap.fill(`${top} #clipScript [data-lt="0:0"]`, 'Five-fifteen. Every single day.');
   await lap.dispatchEvent(`${top} #clipScript [data-lt="0:0"]`, 'change'); await lap.waitForTimeout(1200);
   r = await clipRec(cid);
-  ok(r.plan.hook === 'Five-fifteen. Every single day.' && await lap.inputValue(`${top} [data-f="hook"]`) === 'Five-fifteen. Every single day.', 'changing the hook line on the shot changes the hook box');
+  ok(r.plan.hook === 'Five-fifteen. Every single day.', 'changing that line changes the hook');
   await lap.selectOption(`${top} #clipScript [data-sbeat="5"]`, '4'); await lap.waitForTimeout(1200);
   r = await clipRec(cid);
   ok(steps(r)[5].beat === 4 && await lap.evaluate(t => document.querySelectorAll(t + ' #clipScript .sx-beat')[4].querySelectorAll('.sx-shot').length, top) === 2, 'a shot moves to another beat');
@@ -197,7 +198,7 @@ const head = s => console.log(`\n— ${s} —`);
   await lap.evaluate(() => Screens.pop()); await lap.waitForTimeout(400);
 
   head('a series video is a clip, and gets the same');
-  const vid = await lap.evaluate(async () => { const v = await Videos.save({ title: 'Part 2 — the kettle', hook: 'Old hook', hookT: 1 }); await ClipFlow.migrate(); return ClipFlow.idFor(v.id); });
+  const vid = await lap.evaluate(async () => { const v = await Videos.save({ title: 'Part 2 — the kettle', hook: 'Old hook', hookT: 1 }); await ClipFlow.migrate(); const id = ClipFlow.idFor(v.id); const c = await Store.get('clips', id); c.plan = { ...(c.plan || {}), noAutoBeats: true }; await Data.saveClip(c); return id; });
   await lap.evaluate(id => Screens.push('clip', { id, tab: 'plan' }), vid); await lap.waitForTimeout(1800);
   await lap.click(`${top} #clipScript [data-st="pick"]`); await lap.waitForTimeout(500);
   await lap.click('.sheet [data-use="b-tutorial"]'); await lap.waitForTimeout(1500);
@@ -231,7 +232,7 @@ const head = s => console.log(`\n— ${s} —`);
   head('on a phone');
   const ph = await device('phone', false);
   const pid = await ph.evaluate(async () => {
-    const c = await Data.saveClip({ title: 'Phone clip', state: 'raw', stage: 'planned', plan: { tab: 'shoot' } });
+    const c = await Data.saveClip({ title: 'Phone clip', state: 'raw', stage: 'planned', plan: { tab: 'shoot', noAutoBeats: true } });
     return c.id;
   });
   await ph.evaluate(id => Screens.push('clip', { id, tab: 'plan' }), pid); await ph.waitForTimeout(1500);

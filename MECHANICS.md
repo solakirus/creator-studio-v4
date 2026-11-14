@@ -376,3 +376,19 @@ as you go. The lines follow the shot into Steps and shoot mode's Script reveal.
 A day shows one ⏸ Stop GIFs switch beside "Shots as" (ShotBoard.mount
 `motion:false` hides the per-sequence one there), and frames on the day
 columns are capped at 230px tall so the words stay in view.
+
+### Three beats by default; the hook is shot 1's first line
+
+A clip's script mounts with `autoBeats:true`: a clip with no beats gets
+Beginning · Middle · End on opening (quietly — a shot per beat, or its shots
+spread over the three). Taking every beat off sets `plan.noAutoBeats`, so it
+stays that way until you add a beat or pick a structure. Beat names are the
+underlined titles on each column — type over them to rename.
+
+The Hook box and its "How it works" chips are gone from Script. The hook
+(`plan.hook`, which lists, exports and the readiness still read) is now
+whatever the first line on the first shot in story order says; that line wears
+the HOOK tag. A hook written somewhere else (an older clip, an AI draft or an
+import) is put onto that shot as its first line when the shot has no words
+yet. The readiness gap reads "No hook — give your first shot a line" and jumps
+to the script; "Hook style not chosen" no longer counts.

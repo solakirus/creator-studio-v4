@@ -271,11 +271,7 @@
         <details class="cp-sec cp-grp" id="sec-script"${grpOpen.script ? ' open' : ''} data-grp="script">
           <summary>Script<span class="n" data-scriptn>${p.hook ? 'Hook written' : 'No hook yet'}${p.beats.length ? ` · ${p.beats.length} beat${p.beats.length === 1 ? '' : 's'}` : ''}</span>${CHEV}</summary>
           <div class="cp-body">
-            <div class="cp-sub" id="s-hook"><p class="cp-subk">Hook — the first three seconds</p>
-              <textarea class="cp-hook" data-f="hook" placeholder="The line or shot that stops the scroll. Say it out loud — if it takes more than three seconds, cut it down.">${esc(p.hook || '')}</textarea>
-              <p class="cp-chipd">It is the first line on your first shot — change it here or there.</p>
-              <p class="cp-subk" style="margin-top:12px">How it works</p>${chips('hookStyle', 'hookStyle', p.hookStyle)}</div>
-            <div class="cp-sub" id="s-beats" style="margin-top:16px"><div id="clipScript"></div></div>
+            <div class="cp-sub" id="s-beats"><div id="clipScript"></div></div>
             ${(p.script || '').trim() ? `<details class="cp-sec" style="margin:12px 0 0">
               <summary>The whole script, from before<span class="n">${scriptStat(p.script)}</span>${CHEV}</summary>
               <div class="cp-body"><textarea class="cp-script" data-f="script">${esc(p.script)}</textarea>
@@ -416,8 +412,7 @@
         onChange: async () => { await pullShots(); stepsIn(); } });
       el.querySelectorAll('details[data-grp]').forEach(d => d.addEventListener('toggle', () => { grpOpen[d.dataset.grp] = d.open; }));
       const sc = el.querySelector('#clipScript');
-      if(sc) Structures.script(sc, { host:ShotList.hostClip(clip.id), plan:() => clip.plan, savePlan:flushClip, flush:flushClip, onChange:pullShots,
-        onHook: v => { const f = el.querySelector('[data-f="hook"]'); if(f && document.activeElement !== f) f.value = v; },
+      if(sc) Structures.script(sc, { autoBeats:true, host:ShotList.hostClip(clip.id), plan:() => clip.plan, savePlan:flushClip, flush:flushClip, onChange:pullShots,
         onStats: st => {
           const n = el.querySelector('[data-scriptn]');
           if(n) n.textContent = [clip.plan.hook ? 'Hook written' : 'No hook yet',
@@ -699,12 +694,6 @@
     /* the two dropdowns on a cut save the moment they change */
     el.addEventListener('change', async e => {
       if(e.target.closest && e.target.closest('.tk-host')) return;   /* the Steps block handles its own */
-      if(e.target.dataset && e.target.dataset.f === 'hook'){
-        clip.plan.hook = e.target.value; clip.plan.hookT = Date.now();
-        await flushClip();
-        await Structures.setHook(el.querySelector('#clipScript'), clip.plan.hook);
-        return;
-      }
       const pl = e.target.dataset.cutplat;
       if(pl){
         const cut = (clip.cuts || []).find(c => c.id === pl);
@@ -903,8 +892,8 @@
       }
       const jump = e.target.closest('[data-jump]');
       if(jump){
-        const map = { hook:'s-hook', promise:'s-promise', purpose:'s-purpose', audience:'s-audience',
-                      beats:'s-beats', hookStyle:'s-hook', ctaType:'s-ctaType',
+        const map = { hook:'s-beats', promise:'s-promise', purpose:'s-purpose', audience:'s-audience',
+                      beats:'s-beats', ctaType:'s-ctaType',
                       titles:'s-titles', thumb:'s-titles', metric:'s-metric' };
         const want = GAP_TAB[jump.dataset.jump] || 'plan';
         if(want !== tab){ tab = want; render(); }

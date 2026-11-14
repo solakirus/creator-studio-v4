@@ -263,7 +263,8 @@
   .sx.cols .sx-bh{flex-wrap:wrap;padding:10px 10px 6px}
   .sx-bk{flex:0 0 100%;font-family:var(--display),sans-serif;font-weight:900;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--orange)}
   .sx.cols .sx-bh .n{display:none}
-  .sx.cols .sx-bn{padding-left:0}
+  .sx.cols .sx-bn{padding-left:0;border-bottom:1px dashed #3A362F;border-radius:0}
+  .sx.cols .sx-bn:focus{border-color:var(--orange);border-radius:var(--r);padding-left:6px}
   .sx.cols .sx-guide{margin:0 10px 8px}
   .sx.cols .sx-shot{flex-direction:column;gap:8px}
   .sx.cols .sx-shot .side{flex:none;flex-direction:row;align-items:flex-start;width:100%}
@@ -340,31 +341,49 @@
     async function load(){
       t = await opts.host.load();
       if(!t) return;
-      /* the hook and shot 1's hook line are one: whichever was written last */
-      if(mode === 'script' || mode === 'bar'){
-        const h = hookLine(t), p = P();
-        if(h && h.l.t !== (p.hook || '')){
-          /* the line was changed on the shot (here, or under a step) after the box: the box follows */
-          if((h.l.at || 0) > (p.hookT || 0)){ p.hook = h.l.t; await opts.savePlan(); }
-          else if(placeHook(t, p.hook, beats().length)) await persist(false);
-        }
-        else if(!h && (p.hook || '').trim() && placeHook(t, p.hook, beats().length)) await persist(false);
+      /* the hook is the first line on the first shot in story order */
+      if((mode === 'script' || mode === 'bar') && await syncHook(true)) await persist(false);
+    }
+    /* the first line on the first shot is the hook (plan.hook, which the lists
+       and the readiness read). place: a hook written elsewhere (an older box, an
+       import) goes onto that shot when it has no words yet. Returns true when
+       the shots changed. */
+    function hookAt(){
+      if(!t) return null;
+      const i = firstInStory(t, beats().length);
+      if(i < 0) return null;
+      const ls = (stepOf(t, i) || {}).lines || [];
+      const j = ls.findIndex(x => String(x.t || '').trim());
+      return { i, j, l:j >= 0 ? ls[j] : null };
+    }
+    async function syncHook(place){
+      const h = hookAt(), p = P();
+      if(!h) return false;
+      if(!h.l){
+        if(place && (p.hook || '').trim()){ const s2 = ensureStep(t, h.i); s2.lines = [{ k:'vo', t:p.hook.trim() }].concat(s2.lines || []); return true; }
+        if((p.hook || '') !== ''){ p.hook = ''; p.hookT = Date.now(); await opts.savePlan(); }
+        return false;
       }
+      const v = String(h.l.t).trim();
+      if((p.hook || '') !== v){ p.hook = v; p.hookT = Date.now(); await opts.savePlan(); }
+      return false;
     }
     async function persist(redraw){
+      /* the hook first: saving the plan writes the whole clip, so it has to go before the shots */
+      if(mode === 'script' || mode === 'bar') await syncHook(false);
       if(opts.flush) await opts.flush();
       if(global.TaskPages && t.page) TaskPages.match(t);
       await opts.host.save(t);
       t = await opts.host.load();
       if(opts.onChange) await opts.onChange();
       if(redraw !== false) draw();
-      else stat();
+      else { stat(); markHook(); }
     }
     function stat(){ if(opts.onStats && t) opts.onStats(stats(t)); }
 
     function lineRow(i, j, l){
       const k = KIND_SHORT[l.k] ? l.k : 'vo';
-      return `<div class="sx-ln"><button class="sx-lk ${k}" data-lk="${i}:${j}" title="${KIND_TIP}" aria-label="${KIND_NAME[k]} — tap to change">${KIND_SHORT[k]}</button>${l.hook ? '<span class="sx-hook" title="The hook — the same words as the Hook box">HOOK</span>' : ''}
+      return `<div class="sx-ln"><button class="sx-lk ${k}" data-lk="${i}:${j}" title="${KIND_TIP}" aria-label="${KIND_NAME[k]} — tap to change">${KIND_SHORT[k]}</button>${hk && hk.i === i && hk.j === j ? '<span class="sx-hook" title="The hook — the first line on your first shot">HOOK</span>' : ''}
         <textarea class="sx-lt" rows="1" data-lt="${i}:${j}" placeholder="${l.k === 'txt' ? 'Words on screen' : 'What is said over this shot'}">${esc(l.t || '')}</textarea>
         <button class="sx-lrm" data-lrm="${i}:${j}" aria-label="Remove this line">×</button></div>`;
     }
@@ -406,8 +425,18 @@
         : `<button class="sx-trgap" data-trset="${i}" aria-label="Add a transition between shot ${i + 1} and ${i + 2}">+ transition</button>`;
     }
 
+    let hk = null;
+    /* the HOOK tag follows the first line on the first shot, without a redraw */
+    function markHook(){
+      if(mode !== 'script') return;
+      hk = hookAt();
+      container.querySelectorAll('.sx-hook').forEach(x => x.remove());
+      const lk = hk && hk.l ? container.querySelector(`[data-lk="${hk.i}:${hk.j}"]`) : null;
+      if(lk) lk.insertAdjacentHTML('afterend', '<span class="sx-hook" title="The hook — the first line on your first shot">HOOK</span>');
+    }
     function draw(){
       if(!container.isConnected) return;
+      hk = (mode === 'script') ? hookAt() : null;
       if(!t){ container.innerHTML = '<p class="sx-none">This one is gone.</p>'; return; }
       const bn = beats(), gd = guides(), n = slots(t).length;
       const bo = beatsOf(t, bn.length);
@@ -440,7 +469,7 @@
       const secs = bn.map((b, k) => `
           <section class="sx-beat" id="${uidp}-${k}">
             <div class="sx-bh">${cols ? `<span class="sx-bk">Beat ${k + 1} of ${bn.length}</span>` : ''}<span class="n">${k + 1}</span>
-              <input class="sx-bn" data-bn="${k}" value="${esc(b)}" placeholder="Beat ${k + 1}" aria-label="Beat ${k + 1} name">
+              <input class="sx-bn" data-bn="${k}" value="${esc(b)}" placeholder="Name this beat" title="Tap to rename this beat" aria-label="Beat ${k + 1} name">
               <span class="cnt">${groups[k].length} shot${groups[k].length === 1 ? '' : 's'}</span>
               <button class="mini" data-bmv="${k}:-1" ${k === 0 ? 'disabled' : ''} aria-label="Move this beat ${cols ? 'left' : 'up'}">${cols ? LEFT : UP}</button>
               <button class="mini" data-bmv="${k}:1" ${k === bn.length - 1 ? 'disabled' : ''} aria-label="Move this beat ${cols ? 'right' : 'down'}">${cols ? RIGHT : DOWN}</button>
@@ -507,7 +536,7 @@
         if(a.dataset.st === 'pick') return pick({ ...opts, apply:applyTpl, saveFrom: () => ({ beats:beats().slice(), guides:guides().slice(),
           shots:beats().map((_, k) => { const i = beatsOf(t, beats().length).indexOf(k); return i >= 0 ? (slots(t)[i] || {}) : {}; }) }) });
         if(a.dataset.st === 'addbeat'){
-          beats().push(''); guides().length = Math.min(guides().length, beats().length);
+          beats().push(''); guides().length = Math.min(guides().length, beats().length); delete P().noAutoBeats;
           await opts.savePlan(); draw();
           const ins = container.querySelectorAll('.sx-bn'); if(ins.length) ins[ins.length - 1].focus();
           return;
@@ -605,7 +634,7 @@
         if(n && !confirm(`Remove “${bn[k] || 'this beat'}”? Its ${n} shot${n === 1 ? '' : 's'} stay, in the beat before it.`)) return;
         remapBeats(b => b === k ? Math.max(0, k - 1) : b > k ? b - 1 : b);
         bn.splice(k, 1); gd.splice(k, 1);
-        if(!bn.length){ slots(t).forEach((_, i) => { const s2 = stepOf(t, i); if(s2) delete s2.beat; }); P().structure = null; }
+        if(!bn.length){ slots(t).forEach((_, i) => { const s2 = stepOf(t, i); if(s2) delete s2.beat; }); P().structure = null; P().noAutoBeats = true; }
         await opts.savePlan();
         return persist();
       }
@@ -645,8 +674,9 @@
     /* a structure picked: its beats become the flow. No shots yet → one per
        beat, from the structure. Shots already here → spread across the beats
        in order (move any of them with its beat menu). */
-    async function applyTpl(tpl){
+    async function applyTpl(tpl, quiet){
       const p = P(), n = slots(t).length;
+      delete p.noAutoBeats;
       if(beats().filter(Boolean).length && !confirm(`Use “${tpl.n}”? Its beats take the place of the ${beats().length} here; your shots and lines stay.`)) return false;
       p.beats = tpl.beats.map(b => b.n);
       p.beatGuide = tpl.beats.map(b => b.g || '');
@@ -657,10 +687,10 @@
         const B2 = p.beats.length;
         slots(t).forEach((_, i) => { ensureStep(t, i).beat = Math.min(B2 - 1, Math.floor(i * B2 / n)); });
       }
-      if((p.hook || '').trim()){ const h = hookLine(t); if(h){ const s2 = stepOf(t, h.i); s2.lines = s2.lines.filter(l => !l.hook); } placeHook(t, p.hook, p.beats.length); }
+      await syncHook(true);
       await opts.savePlan();
       await persist();
-      U.toast(n ? `${tpl.n} — your ${n} shots are spread across its beats` : `${tpl.n} — a shot for each beat`);
+      if(!quiet) U.toast(n ? `${tpl.n} — your ${n} shots are spread across its beats` : `${tpl.n} — a shot for each beat`);
       return true;
     }
 
@@ -750,7 +780,13 @@
       get task(){ return t; }
     };
     container._st = api;
-    (async () => { await load(); draw(); })();
+    (async () => {
+      await load();
+      /* a clip starts with three beats (opts.autoBeats) — unless you took
+         them all off on purpose */
+      if(opts.autoBeats && mode === 'script' && t && !beats().length && !P().noAutoBeats) return applyTpl(BUILTIN[0], true);
+      draw();
+    })();
     return api;
   }
 

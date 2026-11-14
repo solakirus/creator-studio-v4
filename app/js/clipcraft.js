@@ -60,12 +60,11 @@
   function gaps(plan){
     const p = plan || {};
     const out = [];
-    if(!p.hook || !p.hook.trim())      out.push({ k:'hook',    t:'No hook written', w:3 });
+    if(!p.hook || !p.hook.trim())      out.push({ k:'hook',    t:'No hook — give your first shot a line', w:3 });
     if(!p.promise || !p.promise.trim())out.push({ k:'promise', t:'No promise — what do they get?', w:3 });
     if(!p.purpose)                     out.push({ k:'purpose', t:'No purpose set', w:2 });
     if(!p.audience || !p.audience.trim()) out.push({ k:'audience', t:'No one specific in mind', w:2 });
     if(!(p.beats || []).filter(b => b.trim()).length) out.push({ k:'beats', t:'No flow yet', w:2 });
-    if(!p.hookStyle)                   out.push({ k:'hookStyle', t:'Hook style not chosen', w:1 });
     if(!p.ctaType)                     out.push({ k:'ctaType', t:'No call to action decided', w:1 });
     if(!(p.titles || []).filter(t => t.trim()).length) out.push({ k:'titles', t:'No title options', w:1 });
     if(!p.thumb || !p.thumb.trim())    out.push({ k:'thumb', t:'No thumbnail idea', w:1 });
@@ -75,7 +74,7 @@
 
   /* A readiness read, weighted so the hook counts for more than hashtags. */
   function readiness(plan){
-    const total = 18;
+    const total = 17;
     const lost = gaps(plan).reduce((a, g) => a + g.w, 0);
     return Math.max(0, Math.round(((total - lost) / total) * 100));
   }
