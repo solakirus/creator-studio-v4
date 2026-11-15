@@ -180,6 +180,31 @@ async function duration(job, ffmpeg, video) {
   return m ? (+m[1]) * 3600 + (+m[2]) * 60 + (+m[3]) : 0;
 }
 
+/* Firefox keeps its sign-in where yt-dlp can read it (Chrome and Edge lock
+   and encrypt theirs on Windows) */
+function hasFirefox() {
+  const dirs = process.platform === 'win32'
+    ? [process.env.APPDATA && path.join(process.env.APPDATA, 'Mozilla', 'Firefox', 'Profiles')]
+    : [path.join(os.homedir(), '.mozilla', 'firefox'), path.join(os.homedir(), 'snap', 'firefox', 'common', '.mozilla', 'firefox'), path.join(os.homedir(), 'Library', 'Application Support', 'Firefox', 'Profiles')];
+  return dirs.some(d => d && fs.existsSync(d));
+}
+/* a newer yt-dlp — once per run of the app: winget's when it came from
+   winget, pipx's on Linux, else its own -U */
+let freshened = null;
+async function freshen(job, t) {
+  if (freshened !== null) return freshened;
+  job.emit('  YouTube asked for a sign-in — updating yt-dlp first (YouTube keeps changing, yt-dlp keeps up)…');
+  let r = { code: 1 };
+  const winget = t.winget && /winget/i.test(t.ytdlp || '');
+  if (winget) r = await job.run(t.winget, ['upgrade', '-e', '--id', 'yt-dlp.yt-dlp', '--accept-source-agreements', '--accept-package-agreements', '--disable-interactivity']).catch(() => ({ code: 1 }));
+  else if (process.platform !== 'win32' && /pipx|\.local/.test(t.ytdlp || '') && onPath('pipx')) r = await job.run(onPath('pipx'), ['upgrade', 'yt-dlp']).catch(() => ({ code: 1 }));
+  if (r.code !== 0) r = await job.run(t.ytdlp, ['-U']).catch(() => ({ code: 1 }));
+  const out = ((r.out || '') + (r.err || ''));
+  freshened = r.code === 0 && !/no applicable upgrade|up to date|is up-to-date|already/i.test(out);
+  job.emit(freshened ? '  ✓ yt-dlp updated — trying again' : '  yt-dlp is already the newest');
+  return freshened;
+}
+
 async function grabVideo(job, t, url, outRoot, o) {
   const site = siteOf(url);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cs3-grab-'));
@@ -194,10 +219,10 @@ async function grabVideo(job, t, url, outRoot, o) {
   const browser = o.cookies && o.cookies !== 'none' ? o.cookies : '';
   const bname = browser ? (BROWSERS[browser] || browser) : '';
   let title = '', file = '', last = 0;
-  const attempt = (how, quiet) => {
+  const attempt = (how, quiet, which) => {
     const args = base.slice();
     if (how === 'jar') args.push('--cookies', jar);
-    else if (how === 'browser') args.push('--cookies-from-browser', browser);
+    else if (how === 'browser') args.push('--cookies-from-browser', which || browser);
     args.push(url);
     return job.run(t.ytdlp, args, l => {
       if (l.startsWith('@@T ')) title = l.slice(4).trim();
@@ -221,12 +246,25 @@ async function grabVideo(job, t, url, outRoot, o) {
     if (r.code !== 0 && lockedJar(r.err)) { job.emit(`  ${bname}'s sign-in can't be read while it's open — trying without it`); r = await attempt('none'); }
     else if (r.code !== 0) (r.err.match(/^ERROR.*$/gm) || []).slice(0, 2).forEach(x => job.emit('  ' + x));
   } else {
-    r = await attempt('none', !!browser);
-    if (r.code !== 0 && browser && wantsSignIn(r.err)) {
-      job.emit(`  it wants a sign-in — trying with ${bname}'s`);
-      const r2 = await attempt('browser', true);
-      if (r2.code !== 0 && lockedJar(r2.err)) job.emit(`  ${bname}'s sign-in can't be read while it's open — close ${bname} and try again, or sign in in the app's own window (Find links)`);
-      else r = r2;
+    r = await attempt('none', true);
+    /* YouTube's "sign in to confirm you're not a bot": a fresh yt-dlp often
+       gets past it (YouTube keeps changing, yt-dlp keeps up) — then the
+       browser picked, then Firefox's sign-in, which Windows doesn't lock */
+    if (r.code !== 0 && wantsSignIn(r.err) && /youtu/i.test(url) && await freshen(job, t)) r = await attempt('none', true);
+    if (r.code !== 0 && wantsSignIn(r.err)) {
+      const tries = [browser, hasFirefox() ? 'firefox' : ''].filter((b, k, a) => b && a.indexOf(b) === k);
+      let locked = '';
+      for (const b of tries) {
+        const n = BROWSERS[b] || b;
+        job.emit(`  it wants a sign-in — trying with ${n}'s`);
+        const r2 = await attempt('browser', true, b);
+        if (r2.code === 0) { r = r2; break; }
+        if (lockedJar(r2.err)) { locked = n; job.emit(`  ${n}'s sign-in can't be read on this PC`); }
+      }
+      if (r.code !== 0 && /youtu/i.test(url)) job.emit(hasFirefox()
+        ? '  YouTube wants you signed in for this one: open Firefox, sign in to YouTube there once, then grab it again (Chrome and Edge lock their sign-in on Windows).'
+        : '  YouTube wants you signed in for this one. Chrome and Edge lock their sign-in on Windows, so install Firefox, sign in to YouTube there once, then grab it again.');
+      else if (r.code !== 0 && locked) job.emit(`  close ${locked} and try again, or sign in in the app's own window (Find links)`);
     }
   }
   if (!file || !fs.existsSync(file)) {
@@ -519,3 +557,5 @@ async function setup(job, t) {
 }
 
 module.exports = { Browser, tools, grab, scan, setup, makeJob, isVideoLink, isSocial, postLink, mediaOn, cutTimes, SCENE, GIF_FPS, GIF_W, MIN_SHOT };
+/* tests: forget that yt-dlp was already updated this run */
+module.exports._resetFreshen = () => { freshened = null; };

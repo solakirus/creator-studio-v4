@@ -542,3 +542,9 @@ copy of itself in %TEMP%, since an update can change update.bat while it runs.
 Whether to rebuild the Windows (or Linux) app is decided against `.built-from`
 — the version it was last built from — not just this run's changes, so a
 rebuild a failed run skipped still happens; no `.built-from` yet means build.
+When YouTube answers "Sign in to confirm you're not a bot", grabVideo first
+updates yt-dlp once per run of the app (`freshen`: winget upgrade when it came
+from winget, pipx upgrade on Linux, else `yt-dlp -U`) and tries again without a
+sign-in. Still asking: the browser picked, then Firefox's sign-in when Firefox
+is on the PC (`hasFirefox` — Windows doesn't lock Firefox's). Still nothing: it
+says to sign in to YouTube in Firefox once and grab again.
