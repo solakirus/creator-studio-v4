@@ -35,14 +35,17 @@ OLD="$(git rev-parse HEAD)"
 
 # --- 1. the update: first whatever is new on GitHub (what Claude pushed), then a zip
 if git ls-remote --exit-code origin main >/dev/null 2>&1; then
-  if git pull -q --ff-only origin main 2>/dev/null; then
-    [ "$(git rev-parse HEAD)" != "$OLD" ] && echo " Got what was new on GitHub."
-  else
-    echo
-    echo " GitHub has changes this folder can't simply add on top of."
-    echo " Nothing was changed. Paste this window to Claude."
-    exit 1
+  if ! git pull -q --ff-only origin main 2>/dev/null; then
+    # this folder and GitHub went different ways (usually a build here changed
+    # package-lock.json or the android files): GitHub's copy wins, this folder's
+    # version is kept as a backup branch
+    STAMP="$(date +%Y%m%d-%H%M)"
+    git fetch -q origin main && git branch -f "laptop-backup-$STAMP" HEAD >/dev/null && git reset -q --hard origin/main \
+      || { echo " Couldn't take GitHub's copy - paste this window to Claude."; exit 1; }
+    echo " This folder and GitHub had gone different ways. Took GitHub's copy;"
+    echo " this folder's own version is saved as the branch laptop-backup-$STAMP."
   fi
+  [ "$(git rev-parse HEAD)" != "$OLD" ] && echo " Got what was new on GitHub."
 else
   echo " GitHub isn't set up yet (or no internet) - see PUT IT ON GITHUB.txt. Carrying on."
 fi
@@ -64,7 +67,10 @@ fi
 
 NEW="$(git rev-parse HEAD)"
 [ "$OLD" = "$NEW" ] && { echo; echo " Already up to date - nothing new to send."; }
-SHELLCHANGE="$(git diff --name-only "$OLD" "$NEW" -- electron android native package.json)"
+# did the app itself change since it was last built here? (.built-from)
+BUILT="$(cat .built-from 2>/dev/null || true)"
+if [ -z "$BUILT" ] || ! git cat-file -e "$BUILT" 2>/dev/null; then SHELLCHANGE=1
+else SHELLCHANGE="$(git diff --name-only "$BUILT" "$NEW" -- electron android native package.json)"; fi
 
 # --- 2. out to GitHub and nastime
 echo
@@ -86,6 +92,7 @@ if [ -n "$SHELLCHANGE" ]; then
   echo
   echo " This update changes the app itself, so the Linux app is being rebuilt."
   npm install --no-audit --no-fund && npm run dist:linux || { echo " The build failed - paste this window to Claude."; exit 1; }
+  echo "$NEW" > .built-from
   DEB="$(ls -t dist/*.deb | head -n1)"
   echo " Installing $DEB (asks for your password)..."
   sudo apt install -y "./$DEB"

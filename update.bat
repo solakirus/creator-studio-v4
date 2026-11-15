@@ -1,7 +1,15 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
 title Creator Studio v4 - update
-cd /d "%~dp0"
+rem  It runs from a copy of itself in TEMP: an update can change this very file,
+rem  and Windows reads a running .bat as it goes, so a changed one would be read
+rem  from the wrong place.
+if /i not "%~1"=="--run" (
+  copy /y "%~f0" "%TEMP%\cs4-update-run.bat" >nul
+  call "%TEMP%\cs4-update-run.bat" --run "%~dp0." "%~1"
+  exit /b
+)
+cd /d "%~2"
 
 rem  One click for every update. Double-click it, or drop an update zip on it.
 rem
@@ -44,16 +52,12 @@ if errorlevel 1 (
   echo  GitHub isn't set up yet, or no internet - see PUT IT ON GITHUB.txt. Carrying on.
 ) else (
   git pull -q --ff-only origin main 2>nul
-  if errorlevel 1 (
-    echo.
-    echo  GitHub has changes this folder can't simply add on top of.
-    echo  Nothing was changed. Paste this window to Claude.
-    goto :failed
-  )
+  if errorlevel 1 call :diverged
+  if errorlevel 1 goto :failed
   call :pulled
 )
 
-set "ZIP=%~1"
+set "ZIP=%~3"
 if not defined ZIP (
   for /f "delims=" %%F in ('dir /b /o-d "%USERPROFILE%\Downloads\cs4-update-*.zip" 2^>nul') do (
     if not defined ZIP (
@@ -80,9 +84,18 @@ if "%OLD%"=="%NEW%" (
   echo  Already up to date - nothing new to send.
 )
 
-rem --- did the app itself change? (otherwise every device updates on its own)
+rem --- did the app itself change since the Windows app was last built?
+rem     (.built-from remembers that version; none yet, or one this folder no
+rem     longer has, means build it now)
 set "SHELL="
-for /f %%F in ('git diff --name-only %OLD% %NEW% -- electron android native package.json 2^>nul') do set "SHELL=1"
+set "BUILT="
+if exist .built-from set /p BUILT=<.built-from
+if not defined BUILT (
+  set "SHELL=1"
+) else (
+  git cat-file -e !BUILT! >nul 2>nul || set "SHELL=1"
+  if not defined SHELL for /f %%F in ('git diff --name-only !BUILT! %NEW% -- electron android native package.json 2^>nul') do set "SHELL=1"
+)
 
 rem --- 2. out to GitHub and nastime
 echo.
@@ -113,6 +126,7 @@ if defined SHELL (
   call npm install --no-audit --no-fund || goto :failed
   taskkill /im "Creator Studio v4.exe" /f >nul 2>nul
   call npm run dist:win || goto :failed
+  > .built-from echo %NEW%
   set "SETUP="
   for /f "delims=" %%F in ('dir /b /o-d "dist\*Setup*.exe" 2^>nul') do if not defined SETUP set "SETUP=dist\%%F"
   if defined SETUP (
@@ -131,6 +145,19 @@ goto :done
 
 :pulled
 for /f %%H in ('git rev-parse HEAD') do if not "%%H"=="%OLD%" echo  Got what was new on GitHub.
+exit /b 0
+
+rem --- this folder and GitHub went different ways (usually a build here changed
+rem     package-lock.json or the android files, and that was kept as "Changes made
+rem     on this computer"). GitHub is where every update lives, so its copy wins;
+rem     this folder's version is kept as a backup branch, nothing is lost.
+:diverged
+for /f %%D in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmm"') do set "STAMP=%%D"
+git fetch -q origin main 2>nul || exit /b 1
+git branch -f laptop-backup-!STAMP! HEAD >nul 2>nul
+git reset -q --hard origin/main || exit /b 1
+echo  This folder and GitHub had gone different ways. Took GitHub's copy;
+echo  this folder's own version is saved as the branch laptop-backup-!STAMP!.
 exit /b 0
 
 :failed

@@ -16,3 +16,4 @@ app/update.json
 app/tests/out/
 nas-target.txt
 .applied-updates.txt
+.built-from

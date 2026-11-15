@@ -530,3 +530,15 @@ encrypts the file for good). grab-builtin.js grabVideo now:
 - **Instagram, TikTok, Facebook…**: the app's own sign-in when there is one;
   else the browser's cookies, and if they can't be read, again without them.
 Test: app/tests/electron/grab-cookies.test.js.
+
+### update.bat when the folder and GitHub went different ways
+
+A build on the laptop changes files in the folder (package-lock.json, the
+android project), update.bat keeps them as "Changes made on this computer",
+and the next `git pull --ff-only` refuses. update.bat / update.sh now take
+GitHub's copy instead — every update lives there — and keep the folder's own
+version as a branch `laptop-backup-<date>` (nothing is lost). It runs from a
+copy of itself in %TEMP%, since an update can change update.bat while it runs.
+Whether to rebuild the Windows (or Linux) app is decided against `.built-from`
+— the version it was last built from — not just this run's changes, so a
+rebuild a failed run skipped still happens; no `.built-from` yet means build.
