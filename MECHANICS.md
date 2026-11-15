@@ -485,3 +485,8 @@ ig.html iframes `instagram.com/<k>/<code>/embed/` from a proper origin.
 Links read: /p/, /reel/, /reels/, /tv/, and the newer /<username>/reel/<code>.
 A post that really is private, removed, or has embedding switched off still
 shows Instagram's message — ↗ Instagram opens it in the app.
+ig.html opens the post player (`/p/<code>/embed/`, which plays reels too) by
+default. The swipe player shows **↻ Try another way** under an Instagram post:
+each tap moves to Instagram's next player address (reel player, post with
+caption, old video player, then back), and the one you land on is remembered
+for that post on this device (localStorage `cs4-igv`, ig.html `&v=`).

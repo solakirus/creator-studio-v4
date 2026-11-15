@@ -13,7 +13,7 @@
      this page on the app's own site (GitHub Pages, or nastime over https), it
      gets a proper origin and referrer — the same fix as yt.html for YouTube.
      embed.js points every Instagram embed here:
-       ig.html?c=<shortcode>&k=<p|reel|tv> -->
+       ig.html?c=<shortcode>&k=<p|reel|tv>[&v=<0-3>] -->
 <style>html,body{margin:0;height:100%;background:#fff;overflow:hidden}
 iframe{position:fixed;inset:0;width:100%;height:100%;border:0}</style>
 </head>
@@ -22,10 +22,16 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0}</style>
 (function(){
   var q = new URLSearchParams(location.search);
   var c = (q.get('c') || '').replace(/[^\w-]/g, '').slice(0, 40);
-  var k = /^(p|reel|tv)$/.test(q.get('k') || '') ? q.get('k') : 'p';
   if(!c) return;
+  /* Instagram has a few player addresses for the same post; one that says
+     "broken" can work at another. v picks: 0 the post player (plays reels
+     too — the default), 1 the reel player, 2 the post player with its caption,
+     3 the old video (tv) player. The swipe player's ↻ Try another way steps
+     through them. */
+  var V = ['p/' + c + '/embed/', 'reel/' + c + '/embed/', 'p/' + c + '/embed/captioned/', 'tv/' + c + '/embed/'];
+  var v = parseInt(q.get('v') || '0', 10); if(!(v >= 0 && v < V.length)) v = 0;
   var f = document.createElement('iframe');
-  f.src = 'https://www.instagram.com/' + k + '/' + c + '/embed/';
+  f.src = 'https://www.instagram.com/' + V[v];
   f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen; clipboard-write; web-share';
   f.allowFullscreen = true;
   f.referrerPolicy = 'strict-origin-when-cross-origin';

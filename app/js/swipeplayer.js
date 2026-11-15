@@ -118,6 +118,8 @@
     const src = box.querySelector('[data-spl="source"]');
     src.hidden = !s.url; src.textContent = opts.sourceLabel || `↗ ${siteOf(s.url)}`;
     box.querySelector('[data-spl="swipe"]').hidden = !opts.openSwipe;
+    const ig = global.Embed && Embed.instagramPost ? Embed.instagramPost(s.playUrl || s.url) : null;
+    box.querySelector('[data-spl="igalt"]').hidden = !ig || !box.querySelector('.spl-frame');
     const acts = box.querySelector('.spl-own');
     acts.innerHTML = (opts.actions || []).map(a => `<button class="btn-sm" data-spla="${esc(a.k)}">${esc(typeof a.label === 'function' ? a.label(s) : a.label)}</button>`).join('');
   }
@@ -153,6 +155,7 @@
         <div class="spl-sort"></div>
         <div class="spl-acts">
           <span class="spl-own"></span>
+          <button class="btn-sm" data-spl="igalt" hidden title="Instagram has a few players for the same post — try the next one">↻ Try another way</button>
           <button class="btn-sm" data-spl="swipe">Open the swipe</button>
           <button class="btn-sm" data-spl="source"></button>
         </div>
@@ -169,6 +172,15 @@
         if(a === 'prev') return go(-1);
         if(a === 'next') return go(1);
         if(a === 'source'){ try { global.open(list[i].url, '_blank', 'noopener'); } catch(err){} return; }
+        if(a === 'igalt'){
+          const s = list[i], ig = Embed.instagramPost(s.playUrl || s.url), fr = box.querySelector('.spl-frame');
+          if(!ig || !fr) return;
+          const v = (Embed.igVariant(ig.code) + 1) % (Embed.IG_WAYS || 4);
+          Embed.setIgVariant(ig.code, v);
+          fr.src = fr.src.replace(/&v=\d+/, '') + (v ? '&v=' + v : '');
+          if(global.U && U.toast) U.toast(`Instagram’s player ${v + 1} of ${Embed.IG_WAYS || 4}${v ? '' : ' — back to the first'}`);
+          return;
+        }
         if(a === 'swipe'){ const s = list[i]; close(); if(opts.openSwipe) opts.openSwipe(s); return; }
       }
       const pg = e.target.closest('[data-pg]');

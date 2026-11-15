@@ -88,6 +88,12 @@
     return { code:m[2], kind:/^reels?$/i.test(m[1]) ? 'reel' : m[1].toLowerCase() };
   }
   function instagramCode(url){ const p = instagramPost(url); return p ? p.code : null; }
+  /* the Instagram player address that worked for a post, once ↻ Try another
+     way found one (ig.html v), remembered on this device */
+  const IGV = 'cs4-igv';
+  const igMap = () => { try { return JSON.parse(localStorage.getItem(IGV) || '{}') || {}; } catch(e){ return {}; } };
+  const igVariant = code => +(igMap()[code] || 0);
+  function setIgVariant(code, v){ try { const m = igMap(); if(v) m[code] = v; else delete m[code]; localStorage.setItem(IGV, JSON.stringify(m)); } catch(e){} }
 
   /* The embed url for a link, or null when the platform has none worth using. */
   function forUrl(url){
@@ -106,7 +112,7 @@
     /* through ig.html on the app's own site — inside the apps Instagram's
        embed has no real address to go on and calls good posts "broken" */
     const ig = instagramPost(url);
-    if(ig) return { kind:'instagram', src:`${relayBase()}ig.html?c=${ig.code}&k=${ig.kind}`,
+    if(ig) return { kind:'instagram', src:`${relayBase()}ig.html?c=${ig.code}&k=${ig.kind}${igVariant(ig.code) ? '&v=' + igVariant(ig.code) : ''}`,
                     ratio:'125%' };
 
     const fb = facebookUrl(url);
@@ -142,6 +148,6 @@
     </span>`;
   }
 
-  global.Embed = { forUrl, can, poster, html, relayBase, facebookNeedsResolving,
+  global.Embed = { forUrl, can, poster, html, relayBase, facebookNeedsResolving, instagramPost, igVariant, setIgVariant, IG_WAYS:4,
                    youtubeId, tiktokId, instagramCode, facebookUrl };
 })(window);
