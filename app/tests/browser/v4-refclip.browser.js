@@ -80,6 +80,13 @@ const CLIP = FIX('clip.webm'), GIFB = FIX('opener.gif');
     await p.click(`${top} [data-sbvdrop="0"]`); await p.waitForTimeout(1200);
     s = await shots();
     ok(!s[0].vref.clip && !s[0].vref.gif && s[0].vref.url && /⬇ Grab/.test(await p.textContent(`${top} [data-sbvgrab="0"]`)), '🗑 deletes the grabbed copy; the link and times stay');
+    /* Save and grab, in one go from the sheet */
+    await p.click(`${top} [data-sbvedit="0"]`); await p.waitForTimeout(500);
+    ok(!!(await p.$('#sheet [data-rcgrab]')), 'on the laptop the sheet has Save and ⬇ grab');
+    await p.fill('#sheet [data-rcto]', '1:20'); await p.click('#sheet [data-rcgrab]'); await p.waitForTimeout(3000);
+    s = await shots();
+    ok(s[0].vref.end === 80 && s[0].vref.clip && await p.evaluate(() => window._grabbed.end === 80), 'it saves the new times and grabs that section', JSON.stringify([s[0].vref.end, !!s[0].vref.clip]));
+    await p.click(`${top} [data-sbvdrop="0"]`); await p.waitForTimeout(1200);
     /* 3 days after the episode is posted, it goes on its own */
     await p.click(`${top} [data-sbvgrab="0"]`); await p.waitForTimeout(2500);
     const res = await p.evaluate(async () => {

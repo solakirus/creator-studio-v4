@@ -327,6 +327,10 @@
         else if(same) shots[k].vref = { ...r, ...(old.clip ? { clip:old.clip } : {}), ...(old.gif ? { gif:old.gif } : {}), ...(old.grabbedAt ? { grabbedAt:old.grabbedAt } : {}) };
         else { if(old.clip || old.gif) await RefClip.drop(old); shots[k].vref = r; }
         await save(); draw();
+        if(r !== 'clear' && r.grabNow && !(shots[k].vref && shots[k].vref.clip)){
+          const b = box.querySelector(`[data-sbvgrab="${k}"]`);
+          if(b) return b.click();
+        }
         return U.toast(r === 'clear' ? 'Reference taken off' : `Reference saved · ${RefClip.label(r)}`);
       }
       const sq = g.closest('[data-sbseq]');

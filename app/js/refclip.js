@@ -157,7 +157,8 @@
         </div>
         <input class="rc-in" data-rcn placeholder="What to take from it — the move, the framing, the pacing…" value="${esc(v.n || '')}" aria-label="What to take from it">
         <p class="hintline rc-msg" data-rcmsg style="margin:8px 0 0"></p>
-        <div class="sheetcta"><button class="btn-primary" data-rcok>Save</button><button class="btn-ghost" data-rcplay>▶ Preview</button>
+        <div class="sheetcta">${canGrab() ? '<button class="btn-primary" data-rcok data-rcgrab title="Save it, then download just this section — plays here with no sign-in, with a 3-second GIF on the card">Save and ⬇ grab</button><button class="btn-ghost" data-rcok>Save</button>'
+            : '<button class="btn-primary" data-rcok>Save</button>'}<button class="btn-ghost" data-rcplay>▶ Preview</button>
           ${v.url ? '<button class="btn-ghost" data-rcoff>Take it off</button>' : ''}<button class="btn-ghost" data-rcno>Cancel</button></div>`, sh => {
         const val = () => {
           const url = sh.querySelector('[data-rcurl]').value.trim();
@@ -178,9 +179,12 @@
           if(ev.target.closest('[data-rcno]')){ App.closeSheet(); return done(null); }
           if(ev.target.closest('[data-rcoff]')){ App.closeSheet(); return done('clear'); }
           if(ev.target.closest('[data-rcplay]')){ const r = val(); if(r) play(r, title); return; }
-          if(ev.target.closest('[data-rcok]')){
+          const okb = ev.target.closest('[data-rcok]');
+          if(okb){
             const r = val(); if(!r) return;
             if(!r.n) delete r.n;
+            /* Save and grab: the caller grabs it right after saving */
+            if(okb.hasAttribute('data-rcgrab')) Object.defineProperty(r, 'grabNow', { value:true, enumerable:false });
             App.closeSheet(); return done(r);
           }
         });

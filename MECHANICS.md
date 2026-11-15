@@ -559,7 +559,7 @@ YouTube opens the video at its From time (`openUrl` with t=).
 
 ### Grabbing a reference section (laptop)
 
-On the laptop a reference has **⬇ Grab**. electron/library.js `cs4:ref-grab`
+On the laptop a reference has **⬇ Grab** (and its sheet has **Save and ⬇ grab**, which saves and grabs in one go). electron/library.js `cs4:ref-grab`
 → grab-builtin.js `grabSection`: yt-dlp downloads just start→end
 (`--download-sections *10-83 --force-keyframes-at-cuts`, ≤720p, with the same
 sign-in fallbacks as a grab — `fetchVideo`), then ffmpeg makes a 3-second GIF
