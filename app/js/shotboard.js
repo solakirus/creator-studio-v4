@@ -13,16 +13,16 @@
    THEN is the shot's `tr`: a plain one (Dissolve, J-cut…) or one of your
    Eyecandy transitions (transitions.js), which the Edit tab can play.
 
-   ShotBoard.switchHTML(view) / view() / setView(v): the Steps | Storyboard
-   switch, remembered on this device. */
+   ShotBoard.view() is always 'board' — the episode screens show only the
+   Storyboard; switchHTML() is empty and setView() does nothing. */
 (function(global){
   const esc = s => U.esc(s);
   const VIEW_KEY = 'cs4-shots-view';
-  const view = () => { try { return localStorage.getItem(VIEW_KEY) === 'board' ? 'board' : 'steps'; } catch(e){ return 'steps'; } };
-  const setView = v => { try { localStorage.setItem(VIEW_KEY, v); } catch(e){} };
-  const switchHTML = v => `<div class="sb-switch" role="tablist" aria-label="How the shots are shown">
-      <button role="tab" data-sbv="steps" aria-selected="${v !== 'board'}">Steps</button>
-      <button role="tab" data-sbv="board" aria-selected="${v === 'board'}">Storyboard</button></div>`;
+  /* the Storyboard is the only view of an episode's shots now — the Steps |
+     Storyboard switch is gone (the Steps still live on tasks and in shoot mode) */
+  const view = () => 'board';
+  const setView = () => {};
+  const switchHTML = () => '';
 
   const T = () => global.ShotTemplates || { ROLES:['Action', 'Insert', 'B-roll', 'Talking', 'Reaction', 'Transition'],
     SIZES:['—', 'Wide', 'Medium', 'Close-up'], MOVES:['—', 'Static', 'Handheld', 'Pan'], TRANSITIONS:['Cut', 'Dissolve'], DURATIONS:[1, 2, 3, 5, 10] };

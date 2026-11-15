@@ -71,38 +71,32 @@ const head = s => console.log(`\n— ${s} —`);
   }, { g: FX('opener.gif'), s: FX('still.png'), w: FX('disk.gif') });
   ok(S.u.length === 4, 'frames, a template, an episode');
 
-  head('episode: a sequence has the task\'s Steps + Shot page');
+  head('episode: a sequence is a Storyboard');
   await lap.evaluate(() => Screens.push('vlog-beat', { vlogId: 'vl_test', beatId: 'b_coffee' })); await lap.waitForTimeout(1800);
-  let ui = await lap.evaluate(t => { const s = document.querySelector(t); return { rows: s.querySelectorAll('#beatShots .tk-ps').length,
-    canvas: !!s.querySelector('#beatShots [data-pagecanvas]'), split: !!s.querySelector('#beatShots .tkp-split'),
-    names: [...s.querySelectorAll('#beatShots .tk-name')].map(i => i.value), first: [...s.querySelectorAll('.block h4')].map(h => h.textContent.trim())[0] }; }, top);
-  ok(ui.rows === 2 && ui.canvas && ui.split, 'Steps beside the Shot page, built from the sequence\'s old shots', JSON.stringify(ui.names));
-  ok(ui.names[0] === 'Kettle on — Close', 'framing carried into the shot\'s name', ui.names[0]);
-  ok(/^(Steps|Shots)/.test(ui.first), 'and it is the first block', ui.first);
-  await lap.click(`${top} #beatShots [data-tick="0"]`); await lap.waitForTimeout(600);
+  let ui = await lap.evaluate(t => { const s = document.querySelector(t); return { cards: s.querySelectorAll('#beatShots .tp-shot').length,
+    names: [...s.querySelectorAll('#beatShots [data-sbf="text"]')].map(i => i.value), steps: !!s.querySelector('#beatShots .tk-ps'),
+    first: [...s.querySelectorAll('.block h4')].map(h => h.textContent.trim())[0] }; }, top);
+  ok(ui.cards === 2 && !ui.steps, 'a card per shot, no Steps', JSON.stringify(ui.names));
+  ok(ui.names[0] === 'Kettle on', 'its shots come across with their names', ui.names[0]);
+  ok(/^Shots/.test(ui.first), 'and it is the first block', ui.first);
+  await lap.check(`${top} #beatShots [data-sbf="done"][data-i="0"]`); await lap.waitForTimeout(900);
   let bt = await beat(lap);
-  ok(bt.shots[0].done && bt.page && bt.subs.find(x => x.shot === 0).done, 'ticking a step lands on the sequence (page, steps and its shot list)');
+  ok(bt.shots[0].done, 'ticking a card lands on the sequence');
   ok(bt.shots[0].id === 'sh1' && bt.shots[1].id === 'sh2', 'its shots keep their ids');
-  await lap.fill(`${top} #beatShots [data-pf="text:1"]`, 'First sip at the window'); await lap.press(`${top} #beatShots [data-pf="text:1"]`, 'Enter'); await lap.waitForTimeout(600);
+  await lap.fill(`${top} #beatShots [data-sbf="text"][data-i="1"]`, 'First sip at the window'); await lap.waitForTimeout(1100);
   bt = await beat(lap);
-  ok(bt.shots[1].text === 'First sip at the window', 'renaming a step renames the shot', bt.shots[1].text);
-  await lap.click(`${top} #beatShots [data-a="psadd"]`); await lap.waitForTimeout(700);
+  ok(bt.shots[1].text === 'First sip at the window', 'renaming a card renames the shot', bt.shots[1].text);
+  await lap.click(`${top} #beatShots [data-sbempty]`); await lap.waitForTimeout(900);
   bt = await beat(lap);
-  ok(bt.shots.length === 3 && bt.page.slots.length === 3, '＋ Add a shot adds a step and a spot', bt.shots.length);
-  /* a frame: tap the empty spot on the page → the Library picker */
-  await lap.evaluate(t => document.querySelector(t + ' #beatShots [data-pagecanvas]').scrollIntoView(), top); await lap.waitForTimeout(300);
-  const pt = await lap.evaluate(t => { const c = document.querySelector(t + ' #beatShots [data-pagecanvas]'); const bx = c.getBoundingClientRect();
-    return (async () => { const v = await Store.get('vlogs', 'vl_test'); const P = v.acts[0].beats[0].page; const r = Notebook.slotRects(P.layout, P.slots.length)[2];
-      return { x: bx.left + ((r[0] + r[2]) / 2) / Notebook.PAGE_W * bx.width, y: bx.top + ((r[1] + r[3]) / 2) / Notebook.PAGE_H * bx.height }; })(); }, top);
-  await lap.mouse.click(pt.x, pt.y); await lap.waitForTimeout(900);
+  ok(bt.shots.length === 3, '＋ Empty shot adds one', bt.shots.length);
+  await lap.click(`${top} #beatShots [data-sbframe="2"]`); await lap.waitForTimeout(900);
   const picker = await lap.$(`.lv-picker .lv-tile[data-uid="${S.u[3]}"]`);
-  ok(!!picker, 'tapping an empty spot on the page opens the Library picker');
+  ok(!!picker, 'tapping an empty frame opens the Library picker');
   if(picker){ await picker.click(); await lap.waitForTimeout(1200); }
   bt = await beat(lap);
-  ok(bt.page.slots[2].item === S.u[3] && bt.shots[2].item === S.u[3], 'the frame lands on the page and the shot', bt.shots[2].item);
-  ok((await lap.evaluate(t => document.querySelectorAll(t + ' #beatShots .tk-th[data-item] img, ' + t + ' #beatShots .tk-th[data-item] video').length, top)) >= 1, 'and shows beside its step');
+  ok(bt.shots[2].item === S.u[3], 'the frame lands on the shot', bt.shots[2].item);
   await lap.screenshot({ path: path.join(out, 'laptop-sequence.png') });
-  await lap.click(`${top} #beatShots [data-a="shootmode"]`); await lap.waitForTimeout(1200);
+  await lap.click(`${top} #beatShots [data-sbshootall]`); await lap.waitForTimeout(1200);
   const sr = await lap.evaluate(() => ({ t: (document.querySelector('.sr-ttl') || {}).textContent, n: (document.querySelector('.sr-n') || {}).textContent }));
   ok(sr.t === 'Coffee' && sr.n === '2 / 3', 'Shoot mode runs on the sequence, from the first shot not taken', `${sr.t} ${sr.n}`);
   await lap.click('[data-got]'); await lap.waitForTimeout(600);
@@ -111,47 +105,29 @@ const head = s => console.log(`\n— ${s} —`);
   await lap.keyboard.press('Escape'); await lap.waitForTimeout(900);
   ok((await lap.evaluate(t => !!document.querySelector(t + ' #beatShots'), top)), 'Esc closes shoot mode only');
   await lap.evaluate(() => Screens.pop()); await lap.waitForTimeout(400);
-  /* a tick made somewhere else (the episode's Shoot list, the board) */
-  await lap.evaluate(async () => { const v = await Store.get('vlogs', 'vl_test'); v.acts[0].beats[0].shots[2].done = true; v.acts[0].beats[0].shots.push({ id: 'sh9', text: 'Out the door', done: false }); await Store.put('vlogs', v); });
-  await lap.evaluate(() => Screens.push('vlog-beat', { vlogId: 'vl_test', beatId: 'b_coffee' })); await lap.waitForTimeout(1500);
-  ui = await lap.evaluate(t => ({ rows: document.querySelectorAll(t + ' #beatShots .tk-ps').length, hidden: (document.querySelector(t + ' #beatShots .tk-hidden') || {}).textContent || '' }), top);
-  ok(/3 done/.test(ui.hidden) && ui.rows === 1, 'a change made elsewhere rebuilds the page: 3 done (hidden), 1 to go', ui.hidden);
-  await lap.evaluate(() => Screens.pop()); await lap.waitForTimeout(400);
 
   head('episode: the day');
-  await lap.evaluate(() => Screens.push('vlog-day', { vlogId: 'vl_test', actId: 'a_mon' })); await lap.waitForTimeout(2000);
-  ui = await lap.evaluate(t => ({ hosts: [...document.querySelectorAll(t + ' [data-host]')].map(h => h.dataset.host), rows: document.querySelectorAll(t + ' [data-host] .tk-ps').length,
-    shoot: document.querySelectorAll(t + ' .sc-shoot').length, lines: document.querySelectorAll(t + ' .seqcard .shotline[data-shot]').length }), top);
-  ok(ui.hosts.length === 1 && ui.hosts[0] === 'b_coffee', 'the first unfinished sequence opens right there; the other stays folded', ui.hosts.join(','));
-  ok(ui.rows === 1 && ui.shoot === 2, 'with its Steps + Shot page, and ▶ Shoot it on each', `${ui.rows} rows`);
-  await lap.click(`${top} [data-seqfold="b_routine"]`); await lap.waitForTimeout(1500);
-  ui = await lap.evaluate(t => ({ hosts: [...document.querySelectorAll(t + ' [data-host]')].map(h => h.dataset.host), imgs: document.querySelectorAll(t + ' [data-host="b_routine"] .tk-th img, ' + t + ' [data-host="b_routine"] .tk-th video').length }), top);
-  ok(ui.hosts.includes('b_routine') && ui.imgs === 3, 'tapping a folded one opens it, frames on its steps', `${ui.imgs} frames`);
-  /* working in the open sequence, on the day itself */
+  await lap.evaluate(() => Screens.push('vlog-day', { vlogId: 'vl_test', actId: 'a_mon' })); await lap.waitForTimeout(2200);
+  ui = await lap.evaluate(t => ({ cols: [...document.querySelectorAll(t + ' .dcol [data-host]')].map(h => h.dataset.host), shoot: document.querySelectorAll(t + ' [data-shootseq]').length,
+    imgs: document.querySelectorAll(t + ' [data-host="b_routine"] .sb-pic img, ' + t + ' [data-host="b_routine"] .sb-pic video').length }), top);
+  ok(ui.cols.join() === 'b_coffee,b_routine' && ui.shoot === 2, 'a column per sequence, ▶ Shoot it on each', ui.cols.join(','));
+  ok(ui.imgs === 3, 'frames on its cards', `${ui.imgs} frames`);
   const before = (await beat(lap)).shots.length;
-  await lap.click(`${top} [data-host="b_coffee"] [data-a="psadd"]`); await lap.waitForTimeout(1200);
-  let dayUi = await lap.evaluate(t => ({ hosts: [...document.querySelectorAll(t + ' [data-host]')].map(h => h.dataset.host), focus: (document.activeElement || {}).dataset ? document.activeElement.dataset.pf : '' }), top);
-  ok((await beat(lap)).shots.length === before + 1, '＋ Add a shot works inside the day (the sequence gets the shot)', `${before} → ${(await beat(lap)).shots.length}`);
-  ok(dayUi.hosts.length === 2 && /^text:/.test(dayUi.focus || ''), 'the day doesn\'t fold or redraw under you — the new shot\'s name is ready to type', JSON.stringify(dayUi));
-  await lap.keyboard.type('Pour, wide from the counter'); await lap.keyboard.press('Enter'); await lap.waitForTimeout(800);
+  await lap.click(`${top} [data-host="b_coffee"] [data-sbempty]`); await lap.waitForTimeout(1200);
+  ok((await beat(lap)).shots.length === before + 1, '＋ Empty shot works inside the day (the sequence gets the shot)', `${before} → ${(await beat(lap)).shots.length}`);
+  await lap.fill(`${top} [data-host="b_coffee"] [data-sbf="text"][data-i="${before}"]`, 'Pour, wide from the counter'); await lap.waitForTimeout(1100);
   ok((await beat(lap)).shots.some(x => x.text === 'Pour, wide from the counter'), 'and typing names it');
-  const dpt = await lap.evaluate(t => { const c = document.querySelector(t + ' [data-host="b_coffee"] [data-pagecanvas]'); c.scrollIntoView(); const bx = c.getBoundingClientRect();
-    return (async () => { const v = await Store.get('vlogs', 'vl_test'); const P = v.acts[0].beats[0].page; const i = P.slots.length - 1; const r = Notebook.slotRects(P.layout, P.slots.length)[i];
-      return { i, x: bx.left + ((r[0] + r[2]) / 2) / Notebook.PAGE_W * bx.width, y: bx.top + ((r[1] + r[3]) / 2) / Notebook.PAGE_H * bx.height }; })(); }, top);
-  await lap.waitForTimeout(300);
-  const dpt2 = await lap.evaluate(t => { const c = document.querySelector(t + ' [data-host="b_coffee"] [data-pagecanvas]'); const bx = c.getBoundingClientRect(); return { left: bx.left, top: bx.top }; }, top);
-  await lap.mouse.click(dpt.x, dpt.y); await lap.waitForTimeout(900);
+  await lap.click(`${top} [data-host="b_coffee"] [data-sbframe="${before}"]`); await lap.waitForTimeout(900);
   const dpick = await lap.$(`.lv-picker .lv-tile[data-uid="${S.u[1]}"]`);
-  ok(!!dpick, 'tapping its empty spot on the shot page opens the Library picker');
+  ok(!!dpick, 'tapping its empty frame opens the Library picker');
   if(dpick){ await dpick.click(); await lap.waitForTimeout(1200); }
-  ok((await beat(lap)).shots[dpt.i].item === S.u[1], 'and the frame lands on the sequence');
+  ok((await beat(lap)).shots[before].item === S.u[1], 'and the frame lands on the sequence');
   await lap.screenshot({ path: path.join(out, 'laptop-day.png'), fullPage: true });
   await lap.click(`${top} [data-shootseq="b_routine"]`); await lap.waitForTimeout(1200);
   ok((await lap.evaluate(() => (document.querySelector('.sr-ttl') || {}).textContent)) === 'Morning routine', '▶ Shoot it shoots the sequence (no task needed)');
   await lap.click('[data-got]'); await lap.waitForTimeout(500);
   await lap.keyboard.press('Escape'); await lap.waitForTimeout(900);
   ok((await beat(lap, 1)).shots[0].done, 'and its tick lands on the sequence');
-  await lap.click(`${top} [data-host="b_coffee"] [data-tick="3"]`).catch(() => {}); await lap.waitForTimeout(600);
   await lap.evaluate(() => Screens.pop()); await lap.waitForTimeout(400);
   await lap.evaluate(() => Screens.push('vlog', { id: 'vl_test' })); await lap.waitForTimeout(1800);
   const wtf = await lap.evaluate(() => [...document.querySelectorAll('.wkcol')].map(r => r.querySelectorAll('.sl-strip, img').length));
@@ -207,20 +183,16 @@ const head = s => console.log(`\n— ${s} —`);
   await ph.evaluate(h => Sync.connect(h, 'tok', 'replace'), hub.url);
   await ph.waitForTimeout(1500);
   await ph.evaluate(() => Screens.push('vlog-beat', { vlogId: 'vl_test', beatId: 'b_routine' })); await ph.waitForTimeout(2000);
-  ui = await ph.evaluate(t => ({ rows: document.querySelectorAll(t + ' #beatShots .tk-ps').length, imgs: document.querySelectorAll(t + ' #beatShots .tk-th img, ' + t + ' #beatShots .tk-th video').length,
-    page: !!document.querySelector(t + ' #beatShots .tkp-cwrap:not([hidden]) [data-pagecanvas]') }), top);
-  ok(ui.imgs === 2 && ui.page, 'the sequence\'s frames show on its steps; the shot page shows too, on a phone as well', JSON.stringify(ui));
-  const th = ph.locator(`${top} #beatShots .tk-th[data-shootat="1"]`);
-  await th.scrollIntoViewIfNeeded(); await ph.waitForTimeout(300);
-  const bx = await th.boundingBox();
-  await ph.mouse.move(bx.x + bx.width / 2, bx.y + bx.height / 2); await ph.mouse.down(); await ph.waitForTimeout(900); await ph.mouse.up(); await ph.waitForTimeout(900);
-  ok((await ph.evaluate(() => document.querySelectorAll('#sheet [data-pick]').length)) === 2, 'holding a step\'s frame opens the starred frames');
+  ui = await ph.evaluate(t => ({ cards: document.querySelectorAll(t + ' #beatShots .tp-shot').length, imgs: document.querySelectorAll(t + ' #beatShots .sb-pic img, ' + t + ' #beatShots .sb-pic video').length }), top);
+  ok(ui.imgs === 3, 'the sequence\'s frames show on its Storyboard cards, on a phone as well', JSON.stringify(ui));
+  await ph.click(`${top} #beatShots [data-sbframe="1"]`); await ph.waitForTimeout(900);
+  ok((await ph.evaluate(() => document.querySelectorAll('#sheet [data-pick]').length)) === 2, 'tapping a card\'s frame opens the starred frames');
   await ph.click(`#sheet [data-pick="${S.u[3]}"]`); await ph.waitForTimeout(1000);
   ok((await beat(ph, 1)).shots[1].item === S.u[3], 'and swaps it on the sequence');
   await ph.screenshot({ path: path.join(out, 'phone-sequence.png') });
   await ph.evaluate(() => Screens.pop()); await ph.waitForTimeout(400);
   await ph.evaluate(() => Screens.push('vlog-day', { vlogId: 'vl_test', actId: 'a_mon' })); await ph.waitForTimeout(1800);
-  ok((await ph.evaluate(t => document.querySelectorAll(t + ' [data-host] .tk-ps').length, top)) >= 1, 'the phone\'s day opens a sequence into its steps too');
+  ok((await ph.evaluate(t => document.querySelectorAll(t + ' .dcol .tp-shot').length, top)) >= 1, 'the phone\'s day shows its sequences as Storyboard columns too');
   await ph.screenshot({ path: path.join(out, 'phone-day.png') });
 
   ok(!errs.length, 'no script errors', errs.slice(0, 3).join(' | '));

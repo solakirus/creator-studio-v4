@@ -51,16 +51,14 @@ const top = '.screen:last-child';
 
     /* the day: every sequence on it, Steps or Storyboard */
     await p.evaluate(() => Screens.push('vlog-day', { vlogId: 'v1', actId: 'a1' })); await p.waitForTimeout(1500);
-    ok(!!(await p.$(`${top} .sb-switch`)), 'the day has the Steps | Storyboard switch');
-    if(!(await p.$(`${top} .sc-host`))) { await p.click(`${top} .seqcard .sc-head`).catch(() => {}); await p.waitForTimeout(800); }
-    await p.click(`${top} .sb-switch [data-sbv="board"]`); await p.waitForTimeout(1200);
+    ok(!(await p.$(`${top} .sb-switch`)) && !(await p.$(`${top} [data-sbv]`)), 'the day is Storyboard only — no Steps | Storyboard switch');
     ok((await p.$$(`${top} .dcols .dcol .tp-shot`)).length === 2 && /Beginning|1 ·/.test(await p.textContent(`${top} .dcols`)) === false, 'Storyboard: the day’s sequence is a column of shot cards');
     await p.fill(`${top} .sc-host [data-sbf="text"][data-i="0"]`, 'Walk in the door'); await p.waitForTimeout(1000);
     ok((await p.evaluate(() => Store.get('vlogs', 'v1'))).acts[0].beats[0].shots[0].text === 'Walk in the door', 'and its edits land on the sequence');
     await p.screenshot({ path: path.join(out, `sb-day-${name}.png`) });
     /* the details fold */
     await p.evaluate(() => localStorage.setItem('cs4-sb-details', '0'));
-    await p.click(`${top} .sb-switch [data-sbv="steps"]`); await p.waitForTimeout(600); await p.click(`${top} .sb-switch [data-sbv="board"]`); await p.waitForTimeout(1000);
+    await p.evaluate(() => { Screens.pop(); Screens.push('vlog-day', { vlogId: 'v1', actId: 'a1' }); }); await p.waitForTimeout(1500);
     ok(!(await p.$(`${top} .dcol [data-sbf="role"]`)) && (await p.$$(`${top} .dcol .sb-facts`)).length === 2, 'cards fold to frame, words and one line of facts');
     ok((await p.$$(`${top} .dcol .sb-then [data-then]`)).length === 1, 'THEN shows between the shots even folded');
     /* a short as a shot */
@@ -88,20 +86,14 @@ const top = '.screen:last-child';
     const bs = v.acts[0].beats[0].shots;
     ok(bs[1].role === 'Insert' && bs[1].framing === 'Medium' && bs[0].tr.n === 'Dissolve' && bs[0].id === 'x1' && bs[0].text === 'Walk in the door', 'its edits land on the sequence, ids kept', JSON.stringify(bs));
     await p.screenshot({ path: path.join(out, `sb-seq-${name}.png`) });
-    await p.click(`${top} .sb-switch [data-sbv="steps"]`); await p.waitForTimeout(1200);
-    /* the Steps: transitions can be added there too */
-    await p.evaluate(() => localStorage.setItem('cs4-show-tr', '0'));
-    await p.click(`${top} .tk-trtog`); await p.waitForTimeout(700);
-    ok((await p.$$(`${top} .tk-trm`)).length >= 1, 'Steps: Show transitions puts a marker in every gap');
-    await p.click(`${top} .tk-trm [data-trset]`); await p.waitForTimeout(500);
-    await p.click('#sheet [data-plain="J-cut"]'); await p.waitForTimeout(1200);
-    ok(((await p.evaluate(() => Store.get('vlogs', 'v1'))).acts[0].beats[0].shots[0].tr || {}).n === 'J-cut', 'and a gap’s ✎ / + transition picks one (plain ones too)');
-    await p.evaluate(() => localStorage.setItem('cs4-show-tr', '0'));
-    await p.click(`${top} .tk-trtog`); await p.waitForTimeout(500);
-    await p.click(`${top} [data-tick="1"]`).catch(() => {}); await p.waitForTimeout(1200);
+    ok(!(await p.$(`${top} .sb-switch`)), 'the sequence’s page is Storyboard only too');
+    /* THEN takes a plain transition, and ticking a card keeps the rest */
+    await p.selectOption(`${top} [data-then="0"]`, 'J-cut'); await p.waitForTimeout(900);
+    ok(((await p.evaluate(() => Store.get('vlogs', 'v1'))).acts[0].beats[0].shots[0].tr || {}).n === 'J-cut', 'THEN picks a transition (plain ones too)');
+    await p.check(`${top} [data-sbf="done"][data-i="1"]`); await p.waitForTimeout(1200);
     v = await p.evaluate(() => Store.get('vlogs', 'v1'));
     const bs2 = v.acts[0].beats[0].shots;
-    ok(bs2[1].done && bs2[1].framing === 'Medium' && bs2[1].text === 'Warm up' && bs2[0].text === 'Walk in the door' && bs2[0].tr && bs2[0].tr.n === 'J-cut', 'ticking a sequence’s Steps keeps the shot type and THEN', JSON.stringify(bs2.map(s => [s.text, s.framing, s.done, s.tr && s.tr.n])));
+    ok(bs2[1].done && bs2[1].framing === 'Medium' && bs2[1].text === 'Warm up' && bs2[0].text === 'Walk in the door' && bs2[0].tr && bs2[0].tr.n === 'J-cut', 'ticking a card keeps the shot type and THEN', JSON.stringify(bs2.map(s => [s.text, s.framing, s.done, s.tr && s.tr.n])));
 
     /* shoot mode: shot 1, its sequence's parts, then shot 2 */
     await p.evaluate(async () => {

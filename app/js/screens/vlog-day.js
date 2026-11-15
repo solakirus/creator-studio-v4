@@ -124,7 +124,7 @@
             ${ICON.chevR}
           </button>
 
-          ${seqs.length && window.ShotBoard ? `<div class="sb-head" style="margin:0 0 4px"><small style="color:var(--muted);font-size:12.5px">Shots as</small>${ShotBoard.switchHTML(ShotBoard.view())}${ShotBoard.view() === 'board' && window.ShotList && ShotList.motionBtn && seqs.some(b => (b.shots || []).some(x => x && x.item)) ? `<span style="margin-left:auto">${ShotList.motionBtn()}</span>` : ''}</div>` : ''}
+          ${seqs.length && window.ShotList && ShotList.motionBtn && seqs.some(b => (b.shots || []).some(x => x && x.item)) ? `<div class="sb-head" style="margin:0 0 4px;justify-content:flex-end">${ShotList.motionBtn()}</div>` : ''}
           ${window.ShotBoard && ShotBoard.view() === 'board' && seqs.length ? `
           <!-- v4: the Storyboard reads across: one column per sequence, the
                day's beginning, middle and end side by side, each one's shots

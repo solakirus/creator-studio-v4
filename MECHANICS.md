@@ -439,3 +439,12 @@ copied in as the shot's `seq` with every tick cleared. Once set, the card shows
 "▦ Sequence · N shots" (open it), ▶ (shoot mode from this shot) and ✕ (take
 it off). Shoot mode runs the shot, then "Shot 2.1 · part 1 of N" … through the
 sequence, then the next storyboard shot.
+
+### Episodes are Storyboard only
+
+The Steps | Storyboard switch is gone from the episode day and a sequence's
+own page: ShotBoard.view() always answers 'board', switchHTML() is empty and
+setView() does nothing (`cs4-shots-view` is no longer read). The day shows its
+sequences as Storyboard columns (Stop GIFs on the right when any shot has a
+frame); a sequence's page shows its cards. The Steps themselves still exist
+where a shot list becomes a task — a shoot task's screen, and shoot mode.

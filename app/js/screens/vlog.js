@@ -2024,7 +2024,7 @@
         <!-- v4: the shots first — what you film, each with its frame, the same
              list as a task's (shotlist.js). The rest is the thinking behind it. -->
         <div class="block">
-          <div class="sb-head"><h4>Shots</h4>${window.ShotBoard ? ShotBoard.switchHTML(ShotBoard.view()) : ''}</div>
+          <div class="sb-head"><h4>Shots</h4></div>
           <div id="beatShots"></div>
           <button class="addbeat" data-a="suggestshots" style="width:100%;margin-top:10px">✦ Suggest shots</button>
         </div>
