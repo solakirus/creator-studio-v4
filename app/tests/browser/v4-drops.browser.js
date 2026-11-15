@@ -29,8 +29,8 @@ ok(c.t==='Curtains open, light hits'&&c.slot===c.t,'editing renames the shot and
 ok(/1 \/ 3 shots/.test(c.chip),'the chip counts it',c.chip);
 
 await p.evaluate(id=>Screens.push('clip',{id,tab:'shoot'}),ids.clip);await p.waitForTimeout(1500);
-const rows=await p.evaluate(()=>({n:document.querySelectorAll('.screen:last-child #clipShots .tk-ps').length,hidden:(document.querySelector('.screen:last-child #clipShots .tk-hidden')||{}).textContent||''}));
-ok(rows.n===2&&/1 done/.test(rows.hidden),'the clip\'s Steps agree',JSON.stringify(rows));
+const rows=await p.evaluate(()=>({n:document.querySelectorAll('.screen:last-child .cps-row').length,done:document.querySelectorAll('.screen:last-child .cps-row.done').length}));
+ok(rows.n===3&&rows.done===1,'the clip\'s Shoot list agrees',JSON.stringify(rows));
 await p.evaluate(()=>Screens.pop());await p.waitForTimeout(400);
 // series
 await p.evaluate(()=>Screens.push('series-view',{id:'sr_m'}));await p.waitForTimeout(1500);

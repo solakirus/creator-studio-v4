@@ -165,10 +165,10 @@ const head = s => console.log(`\n— ${s} —`);
   head('clips');
   const clipId = await lap.evaluate(async id => (await ShotTemplates.newClip(id)).id, S.tpl);
   await lap.evaluate(id => Screens.push('clip', { id, tab: 'shoot' }), clipId); await lap.waitForTimeout(2000);
-  ui = await lap.evaluate(t => ({ rows: document.querySelectorAll(t + ' #clipShots .tk-ps').length, imgs: document.querySelectorAll(t + ' #clipShots .tk-th img, ' + t + ' #clipShots .tk-th video').length,
-    canvas: !!document.querySelector(t + ' #clipShots [data-pagecanvas]') }), top);
-  ok(ui.rows === 3 && ui.imgs === 3 && ui.canvas, 'a clip from the template: Steps + Shot page first on Shoot, frames on the steps', JSON.stringify(ui));
-  await lap.click(`${top} #clipShots [data-tick="0"]`); await lap.waitForTimeout(700);
+  await lap.waitForTimeout(800);
+  ui = await lap.evaluate(t => ({ rows: document.querySelectorAll(t + ' .cps-row').length, imgs: document.querySelectorAll(t + ' .cps-row .pic img, ' + t + ' .cps-row .pic video, ' + t + ' .cps-row .pic canvas').length }), top);
+  ok(ui.rows === 3 && ui.imgs >= 3, 'a clip from the template: Shoot lists its shots with their frames', JSON.stringify(ui));
+  await lap.click(`${top} [data-cpstick="0"]`); await lap.waitForTimeout(1000);
   await lap.click(`${top} [data-a="toshoot"]`); await lap.waitForTimeout(800);
   await lap.click('#sheet [data-ok]'); await lap.waitForTimeout(1500);
   const ct = await lap.evaluate(async id => { const c = await Store.get('clips', id); const t = c.shootTaskId && await Store.get('tasks', c.shootTaskId);
@@ -187,9 +187,9 @@ const head = s => console.log(`\n— ${s} —`);
   await lap.click(`${top} [data-video="${vids[0]}"]`); await lap.waitForTimeout(1500);
   await lap.click(`${top} [data-ctab="shoot"]`); await lap.waitForTimeout(1500);
   ui = await lap.evaluate(t => ({ part: ((document.querySelector(t + ' .cp-series') || {}).textContent || '').replace(/\s+/g, ' ').trim(),
-    rows: document.querySelectorAll(t + ' #clipShots .tk-ps').length, canvas: !!document.querySelector(t + ' #clipShots [data-pagecanvas]') }), top);
+    rows: document.querySelectorAll(t + ' .cps-row').length, day: !!document.querySelector(t + ' [data-a="toshoot"]') }), top);
   ok(/Episode 1 of 2/.test(ui.part), 'it knows its series and part', ui.part);
-  ok(ui.rows === 2 && ui.canvas, 'and has its Steps + Shot page', `${ui.rows} rows`);
+  ok(ui.rows === 2 && ui.day, 'and has its shots and a shoot day to set', `${ui.rows} rows`);
   await lap.click(`${top} [data-a="toshoot"]`); await lap.waitForTimeout(700);
   await lap.click('#sheet [data-ok]'); await lap.waitForTimeout(1500);
   const vt = await lap.evaluate(async id => { const c = await Store.get('clips', id); const t = await Store.get('tasks', c.shootTaskId); return { n: t.page.slots.length, steps: t.subs.map(s => s.t), stage: c.stage }; }, vids[0]);

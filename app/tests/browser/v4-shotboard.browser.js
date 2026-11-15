@@ -30,7 +30,7 @@ const top = '.screen:last-child';
 
     const head = t => console.log('  · ' + t);
     await p.evaluate(id => Screens.push('clip', { id, tab: 'shoot' }), cid); await p.waitForTimeout(1500);
-    ok(!(await p.$(`${top} .sb-switch`)) && !!(await p.$(`${top} .tk-host`)), 'clips keep their Steps (the Storyboard is for episodes)');
+    ok(!(await p.$(`${top} .sb-switch`)) && !!(await p.$(`${top} .cp-shoot`)), 'clips have their own Shoot card (the Storyboard is for episodes)');
     await p.evaluate(() => Screens.pop()); await p.waitForTimeout(400);
 
     /* an episode's sequence */

@@ -15,14 +15,14 @@
      A section can sit on more than one tab; it is the same data either way. */
   const TABS = {
     plan:  ['ready','refs','purposeGrp','scriptGrp','cta'],
-    shoot: ['toshoot','shots','notes','refs'],
+    shoot: ['shootCard','notes','refs'],
     edit:  ['editSteps','editLine','cutlist','versionsEdit','notes'],
     post:  ['versionsPost','titles','caption','metric']
   };
   const TAB_NAME = { plan:'Plan', shoot:'Shoot', edit:'Edit', post:'Post' };
   const TAB_NOTE = {
     plan:  'What this clip is, who it is for, and what is said over each shot.',
-    shoot: 'The shots in the order you film them. Open a shot’s Script to read its lines.',
+    shoot: 'When you film it — it goes on your to-do list that day — then shoot mode. Tick a shot here if you got it without shoot mode.',
     edit:  'Work down the walkthrough; the shots and their footage are in the line. Every cut in story order with the words over it.',
     post:  'Where each version goes, the title and the caption — tick each one as it goes out.'
   };
@@ -95,6 +95,28 @@
     .cp-series span{flex:1}
     .cp-partnav{width:34px;height:30px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);color:var(--cream);font-size:17px;cursor:pointer;padding:0}
     .cp-partnav:disabled{opacity:.3;cursor:default}
+    .cp-shoot{display:flex;flex-direction:column;gap:12px;margin:0 0 14px;padding:14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2)}
+    .cps-when{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .cps-when .w{flex:1;min-width:190px;display:flex;flex-direction:column;gap:2px}
+    .cps-when .k{font-family:var(--display),sans-serif;font-weight:900;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+    .cps-when .w b{font-size:18px;color:var(--cream)}
+    .cps-when .w small{color:var(--muted);font-size:13px}
+    .cps-time{height:32px;padding:0 12px;border:1px dashed var(--line);border-radius:16px;background:transparent;color:var(--muted);font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+    .cps-time.has-t{border-style:solid;border-color:var(--orange);color:var(--cream)}
+    .cps-go{width:100%;margin:0}
+    .cps-prog{display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--muted)}
+    .cps-prog b{color:var(--cream)}
+    .cps-list{display:flex;flex-direction:column;gap:2px}
+    .cps-beat{margin:8px 0 2px;font-family:var(--display),sans-serif;font-weight:900;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--orange)}
+    .cps-row{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:var(--r);cursor:pointer}
+    .cps-row:hover{background:rgba(237,229,210,.05)}
+    .cps-row input{width:20px;height:20px;accent-color:var(--green);flex:0 0 auto}
+    .cps-row .no{color:var(--dim);font-size:12px;width:20px}
+    .cps-row .nm{flex:1;min-width:0;color:var(--cream);font-size:14.5px}
+    .cps-row.done .nm{color:var(--muted);text-decoration:line-through}
+    .cps-row .pic{width:40px;height:28px;border-radius:3px;overflow:hidden;flex:0 0 auto;background:var(--bg)}
+    .cps-row .pic img,.cps-row .pic video,.cps-row .pic canvas{width:100%;height:100%;object-fit:cover;display:block}
+    .cps-tr{margin:0 0 2px 38px;font-size:12.5px;color:#C9B8FF}
     .cp-dayrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;margin:0 0 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2)}
     .cp-dayrow span{flex:1;min-width:200px;color:var(--muted);font-size:14px}
     .cp-dayrow b{color:var(--cream)}
@@ -216,12 +238,57 @@
       if(clip.stage !== before){ const pill = el.querySelector('.cp-pill'); if(pill){ const st = Lifecycle.stage(clip.stage); pill.textContent = st.label; pill.style.background = st.c; } }
     }
     const flushClip = async () => { clearTimeout(timer); await Data.saveClip(clip); };
+    const fmtT = at => { const [h, m] = String(at).split(':').map(Number); return `${(h % 12) || 12}:${String(m || 0).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; };
     /* filmed or not: the shoot task's tick for that shot, when there is one */
     const takenOf = i => {
       if(shootTask && shootTask.page){ const s2 = (shootTask.subs || []).find(x => x.shot === i); return !!(s2 && s2.done); }
       const s2 = (clip.subs || []).find(x => x.shot === i);
       return !!(s2 && s2.done);
     };
+
+    /* the Shoot tab's tick list: every shot under its beat, ticked from the
+       shoot task when there is one (what Today and the cut list read), else
+       the clip's own steps */
+    async function fillShootList(){
+      const box = el.querySelector('#clipShootList');
+      if(!box) return;
+      const t = await ShotList.hostClip(clip.id).load();
+      const sl = (t && t.page && t.page.slots) || [];
+      const bn = clip.plan.beats || [];
+      const bo = window.Structures && bn.length ? Structures.beatsOf(t, bn.length) : sl.map(() => -1);
+      const order = sl.map((_, i) => i).sort((a, b) => (bo[a] - bo[b]) || a - b);
+      let last = null;
+      box.innerHTML = order.map(i => {
+        const head = bn.length && bo[i] !== last ? `<p class="cps-beat">${esc(bn[bo[i]] || 'Beat ' + (bo[i] + 1))}</p>` : '';
+        last = bo[i];
+        const d = takenOf(i), x = sl[i] || {}, st = (t.subs || []).find(y => y.shot === i) || {};
+        const tr = st.tr && (st.tr.n || st.tr.id) && i < sl.length - 1 ? `<p class="cps-tr">⇄ ${esc(st.tr.n || 'Transition')} into shot ${i + 2}</p>` : '';
+        return head + `<label class="cps-row${d ? ' done' : ''}"><input type="checkbox" data-cpstick="${i}" ${d ? 'checked' : ''}>
+          <span class="no">${String(i + 1).padStart(2, '0')}</span>${x.item ? `<span class="pic" data-slpic="${esc(x.item)}"></span>` : ''}<span class="nm">${esc(x.text || 'Shot ' + (i + 1))}</span></label>${tr}`;
+      }).join('') || '<p class="note" style="text-align:left;margin:0">No shots yet — add them on Plan.</p>';
+      if(window.ShotList) ShotList.fillPics(box);
+    }
+    async function tickShot(i, on){
+      if(shootTask && shootTask.page){
+        const tk = await Store.get('tasks', shootTask.id);
+        if(tk){
+          let s2 = (tk.subs || []).find(x => x.shot === i);
+          if(!s2){ s2 = { t:((tk.page.slots || [])[i] || {}).text || `Shot ${i + 1}`, done:false, shot:i, pg:1 }; tk.subs = (tk.subs || []).concat(s2); }
+          s2.done = on; await Store.put('tasks', tk); shootTask = tk;
+        }
+      }
+      const h = ShotList.hostClip(clip.id), t = await h.load();
+      if(t){
+        let s2 = (t.subs || []).find(x => x.shot === i);
+        if(!s2){ s2 = { t:((t.page && t.page.slots) || [])[i] ? t.page.slots[i].text || `Shot ${i + 1}` : `Shot ${i + 1}`, done:false, shot:i, pg:1 }; t.subs = (t.subs || []).concat(s2); }
+        s2.done = on; await h.save(t);
+      }
+      await pullShots();
+      const n = shotList().length, k = [...Array(n).keys()].filter(takenOf).length;
+      const nb = el.querySelector('[data-cpsn]'); if(nb) nb.textContent = `${k} of ${n}`;
+      const bar = el.querySelector('[data-cpsbar]'); if(bar) bar.style.width = (n ? Math.round(k / n * 100) : 0) + '%';
+      const row = el.querySelector(`[data-cpstick="${i}"]`); if(row) row.closest('.cps-row').classList.toggle('done', on);
+    }
 
     function render(){
       const p = clip.plan;
@@ -358,9 +425,20 @@
         </details>`;
       /* one shoot task, carrying the shot list (it used to send the flow's
          beats to whichever shoot task it could find) */
-      S.toshoot = `
-        <div class="cp-dayrow"><span>${shootTask ? `<b>Shoot on ${esc(shootWhen)}</b> · with these shots as its steps` : '<b>Not on your days yet</b> · the shots go with it as steps'}</span>
-          <button class="btn-sm${shootTask ? '' : ' accent'}" data-a="toshoot" ${nShots ? '' : 'disabled'}>${shootTask ? 'Move or update' : 'Put it on a day'}</button></div>`;
+      /* Shoot: when it's filmed (a shoot task on that day — the to-do list
+         shows it — at a time if you set one), shoot mode, and what's taken */
+      S.shootCard = `
+        <div class="cp-shoot">
+          <div class="cps-when"><span class="w"><span class="k">Shoot day</span>
+              <b>${shootTask ? esc(shootWhen) : 'Not on a day yet'}</b>
+              <small>${shootTask ? 'On your to-do list that day' : 'Pick a day and it shows on your to-do list'}</small></span>
+            ${shootTask ? `<button class="cps-time${shootTask.at ? ' has-t' : ''}" data-a="shoottime" title="What time you film it — the to-do list puts it there">${shootTask.at ? '🕘 ' + fmtT(shootTask.at) : '＋ Time'}</button>` : ''}
+            <button class="btn-sm${shootTask ? '' : ' accent'}" data-a="toshoot" ${nShots ? '' : 'disabled title="Add a shot on Plan first"'}>${shootTask ? 'Change day' : 'Put it on a day'}</button></div>
+          <button class="btn-primary cps-go" data-a="shootgo" ${nShots ? '' : 'disabled'}>▶ Shoot mode</button>
+          <div class="cps-prog"><span><b data-cpsn>${[...Array(nShots).keys()].filter(takenOf).length} of ${nShots}</b> shots taken</span>
+            <div class="cp-bar"><i data-cpsbar style="width:${nShots ? Math.round([...Array(nShots).keys()].filter(takenOf).length / nShots * 100) : 0}%"></i></div></div>
+          <div class="cps-list" id="clipShootList"></div>
+        </div>`;
 
       const pi = parts.findIndex(x => x.id === clip.id);
       el.innerHTML = Screens.bar({ kicker:seriesRec ? 'Series · ' + esc(seriesRec.title || '') : 'Clip', title:TAB_NAME[tab],
@@ -385,6 +463,7 @@
             ${clip.scheduledAt ? `<span class="cp-pill">${ICON.clock}${
               new Date(clip.scheduledAt).toLocaleDateString(undefined,{ month:'short', day:'numeric' })}</span>` : ''}
             ${p.beats.length ? `<span class="cp-pill">${p.beats.length} beats</span>` : ''}
+            ${shootTask ? `<button class="cp-pill" data-gotab="shoot" title="The day you film it">🎬 Shoot ${esc(shootWhen)}${shootTask.at ? ' · ' + fmtT(shootTask.at) : ''}</button>` : ''}
           </div>
         </div>
 
@@ -402,9 +481,8 @@
       const refsSec = el.querySelector('#sec-refs');
       if(refsSec) refsSec.addEventListener('toggle', () => { refsOpen = refsSec.open; });
       const cs = el.querySelector('#clipShots');
-      /* Shoot: just the shots, in the order you film them, under their beats.
-         The structure (change it, edit or paste) is planning — it lives on Plan. */
       if(cs) ShotList.embed(cs, ShotList.hostClip(clip.id), pullShots);
+      if(el.querySelector('#clipShootList')) fillShootList();
       el.querySelectorAll('details[data-grp]').forEach(d => d.addEventListener('toggle', () => { grpOpen[d.dataset.grp] = d.open; }));
       const sc = el.querySelector('#clipScript');
       if(sc) Structures.script(sc, { autoBeats:true, host:ShotList.hostClip(clip.id), plan:() => clip.plan, savePlan:flushClip, flush:flushClip, onChange:pullShots,
@@ -689,6 +767,7 @@
     /* the two dropdowns on a cut save the moment they change */
     el.addEventListener('change', async e => {
       if(e.target.closest && e.target.closest('.tk-host')) return;   /* the Steps block handles its own */
+      if(e.target.dataset && e.target.dataset.cpstick != null) return tickShot(+e.target.dataset.cpstick, e.target.checked);
       const pl = e.target.dataset.cutplat;
       if(pl){
         const cut = (clip.cuts || []).find(c => c.id === pl);
@@ -712,6 +791,8 @@
       if(e.target.closest && e.target.closest('.tk-host')) return;   /* the Steps block handles its own */
       const pn = e.target.closest('[data-part]');
       if(pn && !pn.disabled){ const other = parts[+pn.dataset.part]; if(other) Screens.replace('clip', { id:other.id, tab, onChange:params && params.onChange }); return; }
+      const gt = e.target.closest('[data-gotab]');
+      if(gt && gt.dataset.gotab !== tab){ tab = gt.dataset.gotab; clip.plan.tab = tab; render(); return; }
       const ct = e.target.closest('[data-ctab]');
       if(ct){
         if(ct.dataset.ctab === tab) return;
@@ -1000,6 +1081,29 @@
 
       /* the clip's own canvas — status follows the clip */
 
+      if(a.dataset.a === 'shootgo'){
+        const back = async () => { await load(); render(); };
+        return Screens.push('shoot-run', shootTask && shootTask.page ? { id:shootTask.id, onChange:back } : { host:ShotList.hostClip(clip.id), onChange:back });
+      }
+      if(a.dataset.a === 'shoottime' && shootTask){
+        App.sheet(`<h2 style="margin:0 0 4px">What time do you film it?</h2>
+          <p class="hintline" style="margin:0 0 12px">Your to-do list puts it at that time on ${esc(shootWhen)}.</p>
+          <input type="time" class="cps-tin" value="${esc(shootTask.at || '')}" style="width:100%;height:46px;font-size:18px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--cream)">
+          <div class="sheetcta"><button class="btn-primary" data-tok>Set the time</button>${shootTask.at ? '<button class="btn-ghost" data-tnone>No time</button>' : ''}<button class="btn-ghost" data-tno>Cancel</button></div>`, sh => {
+          sh.addEventListener('click', async ev => {
+            if(ev.target.closest('[data-tno]')) return App.closeSheet();
+            const none = ev.target.closest('[data-tnone]'), okb = ev.target.closest('[data-tok]');
+            if(!none && !okb) return;
+            const v = none ? '' : sh.querySelector('.cps-tin').value;
+            if(okb && !v) return U.toast('Pick a time, or Cancel');
+            const tk = await Store.get('tasks', shootTask.id);
+            if(tk){ if(v) tk.at = v; else delete tk.at; await Store.put('tasks', tk); }
+            App.closeSheet(); await load(); render();
+            U.toast(v ? `Shoot at ${fmtT(v)}` : 'No time set');
+          });
+        });
+        return;
+      }
       if(a.dataset.a === 'toshoot'){
         const t = await ShotList.daySheet({ taskId:clip.shootTaskId, title:clip.title || 'Clip', shots:shotList(),
           page:clip.page || null, subs:clip.subs || [], pageFrom:clip.pageFrom || null, morePages:clip.morePages,

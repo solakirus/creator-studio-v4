@@ -68,27 +68,19 @@ async function swipe(cdp, x, y0, y1){
   await p.waitForTimeout(800);
   ok(await p.evaluate(() => !document.querySelector('.totop').classList.contains('on')), 'then it goes away');
 
-  head('a series video (a clip): Shoot is just the shots, under their beats');
+  head('a series video (a clip): Shoot is the shoot day and its shots');
   const vid = await p.evaluate(async () => (await Data.saveClip({ title: 'Part 1', seriesId: 's0', state: 'raw', stage: 'idea', plan: { tab: 'plan', noAutoBeats: true } })).id);
   await p.evaluate(id => Screens.push('clip', { id, tab: 'plan' }), vid); await p.waitForTimeout(1600);
   await p.click(`${top} #clipScript [data-st="pick"]`); await p.waitForTimeout(500);
   await p.click('.sheet [data-use="b-loop"]'); await p.waitForTimeout(1600);
   await p.click(`${top} [data-ctab="shoot"]`); await p.waitForTimeout(1600);
-  let ui = await p.evaluate(t => ({ lists: document.querySelectorAll(t + ' .sx-shot').length, rows: document.querySelectorAll(t + ' #clipShots .tk-ps').length,
+  let ui = await p.evaluate(t => ({ rows: document.querySelectorAll(t + ' .cps-row').length, steps: !!document.querySelector(t + ' #clipShots'),
     bar: !!document.querySelector(t + ' #clipStruct, ' + t + ' .sx-barw'), plan: /Edit beats|Paste a script|Pick a structure/.test(document.querySelector(t + ' .view').textContent),
-    beats: [...document.querySelectorAll(t + ' #clipShots .tk-beat')].map(x => x.textContent.trim()).filter(Boolean).length,
-    bars: document.querySelectorAll(t + ' .tk-rowsbar').length }), top);
-  ok(ui.lists === 0 && ui.rows === 6, 'the shots are listed once — in the Steps', `${ui.rows} steps`);
+    beats: [...document.querySelectorAll(t + ' .cps-beat')].map(x => x.textContent.trim()) }), top);
+  ok(ui.rows === 6 && !ui.steps, 'the shots are listed once, to tick', `${ui.rows} shots`);
   ok(!ui.bar && !ui.plan, 'no structure bar: changing beats or pasting a script is on Plan');
-  ok(ui.beats >= 6 && ui.bars === 1, 'the Steps still sit under their beat names', ui.beats + ' beat headings');
+  ok(ui.beats.length === 6, 'the shots sit under their beat names', ui.beats.join(' · '));
   await p.screenshot({ path: path.join(out, 'series-page-shoot.png') });
-
-  head('a shot moves beat from its Script panel');
-  const stepBeats = r => (r.subs || []).filter(x => x.shot != null).sort((a, b) => a.shot - b.shot).map(x => x.beat);
-  await p.click(`${top} #clipShots [data-twirl="5"]`); await p.waitForTimeout(800);
-  await p.selectOption(`${top} #clipShots [data-tlbeat="5"]`, '3'); await p.waitForTimeout(1500);
-  let v = await p.evaluate(id => Store.get('clips', id), vid);
-  ok(stepBeats(v)[5] === 3, 'shot 6 is in the fourth beat now', stepBeats(v).join());
 
   head('a tap on the title goes back up');
   await p.evaluate(t => { const v = document.querySelector(t + ' .view'); v.scrollTop = v.scrollHeight; }, top); await p.waitForTimeout(300);

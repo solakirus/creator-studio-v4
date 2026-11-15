@@ -146,21 +146,11 @@ const top = '.screen:last-child';
     ok(s1.tr && s1.tr.id === first.id && !(c.shotList[0].tr), 'it goes on shot 2 — the cut from Coffee pour into Out the door', JSON.stringify(s1.tr));
     await p.evaluate(() => App.closeSheet()); await p.waitForTimeout(300);
 
-    /* the shot page while shooting */
-    await p.evaluate(id => Screens.push('clip', { id, tab: 'shoot' }), cid); await p.waitForSelector(`${top} .tk-trtog`, { timeout: 6000 }).catch(() => {});
-    await p.waitForTimeout(500);
-    ok(!(await p.$(`${top} .tk-trm`)) && /1 transition · Show/.test(await p.textContent(`${top} .tk-trtog`).catch(() => '')), 'while shooting: hidden, one small Show button');
-    await p.screenshot({ path: path.join(out, `tr-shoot-hidden-${name}.png`) });
-    await p.click(`${top} .tk-trtog`); await p.waitForTimeout(600);
-    const mk = await p.evaluate(t => { const s = document.querySelector(t); const m = s.querySelector('[data-trpeek]'); const row = m && m.closest('.tk-trm');
-      return { n: s.querySelectorAll('.tk-trm').length, named: s.querySelectorAll('.tk-trm [data-trpeek]').length, after: row && row.previousElementSibling && row.previousElementSibling.dataset.ps, btn: (s.querySelector('.tk-trtog') || {}).textContent }; }, top);
-    ok(mk.n === 3 && mk.named === 1 && mk.after === '1' && /Hide/.test(mk.btn), 'Show: a marker in each gap, the named one between shot 2 and 3', JSON.stringify(mk));
-    await p.screenshot({ path: path.join(out, `tr-shoot-shown-${name}.png`) });
-    await p.click(`${top} .tk-trm [data-trpeek]`); await p.waitForTimeout(600);
-    ok(await p.evaluate(() => SwipePlayer.isOpen() && document.querySelectorAll('.spl-acts [data-spla]').length === 0), 'tapping the marker plays it (nothing else to do there)');
-    await p.evaluate(() => SwipePlayer.close());
-    await p.click(`${top} .tk-trtog`); await p.waitForTimeout(500);
-    ok(!(await p.$(`${top} .tk-trm`)), 'Hide puts it away again');
+    /* while shooting: the clip's Shoot list names it between the two shots */
+    await p.evaluate(id => Screens.push('clip', { id, tab: 'shoot' }), cid); await p.waitForTimeout(1800);
+    const trs = await p.$$eval(`${top} .cps-tr`, xs => xs.map(x => x.textContent));
+    ok(trs.length === 1 && /into shot 3/.test(trs[0]), 'while shooting: the Shoot list shows it between shot 2 and 3', JSON.stringify(trs));
+    await p.screenshot({ path: path.join(out, `tr-shoot-${name}.png`) });
 
     /* Edit: the cut list */
     await p.evaluate(id => { Screens.pop(); Screens.push('clip', { id, tab: 'edit' }); }, cid); await p.waitForSelector(`${top} #clipCuts .sx-cut`, { timeout: 6000 }).catch(() => {});

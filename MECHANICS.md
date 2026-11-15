@@ -410,3 +410,20 @@ and the edit note; the transition into the next shot sits under the card. The
 top line has the beat and cut counts, ⏸ Stop GIFs when any cut has a frame,
 and the Rows / Columns switch; Rows is the old three-column table. A clip with
 no beats keeps the plain table.
+
+## A clip's Shoot tab, slimmed
+
+Shoot is one card (`S.shootCard`, clip.js), for clips and series episodes
+alike:
+- **Shoot day** — "Put it on a day" (ShotList.daySheet) makes the clip's shoot
+  task on that day, so it is on the to-do list then; "Change day" moves it. A
+  time chip (`data-a="shoottime"`) sets the task's `at`, so Today puts it at
+  that hour. The clip's header shows "🎬 Shoot Sat, Nov 14 · 7:30 AM" on every
+  tab (tapping it opens Shoot — `data-gotab`).
+- **▶ Shoot mode** — on the shoot task when there is one (its ticks are what
+  Today and the cut list read), else on the clip's own steps.
+- **N of M shots taken**, and a tick list of the shots under their beat names
+  (frame thumbnails, the transition into the next shot in purple). A tick
+  writes the shoot task and the clip's steps both.
+The Steps editor and the Shot page are gone from Shoot (the shots are on Plan);
+Notes and References stay below.

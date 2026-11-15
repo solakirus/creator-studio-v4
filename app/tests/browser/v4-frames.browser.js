@@ -163,10 +163,10 @@ const head = s => console.log(`\n— ${s} —`);
   await phone.waitForTimeout(1500);
   await phone.waitForTimeout(800);
   await phone.waitForTimeout(1200);
-  const strip = await phone.evaluate(() => ({ cells: document.querySelectorAll('#clipShots .tk-ps').length,
-    pics: document.querySelectorAll('#clipShots .tk-th img, #clipShots .tk-th video').length, missing: 0 }));
-  ok(strip.cells === 4 && strip.pics === 4 && !strip.missing, 'the clip\'s Steps show the four frames', JSON.stringify(strip));
-  const sheet = await phone.$('#clipShots');
+  const strip = await phone.evaluate(() => ({ cells: document.querySelectorAll('.screen:last-child .cps-row').length,
+    pics: document.querySelectorAll('.screen:last-child .cps-row .pic img, .screen:last-child .cps-row .pic video').length, missing: 0 }));
+  ok(strip.cells === 4 && strip.pics === 4 && !strip.missing, 'the clip\'s Shoot list shows the four frames', JSON.stringify(strip));
+  const sheet = await phone.$('.screen:last-child .cps-list');
   if(sheet) await sheet.scrollIntoViewIfNeeded();
   await phone.waitForTimeout(400);
   await phone.screenshot({ path: path.join(out, 'phone-clip.png') });

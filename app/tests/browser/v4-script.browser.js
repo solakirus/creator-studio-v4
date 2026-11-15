@@ -108,37 +108,33 @@ const head = s => console.log(`\n— ${s} —`);
   /* tidy: take the first part off shot 1 again */
   await lap.evaluate(async id => { const c = await Store.get('clips', id); const s0 = c.subs.find(x => x.shot === 0); s0.lines = s0.lines.filter(l => l.t !== 'p1 line'); await Data.saveClip(c); }, cid);
 
-  head('Shoot: steps with their script, folding, the page always there');
-  await lap.evaluate(id => { Screens.pop(); Screens.push('clip', { id, tab: 'shoot' }); }, cid); await lap.waitForTimeout(2000);
-  ui = await lap.evaluate(t => { const s = document.querySelector(t); return { first: s.querySelector('.view > .cp-dayrow') !== null && s.querySelector('.view > .segmented ~ .cp-dayrow') !== null,
-    needs: /Capture for/.test(s.textContent), rows: s.querySelectorAll('#clipShots .tk-ps').length, tw: [...s.querySelectorAll('#clipShots .tk-tw')].map(x => x.textContent.trim()),
-    beats: [...s.querySelectorAll('#clipShots .tk-beat')].map(x => x.textContent.trim()), page: !!s.querySelector('#clipShots .tkp-cwrap:not([hidden]) canvas'),
-    flow: [...s.querySelectorAll('.view > details > summary')].map(x => x.firstChild.textContent.trim()) }; }, top);
-  ok(ui.first && !ui.needs, 'the shoot day row comes first; Capture for N versions is gone');
-  ok(ui.rows === 6 && ui.page, 'Steps beside the Shot page');
-  ok(ui.tw[3] === 'Script · 2' && ui.tw[0] === 'Script · 1', 'each step has a Script twirl with its line count', ui.tw.join(' | '));
-  ok(ui.beats.length === 6 && ui.beats[0] === 'Hook' && ui.beats[4] === 'Payoff', 'the beat names head the steps', ui.beats.join(' · '));
-  ok(!ui.flow.includes('Script') && !ui.flow.includes('Flow'), 'no separate Flow or Script on Shoot', ui.flow.join(' · '));
-  await lap.click(`${top} #clipShots [data-twirl="3"]`); await lap.waitForTimeout(900);
-  ui = await lap.evaluate(t => [...document.querySelectorAll(t + ' #clipShots .tk-lines .tk-lt')].map(x => x.value), top);
-  ok(ui.length === 2 && ui[1] === 'WATER · LIGHT · ONE PAGE', 'the twirl opens its lines under the step', ui.join(' | '));
-  await lap.click(`${top} #clipShots [data-tladd="3"]`); await lap.waitForTimeout(1200);
-  await lap.fill(`${top} #clipShots [data-tlt="3:2"]`, 'Now the phone waits.');
-  await lap.dispatchEvent(`${top} #clipShots [data-tlt="3:2"]`, 'change'); await lap.waitForTimeout(1200);
+  head('Shoot: the shoot day, shoot mode, and a tick list');
+  /* a third line on shot 4, written on Plan */
+  await lap.evaluate(id => { Screens.pop(); Screens.push('clip', { id, tab: 'plan' }); }, cid); await lap.waitForTimeout(1800);
+  await lap.click(`${top} #clipScript [data-ladd="3"]`); await lap.waitForTimeout(1200);
+  await lap.fill(`${top} #clipScript [data-lt="3:2"]`, 'Now the phone waits.');
+  await lap.dispatchEvent(`${top} #clipScript [data-lt="3:2"]`, 'change'); await lap.waitForTimeout(1200);
   r = await clipRec(cid);
-  ok(steps(r)[3].lines.length === 3 && steps(r)[3].lines[2].t === 'Now the phone waits.', 'a line added under a step is saved on the clip');
+  ok(steps(r)[3].lines.length === 3 && steps(r)[3].lines[2].t === 'Now the phone waits.', 'a line added on Plan is saved on the clip');
+  await lap.evaluate(id => { Screens.pop(); Screens.push('clip', { id, tab: 'shoot' }); }, cid); await lap.waitForTimeout(2000);
+  ui = await lap.evaluate(t => { const s = document.querySelector(t); return { first: !!s.querySelector('.view > .segmented ~ .cp-shoot'),
+    when: (s.querySelector('.cps-when') || {}).textContent || '', go: !!s.querySelector('[data-a="shootgo"]'),
+    steps: !!s.querySelector('#clipShots'), page: !!s.querySelector('.tkp-cwrap canvas, [data-pagecanvas]'),
+    rows: s.querySelectorAll('.cps-row').length, beats: [...s.querySelectorAll('.cps-beat')].map(x => x.textContent.trim()),
+    flow: [...s.querySelectorAll('.view > details > summary')].map(x => x.firstChild.textContent.trim()) }; }, top);
+  ok(ui.first && /Shoot day/.test(ui.when) && /Not on a day yet/.test(ui.when) && ui.go, 'Shoot opens on the shoot day and ▶ Shoot mode', ui.when.replace(/\s+/g, ' ').trim());
+  ok(!ui.steps && !ui.page, 'no second copy of the plan: no Steps editor, no Shot page');
+  ok(ui.rows === 6 && ui.beats.length === 6 && ui.beats[0] === 'Hook' && ui.beats[4] === 'Payoff', 'a tick list of the shots under their beats', ui.beats.join(' · '));
+  ok(!ui.flow.includes('Script') && !ui.flow.includes('Flow'), 'no separate Flow or Script on Shoot', ui.flow.join(' · '));
+  await lap.click(`${top} [data-cpstick="1"]`); await lap.waitForTimeout(1300);
+  r = await clipRec(cid);
+  ok(steps(r)[1].done && /1 of 6/.test(await lap.textContent(`${top} [data-cpsn]`)), 'ticking a shot by hand counts it taken');
+  await lap.click(`${top} [data-cpstick="1"]`); await lap.waitForTimeout(1300);
+  ok(!steps(await clipRec(cid))[1].done, 'and unticking takes it back');
   await lap.screenshot({ path: path.join(out, 'script-shoot-tab.png'), fullPage: false });
-  await lap.click(`${top} #clipShots [data-a="rowsfold"]`); await lap.waitForTimeout(900);
-  ui = await lap.evaluate(t => ({ rows: document.querySelectorAll(t + ' #clipShots .tk-ps').length, bar: (document.querySelector(t + ' #clipShots .tk-rowsbar') || {}).textContent || '',
-    page: !!document.querySelector(t + ' #clipShots .tkp-cwrap canvas'), next: !!document.querySelector(t + ' #clipShots .tkp-next') }), top);
-  ok(ui.rows === 0 && /6 shots · 0 taken · next: /.test(ui.bar) && ui.page && ui.next, 'the steps fold to one line; the page and Next up stay', ui.bar.trim().replace(/\s+/g, ' '));
-  await lap.evaluate(id => { Screens.pop(); Screens.push('clip', { id, tab: 'shoot' }); }, cid); await lap.waitForTimeout(1800);
-  ok(await lap.evaluate(t => document.querySelectorAll(t + ' #clipShots .tk-ps').length, top) === 0, 'folded stays folded next time');
-  await lap.click(`${top} #clipShots [data-a="rowsfold"]`); await lap.waitForTimeout(900);
-  ok(await lap.evaluate(t => document.querySelectorAll(t + ' #clipShots .tk-ps').length, top) === 6, 'and opens again');
 
   head('shoot mode: the shot first, then its script');
-  await lap.click(`${top} #clipShots [data-a="shootmode"]`); await lap.waitForTimeout(1200);
+  await lap.click(`${top} [data-a="shootgo"]`); await lap.waitForTimeout(1200);
   ui = await lap.evaluate(() => ({ k: document.querySelector('.sr-k').textContent, tw: (document.querySelector('[data-script]') || {}).textContent || '', lines: document.querySelectorAll('.sr-line').length }));
   ok(/Shot 1 · Action · Hook/.test(ui.k) && /Script for this shot · 1 line/.test(ui.tw) && ui.lines === 0, 'the shot shows, its script waits behind a button', ui.k + ' / ' + ui.tw.trim());
   await lap.click('[data-script]'); await lap.waitForTimeout(500);
@@ -250,14 +246,10 @@ const head = s => console.log(`\n— ${s} —`);
   await ph.click(`${top} #clipScript [data-sxv="cols"]`); await ph.waitForTimeout(500);
   await ph.screenshot({ path: path.join(out, 'script-phone-plan.png'), fullPage: false });
   await ph.click(`${top} [data-ctab="shoot"]`); await ph.waitForTimeout(1800);
-  ui = await ph.evaluate(t => ({ page: !!document.querySelector(t + ' #clipShots .tkp-cwrap:not([hidden]) canvas'), show: !!document.querySelector(t + ' [data-a="showpage"]'),
-    bar: !!document.querySelector(t + ' #clipShots .tk-rowsbar'), w: document.documentElement.scrollWidth }), top);
-  ok(ui.page && !ui.show && ui.bar, 'the shot page shows on a phone, with the fold bar over the steps');
+  ui = await ph.evaluate(t => ({ card: !!document.querySelector(t + ' .cp-shoot'), rows: document.querySelectorAll(t + ' .cps-row').length,
+    go: (document.querySelector(t + ' [data-a="shootgo"]') || { getBoundingClientRect: () => ({ width: 0 }) }).getBoundingClientRect().width, w: document.documentElement.scrollWidth }), top);
+  ok(ui.card && ui.rows > 0 && ui.go >= 300, 'on a phone: the shoot day, a full-width ▶ Shoot mode and the tick list', JSON.stringify(ui));
   ok(ui.w <= 412, 'nothing runs off the side', ui.w);
-  await ph.click(`${top} #clipShots [data-twirl="1"]`); await ph.waitForTimeout(900);
-  ui = await ph.evaluate(t => { const box = document.querySelector(t + ' #clipShots .tk-lines'), ta = box && box.querySelector('.tk-lt');
-    return { box: box ? box.getBoundingClientRect().width : 0, list: document.querySelector(t + ' #clipShots .tkp-left').getBoundingClientRect().width, ta: ta ? ta.getBoundingClientRect().width : 0 }; }, top);
-  ok(ui.box >= ui.list - 2 && ui.ta >= 250, 'a step\'s script opens the full width of the list, under the row', `${Math.round(ui.ta)} px for the words`);
   await ph.screenshot({ path: path.join(out, 'script-phone-shoot.png'), fullPage: false });
 
   head('errors');
