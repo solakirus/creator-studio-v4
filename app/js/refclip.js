@@ -53,7 +53,10 @@
   function play(v, title){
     if(!v || !v.url || !global.SwipePlayer) return;
     const t = (title ? title + ' · ' : '') + 'reference · ' + label(v);
-    SwipePlayer.open([{ id:'vref', title:t, url:v.url, start:v.start || 0, end:v.end || 0 }], 0, { noun:'reference' });
+    /* ↗ opens it on the site at From — YouTube takes t= */
+    let openUrl = v.url;
+    if(isYT(v.url) && v.start){ try { const u = new URL(v.url); u.searchParams.set('t', Math.round(v.start) + 's'); openUrl = u.href; } catch(e){} }
+    SwipePlayer.open([{ id:'vref', title:t, url:v.url, openUrl, start:v.start || 0, end:v.end || 0 }], 0, { noun:'reference' });
     if(!isYT(v.url) && (v.start || v.end) && global.U && U.toast) U.toast(`${site(v.url)} plays it all — watch ${label(v)}`);
   }
 

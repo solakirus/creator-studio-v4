@@ -548,3 +548,11 @@ from winget, pipx upgrade on Linux, else `yt-dlp -U`) and tries again without a
 sign-in. Still asking: the browser picked, then Firefox's sign-in when Firefox
 is on the PC (`hasFirefox` — Windows doesn't lock Firefox's). Still nothing: it
 says to sign in to YouTube in Firefox once and grab again.
+
+### YouTube's "not a bot" in the laptop app's player
+
+Electron's user agent names Electron and the app (`Electron/33 creator-studio-v4/…`),
+and YouTube's embedded player answered with "Sign in to confirm you're not a
+bot". main.js now sets a plain Chrome agent on the app's session (and
+`app.userAgentFallback`), as the grab window already did. A reference's ↗
+YouTube opens the video at its From time (`openUrl` with t=).

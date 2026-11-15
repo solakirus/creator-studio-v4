@@ -173,7 +173,7 @@
         if(a === 'close') return close();
         if(a === 'prev') return go(-1);
         if(a === 'next') return go(1);
-        if(a === 'source'){ try { global.open(list[i].url, '_blank', 'noopener'); } catch(err){} return; }
+        if(a === 'source'){ try { global.open(list[i].openUrl || list[i].url, '_blank', 'noopener'); } catch(err){} return; }
         if(a === 'igalt'){
           const s = list[i], ig = Embed.instagramPost(s.playUrl || s.url), fr = box.querySelector('.spl-frame');
           if(!ig || !fr) return;

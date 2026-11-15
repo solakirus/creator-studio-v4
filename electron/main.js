@@ -155,6 +155,13 @@ app.whenReady().then(() => {
     return net.fetch(pathToFileURL(file).toString());
   });
 
+  /* The app's user agent says "Electron/33 creator-studio-v4/…" — YouTube's
+     player reads that as a bot and asks to "Sign in to confirm you're not a
+     bot". A plain Chrome agent, the way the grab window already does it. */
+  const plainUA = session.defaultSession.getUserAgent().replace(/\s(Electron|creator-studio-[\w-]+|Creator ?Studio ?v?\d)\/\S+/gi, '');
+  session.defaultSession.setUserAgent(plainUA);
+  app.userAgentFallback = plainUA;
+
   /* YouTube embeds refuse to play without a referrer. */
   session.defaultSession.webRequest.onBeforeSendHeaders(
     { urls: ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*', '*://*.ytimg.com/*', '*://*.googlevideo.com/*'] },
