@@ -184,23 +184,51 @@ async function grabVideo(job, t, url, outRoot, o) {
   const site = siteOf(url);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cs3-grab-'));
   job.emit(`▶ ${url}`);
-  const args = ['--no-playlist', '--no-part', '--no-mtime', '--newline', '--restrict-filenames',
+  const base = ['--no-playlist', '--no-part', '--no-mtime', '--newline', '--restrict-filenames',
     '-f', VIDEO_FORMAT, '--merge-output-format', 'mp4', '--ffmpeg-location', path.dirname(t.ffmpeg),
     '-o', path.join(tmp, 'video.%(ext)s'),
     '--print', 'before_dl:@@T %(title)s', '--print', 'after_move:@@F %(filepath)s', '--no-simulate'];
   /* v4: the app's own sign-in (made in its window, borrowed or pasted) comes
      first — Chrome's own often can't be read — then the browser picked */
   const jar = isSocial(url) && await Browser.isSignedIn(url).catch(() => false) ? await Browser.cookieFile(url, tmp).catch(() => null) : null;
-  if (jar) args.push('--cookies', jar);
-  else if (o.cookies && o.cookies !== 'none') args.push('--cookies-from-browser', o.cookies);
-  args.push(url);
+  const browser = o.cookies && o.cookies !== 'none' ? o.cookies : '';
+  const bname = browser ? (BROWSERS[browser] || browser) : '';
   let title = '', file = '', last = 0;
-  const r = await job.run(t.ytdlp, args, l => {
-    if (l.startsWith('@@T ')) title = l.slice(4).trim();
-    else if (l.startsWith('@@F ')) file = l.slice(4).trim();
-    else if (/\[download\]\s+[\d.]+%/.test(l)) { const now = Date.now(); if (now - last > 1500) { last = now; job.emit('  ' + l.replace(/^\[download\]\s*/, 'downloading ')); } }
-    else if (/^ERROR|WARNING: .*(sign in|login|cookies|private)/i.test(l)) job.emit('  ' + l);
-  });
+  const attempt = (how, quiet) => {
+    const args = base.slice();
+    if (how === 'jar') args.push('--cookies', jar);
+    else if (how === 'browser') args.push('--cookies-from-browser', browser);
+    args.push(url);
+    return job.run(t.ytdlp, args, l => {
+      if (l.startsWith('@@T ')) title = l.slice(4).trim();
+      else if (l.startsWith('@@F ')) file = l.slice(4).trim();
+      else if (/\[download\]\s+[\d.]+%/.test(l)) { const now = Date.now(); if (now - last > 1500) { last = now; job.emit('  ' + l.replace(/^\[download\]\s*/, 'downloading ')); } }
+      else if (!quiet && /^ERROR|WARNING: .*(sign in|login|cookies|private)/i.test(l)) job.emit('  ' + l);
+    });
+  };
+  /* A browser's cookie file can't be read while that browser is open on
+     Windows (and newer Chrome locks it for good) — yt-dlp stops dead with
+     "Could not copy Chrome cookie database". A public video needs no sign-in,
+     so: YouTube (and anything not social) goes without the browser's cookies
+     first and only asks for them if the site wants a sign-in; and whenever
+     the browser's cookies can't be read, it goes again without them. */
+  const lockedJar = e => /could not copy .*cookie database|failed to decrypt|cookies? database|unable to (?:read|open) .*cookie|permission denied.*cookies|could not find .*cookies/i.test(e || '');
+  const wantsSignIn = e => /sign in|log ?in|not a bot|confirm your age|private|members-only/i.test(e || '');
+  let r;
+  if (jar) r = await attempt('jar');
+  else if (browser && isSocial(url)) {
+    r = await attempt('browser', true);
+    if (r.code !== 0 && lockedJar(r.err)) { job.emit(`  ${bname}'s sign-in can't be read while it's open — trying without it`); r = await attempt('none'); }
+    else if (r.code !== 0) (r.err.match(/^ERROR.*$/gm) || []).slice(0, 2).forEach(x => job.emit('  ' + x));
+  } else {
+    r = await attempt('none', !!browser);
+    if (r.code !== 0 && browser && wantsSignIn(r.err)) {
+      job.emit(`  it wants a sign-in — trying with ${bname}'s`);
+      const r2 = await attempt('browser', true);
+      if (r2.code !== 0 && lockedJar(r2.err)) job.emit(`  ${bname}'s sign-in can't be read while it's open — close ${bname} and try again, or sign in in the app's own window (Find links)`);
+      else r = r2;
+    }
+  }
   if (!file || !fs.existsSync(file)) {
     const any = fs.readdirSync(tmp).find(f => /\.(mp4|webm|mkv|mov)$/i.test(f));
     if (any) file = path.join(tmp, any);

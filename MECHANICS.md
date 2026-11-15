@@ -516,3 +516,17 @@ gets `t`/`e` through yt.html, which asks YouTube's player to start at `start`
 and stop at `end`. Other sites play the whole video with a toast saying which
 part to watch. In shoot mode a shot with a reference has the same ▶ Reference
 button beside its Script.
+
+### Grabbing a video when the browser's sign-in is locked
+
+yt-dlp's `--cookies-from-browser chrome` fails outright — "Could not copy
+Chrome cookie database" — while Chrome is open on Windows (and newer Chrome
+encrypts the file for good). grab-builtin.js grabVideo now:
+- **YouTube and other non-social links**: download without the browser's
+  cookies first (a public video needs none); only if the site asks for a
+  sign-in ("not a bot", age check, private) does it try the browser's, and if
+  those can't be read it says to close that browser or sign in in the app's
+  own window.
+- **Instagram, TikTok, Facebook…**: the app's own sign-in when there is one;
+  else the browser's cookies, and if they can't be read, again without them.
+Test: app/tests/electron/grab-cookies.test.js.
