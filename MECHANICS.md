@@ -575,3 +575,18 @@ phone keeps playing the link.
 walkthrough is ticked; `RefClip.cleanup()` (20 s after the app opens) deletes
 the grabbed copies of its shots 3 days after the last tick, keeping the link
 and times.
+
+## Arranging an episode's Plan
+
+- **Sections move.** The Plan's blocks — the quarter card, The challenge,
+  Where this week stands, The week, Research, What to film — each have a ⠿
+  (dragsort.js: drag with a mouse; on a phone hold it, then drag). The order is
+  kept in settings `vlog-plan-order` (synced) and every episode opens that way.
+  A tap on ⠿ does nothing else (it doesn't open the section).
+- **Sequences move.** In What to film, drag a sequence card within its day to
+  reorder, or onto another day to move it there (it takes that day's date).
+- **Your default week.** "☆ Make this week my default" keeps this episode's
+  days and their sequences — names, order, how each is filmed, what it's for,
+  never shots or ticks — in settings `vlog-week-default` (weekdefault.js). New
+  weekly vlogs ("Week, day by day", and Months' week slots) start from it;
+  "Back to Sequence 1 · 2 · 3" forgets it.

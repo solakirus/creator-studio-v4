@@ -211,7 +211,9 @@
      three sequences to rename. Kept in step with vlog.js's "Week, day by day". */
   const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   const vid = p => p + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
-  function weeklyActs(){
+  function weeklyActs(layout){
+    /* v4: your own default week, when you've made one (weekdefault.js) */
+    if(layout && global.WeekDefault) return WeekDefault.acts(layout, vid);
     return DAYS.map((d, i) => ({
       id: vid('a'), title:d, day:null, open:i === 0,
       beats:[1,2,3].map(n => ({ id:vid('b'), title:`Sequence ${n}`, purpose:'', setup:'talking',
@@ -228,7 +230,7 @@
       id: vid('v'),
       title: slot.last ? `${m.name || 'Month'} — verdict` : `${m.name || 'Month'} — week ${slot.index}`,
       format:'weekly', length:'15', seriesId:null, week:slot.week,
-      acts: weeklyActs(),
+      acts: weeklyActs(global.WeekDefault ? await WeekDefault.get() : null),
       monthId: m.id, isVerdict: !!slot.last, result:null,
       skill:'', weeklyChallenge:'', passLine:'',
       segments: defaultSegments(),

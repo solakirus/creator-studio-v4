@@ -377,7 +377,7 @@
           id: uid('v'),
           title: s ? `${s.title} — ${FORMATS[format].n.toLowerCase()}` : `${FORMATS[format].n} vlog`,
           format, length, seriesId, week,
-          acts: PRESETS[preset].acts.map((a2,i) => ({
+          acts: preset === 'weekly' && window.WeekDefault && await WeekDefault.get() ? WeekDefault.acts(await WeekDefault.get(), uid) : PRESETS[preset].acts.map((a2,i) => ({
             id: uid('a'), title:a2.title, day:null, open:i === 0,
             /* the setup comes from the shape, so a seeded sequence already knows
                how it is filmed and can be batched before you touch it */
@@ -403,6 +403,11 @@
   async function mountTimeline(el, params){
     let v, today = 1, clips = [], startDate = null, mode = 'plan', weekOffset = 0;
     let quarter = null;      /* the research this week draws on */
+    /* v4: the order of the Plan's sections (yours, for every episode — synced)
+       and your default week (weekdefault.js) */
+    const PLAN_ORDER_KEY = 'vlog-plan-order';
+    const PLAN_BLOCKS = ['quarter', 'challenge', 'stands', 'week', 'research', 'film'];
+    let planOrder = null, planDefault = null;
     let focusDay = null;     /* which day Shoot is showing */
     let weekSources = [];    /* and its own — this week's specifics */
     let monthGoal = null;    /* the rung between the quarter and this week */
@@ -431,6 +436,8 @@
 
     async function load(){
       v = migrate(await Store.get('vlogs', params.id));
+      try { const o = await Store.get('settings', PLAN_ORDER_KEY); planOrder = Array.isArray(o) ? o : null; } catch(e){ planOrder = null; }
+      planDefault = window.WeekDefault ? await WeekDefault.get() : null;
       today = await Data.currentDay();
       await dateWeekdays();
       clips = await Data.clips();
@@ -668,7 +675,7 @@
     }
     function render0(){
       if(!v){ Screens.pop(); return; }
-      if(mode === 'plan') return renderPlan();
+      if(mode === 'plan'){ const r = renderPlan(); planArrange(); return r; }
       if(mode === 'week') return renderWeek();
       if(mode === 'outline' && window.EditLine) return renderEdit();
       const prevView = el.querySelector('.view');
@@ -1123,11 +1130,11 @@
 
     /* v4: a section of the plan folded to one line until it's wanted
        (open or shut is remembered on this device) */
-    function fold(k, title, sub, body){
+    function fold(k, title, sub, body, blk){
       let open = false;
       try { open = localStorage.getItem('cs4-ep-fold-' + k) === '1'; } catch(e){}
       return `<details class="epfold" data-epfold="${k}"${open ? ' open' : ''}>
-        <summary><span class="t">${title}</span><span class="s">${esc(sub || '')}</span>
+        <summary><span class="t">${title}</span><span class="s">${esc(sub || '')}</span>${blk ? '<span class="epgrip" title="Drag to move this section — your order is kept for every episode" aria-label="Move this section">⠿</span>' : ''}
           <svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></summary>
         <div class="epfold-b">${body}</div></details>`;
     }
@@ -1150,26 +1157,33 @@
         <!-- the quarter has no button in the nav, so this is how you reach it.
              It also shows the rung above this week: the challenge these weekly
              experiments are building toward. -->
+        <div class="epblk" data-blk="quarter">
         ${quarter ? `<button class="qtline" data-a="openquarter">
           <span class="k">This quarter</span>
           <b>${quarter.name}</b>
           ${quarter.challenge ? `<small><b>Challenge:</b> ${quarter.challenge}</small>` : ''}
           ${monthGoal ? `<small><b>${monthGoal.label}:</b> ${monthGoal.goal}</small>` : ''}
-          ${ICON.chevR}
+          <span class="epgrip" title="Drag to move this section — your order is kept for every episode" aria-label="Move this section">⠿</span>${ICON.chevR}
         </button>` : `<button class="qtline empty" data-a="openquarter">
           <span class="k">No quarter yet</span>
           <b>Set one up</b>
           <small>The reading twelve weeks of experiments draw on.</small>
-          ${ICON.chevR}
+          <span class="epgrip" title="Drag to move this section — your order is kept for every episode" aria-label="Move this section">⠿</span>${ICON.chevR}
         </button>`}
+        </div>
 
+        <div class="epblk" data-blk="challenge">
         ${fold('challenge', 'The challenge', (() => { if(!window.Months) return ''; const x = Months.withExtras(v);
             return [x.skill, x.weeklyChallenge, x.result === 'W' ? 'Won' : x.result === 'L' ? 'Lost' : ''].filter(Boolean).join(' · ') || 'Skill, challenge, dates, result, script beats'; })(),
-          episodePanelHTML())}
+          episodePanelHTML(), true)}
+        </div>
 
+        <div class="epblk" data-blk="stands">
         ${fold('stands', 'Where this week stands', (() => { const all = everyBeat(v), dated = all.filter(x => x.beat.day);
-            return all.length ? `${all.length} beats · ${dated.length} dated` : 'Nothing written yet'; })(), standsHTML())}
+            return all.length ? `${all.length} beats · ${dated.length} dated` : 'Nothing written yet'; })(), standsHTML(), true)}
+        </div>
 
+        <div class="epblk" data-blk="week">
         ${fold('week', 'The week', [v.experiment, v.angle].filter(Boolean).map(t => String(t).slice(0, 60)).join(' · ') || 'Goal, angle, hook question, through-line, who it is for', `
 
         <div class="sp-line">
@@ -1202,8 +1216,10 @@
           <textarea id="pl-aud" data-spine="audience"
             placeholder="Who is watching this one, and what are they hoping to get out of it?"
             >${v.audience || ''}</textarea>
-        </div>`)}
+        </div>`, true)}
+        </div>
 
+        <div class="epblk" data-blk="research">
         ${fold('research', 'Research', weekSources.length ? `${weekSources.length} source${weekSources.length === 1 ? '' : 's'}` : 'The quotes, studies and examples behind this week', `
         <p class="hintline" style="margin:0 0 12px">The quotes, studies and examples behind
           <em>this</em> week, by the segment they're for. The quarter holds what all twelve draw on.</p>
@@ -1213,18 +1229,20 @@
         <div style="display:flex;gap:8px;margin:${weekSources.length ? '8px' : '0'} 0 4px">
           <button class="btn-ghost" data-a="rs-add" style="flex:1">+ Add</button>
           <button class="btn-ghost" data-a="rs-link" style="flex:1">Link existing</button>
-        </div>`)}
+        </div>`, true)}
+        </div>
 
+        <div class="epblk" data-blk="film">
         <div class="sec"><h2>What to film</h2><div class="rule"></div>
-          <span class="alt">${segs.length}</span></div>
-        <p class="hintline" style="margin:0 0 12px">Tap a sequence to plan its shots, or a day's name for the whole day.</p>
+          <span class="alt">${segs.length}</span><span class="epgrip" title="Drag to move this section — your order is kept for every episode" aria-label="Move this section">⠿</span></div>
+        <p class="hintline" style="margin:0 0 12px">Tap a sequence to plan its shots, or a day's name for the whole day. Drag a sequence to move it — hold it first on a phone.</p>
 
         ${byAct.length ? `<!-- v4: the week across, like a calendar: a column per day,
              its sequences down it; the day's name opens the day -->
           <div class="wkcols">${byAct.map(({ act, items }) => {
           const shots = items.reduce((n, x) => n + (x.beat.shots || []).length, 0);
           const got = items.reduce((n, x) => n + (x.beat.shots || []).filter(s2 => s2.done).length, 0);
-          return `<section class="wkcol${shots && got === shots ? ' all' : ''}">
+          return `<section class="wkcol${shots && got === shots ? ' all' : ''}" data-actzone="${act.id}">
               <button class="wkc-h" data-day="${act.id}" title="Open ${esc(act.title)}">
                 <b>${esc(act.title)}</b>
                 <small>${act.day != null ? dayLabel(act.day) : 'No date'}${shots ? ` · ${got}/${shots}` : ''}</small></button>
@@ -1250,9 +1268,50 @@
           <button class="btn-ghost" data-a="template" style="flex:1">${
             (quarter.template || []).length ? 'Edit the template' : 'Set up a week template'}</button>
         </div>` : ''}
+        <div class="wkdef">
+          <button class="btn-sm" data-a="weekdefault" title="New weekly vlogs start with this week's days and sequences — names, order, how they're filmed (never the shots)">☆ Make this week my default</button>
+          ${planDefault ? `<span class="wkdef-s">New weeks start from your default · ${esc(WeekDefault.summary(planDefault))}</span>
+            <button class="stg-link" data-a="weekdefault-clear">Back to Sequence 1 · 2 · 3</button>` : ''}
+        </div>
+        </div>
 
         <!-- v4: boards left for their own app again; the episode's board data is kept -->
       </div>`;
+    }
+
+    /* v4: the Plan's sections in your order, and dragging: a section by its ⠿,
+       a sequence card to another place in its day or to another day */
+    function planArrange(){
+      const view = el.querySelector('.view');
+      if(!view || !window.DragSort) return;
+      const blks = [...view.querySelectorAll(':scope > .epblk')];
+      if(blks.length && planOrder){
+        const anchor = blks[blks.length - 1].nextSibling;
+        const rank = k => { const i = planOrder.indexOf(k); return i < 0 ? 100 + PLAN_BLOCKS.indexOf(k) : i; };
+        blks.slice().sort((a, b) => rank(a.dataset.blk) - rank(b.dataset.blk)).forEach(b => view.insertBefore(b, anchor));
+      }
+      DragSort.wire(view, { item:'.epblk', handle:'.epgrip', axis:'y',
+        onDrop: async (it, zone, before) => {
+          if(before === it) return;
+          view.insertBefore(it, before || [...view.querySelectorAll(':scope > .epblk')].pop().nextSibling);
+          planOrder = [...view.querySelectorAll(':scope > .epblk')].map(b => b.dataset.blk);
+          await Store.put('settings', planOrder, PLAN_ORDER_KEY);
+          U.toast('Order kept — every episode shows it this way');
+        } });
+      const cols = view.querySelector('.wkcols');
+      if(cols) DragSort.wire(cols, { item:'.wkc-seq', zone:'.wkcol', axis:'y',
+        onDrop: async (it, zone, before) => {
+          const found = findBeat(it.dataset.beat);
+          const to = v.acts.find(a => a.id === zone.dataset.actzone);
+          if(!found || !to) return;
+          const { act:from, beat:b } = found;
+          from.beats = from.beats.filter(x => x.id !== b.id);
+          const i = before ? to.beats.findIndex(x => x.id === before.dataset.beat) : -1;
+          if(i < 0) to.beats.push(b); else to.beats.splice(i, 0, b);
+          if(to.id !== from.id) b.day = to.day ?? b.day ?? null;
+          await save(); render();
+          if(to.id !== from.id) U.toast(to.day != null ? `Moved to ${to.title} · ${dayLabel(to.day)}` : `Moved to ${to.title}`);
+        } });
     }
 
     /* ---- Shoot: the page you open at the tripod ----
@@ -1492,6 +1551,14 @@
       if(d && d.matches && d.matches('details[data-epfold]')) try { localStorage.setItem('cs4-ep-fold-' + d.dataset.epfold, d.open ? '1' : '0'); } catch(err){}
     }, true);
     el.addEventListener('click', async e => {
+      /* the ⠿ is for dragging: a tap on it neither opens a section nor follows a link */
+      if(e.target.closest('.epgrip')){ e.preventDefault(); e.stopPropagation(); return U.toast('Drag ⠿ to move this section — hold it first on a phone'); }
+      const wd = e.target.closest('[data-a="weekdefault"], [data-a="weekdefault-clear"]');
+      if(wd && window.WeekDefault){
+        if(wd.dataset.a === 'weekdefault-clear'){ await WeekDefault.clear(); planDefault = null; U.toast('New weeks start with Sequence 1 · 2 · 3 again'); return render(); }
+        if(!confirm(`New weekly vlogs will start with this week's days and sequences — ${WeekDefault.summary(WeekDefault.layoutOf(v))}. Names, order and how they're filmed; never the shots. Keep it as your default?`)) return;
+        planDefault = await WeekDefault.saveFrom(v); U.toast('Your default week is kept'); return render();
+      }
       const er = e.target.closest('[data-ep5res]');
       if(er){
         v.result = er.dataset.ep5res || null; await save(); render();
