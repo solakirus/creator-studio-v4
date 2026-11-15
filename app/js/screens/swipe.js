@@ -1114,6 +1114,40 @@
     let s;
     const save = async () => { await Store.put('swipes', s); params.onChange && params.onChange(); };
 
+    /* a swipe you want to live by — a stretch, a workout, a morning
+       routine — becomes a habit: on your to-do list each day it's due, with
+       this video on the task to follow along */
+    async function habitSheet(){
+      const tg = window.SwipeTags ? await SwipeTags.byId() : {};
+      const names = (s.tagIds || []).map(id => tg[id] && tg[id].tag.name).filter(Boolean);
+      const group = names.includes('Fitness') || names.some(n => /workout|stretch|form/i.test(n)) ? 'Body'
+        : names.includes('Mindset') ? 'Mind' : names.includes('Home & Garden') ? 'Home' : names.includes('Creator') || names.includes('Craft') ? 'Content' : '';
+      const OFTEN = [['daily', 'Every day', [0, 1, 2, 3, 4, 5, 6]], ['weekdays', 'Weekdays', [1, 2, 3, 4, 5]], ['mwf', 'Mon · Wed · Fri', [1, 3, 5]], ['weekends', 'Weekends', [0, 6]]];
+      let often = 'daily';
+      App.sheet(`<h2 style="margin:0 0 4px">Make it a habit</h2>
+        <p class="hintline" style="margin:0 0 12px">It goes on your to-do list each day it's due, with this video on it to follow along.</p>
+        <input class="fld" data-hname value="${U.esc(s.title || 'New habit')}" style="width:100%;height:46px;font-size:16px;padding:0 11px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--cream)">
+        <p class="k" style="margin:14px 0 6px;color:var(--muted);font-size:12px">How often</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${OFTEN.map(([k, n]) => `<button class="btn-sm" data-often="${k}" aria-pressed="${k === often}">${n}</button>`).join('')}</div>
+        <p class="k" style="margin:14px 0 6px;color:var(--muted);font-size:12px">What time (optional)</p>
+        <input type="time" data-htime style="width:100%;height:44px;font-size:16px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--cream)">
+        <div class="sheetcta"><button class="btn-primary" data-hok>Make it a habit</button><button class="btn-ghost" data-hno>Cancel</button></div>`, sh => {
+        sh.addEventListener('click', async ev => {
+          if(ev.target.closest('[data-hno]')) return App.closeSheet();
+          const of = ev.target.closest('[data-often]');
+          if(of){ often = of.dataset.often; sh.querySelectorAll('[data-often]').forEach(x => x.setAttribute('aria-pressed', String(x === of))); return; }
+          if(!ev.target.closest('[data-hok]')) return;
+          const name = sh.querySelector('[data-hname]').value.trim() || s.title || 'New habit';
+          const h = await Habits.save({ name, group, per:'day', days:OFTEN.find(x => x[0] === often)[2], at:sh.querySelector('[data-htime]').value || '',
+            source:{ type:'own' }, swipeId:s.id });
+          s.habitId = h.id; await save();
+          try { await Habits.ensureTasks(await Data.currentDay(), 7); } catch(e){}
+          App.closeSheet(); render();
+          U.toast(`“${h.name}” is a habit — on your to-do list with this video`);
+        });
+      });
+    }
+
     async function render(){
       s = await Store.get('swipes', params.id);
       if(!s){ Screens.pop(); return; }
@@ -1133,6 +1167,9 @@
         <div class="metaline">
           <button class="btn-sm" data-a="thumb">${thumbs[s.id] ? 'Change cover' : 'Add cover'}</button>
           ${s.url ? `<button class="btn-sm" data-a="open">↗ Open source</button>` : ''}
+          ${window.Habits ? await (async () => { const h = s.habitId ? await Habits.get(s.habitId) : null;
+            return h ? `<button class="btn-sm" data-a="habitopen" title="The habit made from this swipe">✓ Habit · ${U.esc(h.name)}</button>`
+              : `<button class="btn-sm accent" data-a="mkhabit" title="A routine you want to adopt — it goes on your to-do list, with this video on it">＋ Make it a habit</button>`; })() : ''}
           <span class="tg" style="color:${so.c};border:1px solid ${so.c};background:transparent">${so.n}</span>
         </div>
 
@@ -1332,6 +1369,8 @@
         });
       }
       if(a.dataset.a === 'open' && s.url) window.open(s.url, '_blank');
+      if(a.dataset.a === 'habitopen' && s.habitId) return Screens.push('habit', { id:s.habitId, onChange:render });
+      if(a.dataset.a === 'mkhabit') return habitSheet();
       if(a.dataset.a === 'idea'){
         if(!s.myAngle) return U.toast('Write your angle first — that becomes the idea');
         const lines = s.myAngle.split('\n').map(x => x.trim()).filter(Boolean);

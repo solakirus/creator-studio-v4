@@ -448,3 +448,28 @@ setView() does nothing (`cs4-shots-view` is no longer read). The day shows its
 sequences as Storyboard columns (Stop GIFs on the right when any shot has a
 frame); a sequence's page shows its cards. The Steps themselves still exist
 where a shot list becomes a task — a shoot task's screen, and shoot mode.
+
+## The swipe file sorts your life
+
+SwipeTags (swipetags.js) now leads with these groups, in this order:
+**Life area** (Creator · Craft · Fitness · Family · Mindset · Home & Garden),
+**Use it for** (Primer · Hook · Structure · B-roll idea · Thumbnail · Edit
+style, plus the older ones), **For which** (Weekly vlog · Series episode ·
+Short / Reel), **Technique** (VFX · Transition · Camera move · Color · Sound ·
+Text & graphics · Lighting), **Routine** (Workout · Stretch & mobility · Form
+check · Make it a habit) and **Status** (To try · Using now · Done). A saved
+list gets them added once (settings `swipe-tags-v2`, synced), in front of your
+own groups; a tag you delete afterwards stays deleted. A device with no saved
+list shows these plus the first starters (Vibe, Format), so older tags still
+show.
+
+**Transitions → ✂ My swipes**: a section of its own on the Transitions tab
+listing every swipe tagged *Transition* (under Technique, or the older Use it
+for), newest first, searchable; tap one to open the swipe.
+
+**Make it a habit**: a swipe's screen has ＋ Make it a habit — name (the
+swipe's title), how often (every day, weekdays, Mon·Wed·Fri, weekends), a time.
+It saves a habit with `swipeId` (group Body for Fitness/routines, Mind for
+Mindset, Home for Home & Garden, Content for Creator/Craft) and each day's
+habit task carries `swipeIds:[swipe]`, so the to-do item has the video on it.
+The swipe then shows ✓ Habit · name, which opens the habit.

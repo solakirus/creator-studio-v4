@@ -39,11 +39,32 @@
       return { recs, list };
     }
 
+    /* your own swipes about how to do a transition — tagged Transition (under
+       Technique, or the older Use it for) — in a section of their own */
+    async function mySwipes(){
+      if(!window.SwipeTags) return [];
+      const tg = await SwipeTags.byId();
+      const ids = new Set(Object.keys(tg).filter(id => /^transitions?$/i.test(tg[id].tag.name)));
+      if(!ids.size) return [];
+      let all = [];
+      try { all = (await Store.all('swipes')).values || []; } catch(e){}
+      let list = all.filter(x => x && !x.deleted && (x.tagIds || []).some(id => ids.has(id)));
+      if(q){ const words = q.toLowerCase().split(/\s+/).filter(Boolean); list = list.filter(x => { const hay = [x.title || '', x.hook || '', x.why || ''].join(' ').toLowerCase(); return words.every(w => hay.includes(w)); }); }
+      return list.sort((a, b) => (b.savedAt || b.createdAt || 0) - (a.savedAt || a.createdAt || 0));
+    }
+    const swCover = async x => {
+      try { const b = await Store.get('swipe-thumb', x.id); if(b) return `url(${URL.createObjectURL(b)})`; } catch(e){}
+      if(x.imageUrl) return `url('${String(x.imageUrl).replace(/'/g, '%27').replace(/"/g, '%22')}')`;
+      const po = window.Embed ? Embed.poster(x.url) : null;
+      return po ? `url(${po})` : U.generatedArt(x.id, x.title || '?', 300, 375);
+    };
+
     async function render(){
       if(!host.isConnected) return;
       const techs = await Transitions.techs();
       const gk = pick.startsWith('g:') ? pick.slice(2) : '';
-      if(!['all', 'kept'].includes(pick) && !gk && !techs.some(t => t.slug === pick)) setPick('all');
+      if(!['all', 'kept', 'swipes'].includes(pick) && !gk && !techs.some(t => t.slug === pick)) setPick('all');
+      const sws = await mySwipes();
       const { recs, list } = await shown();
       const count = slug => recs.filter(r => (r.tech || []).includes(slug)).length;
       const kept = recs.filter(r => r.kept).length;
@@ -67,7 +88,12 @@
           <input class="trs-search" type="search" value="${esc(q)}" placeholder="Search — whip, zoom, match…" aria-label="Search transitions">
           <button data-p="kept" aria-pressed="${pick === 'kept'}">★ Kept<i>${kept}</i></button>
           <button data-p="all" aria-pressed="${pick === 'all'}">All<i>${recs.length}</i></button>
+          <button data-p="swipes" aria-pressed="${pick === 'swipes'}">✂ My swipes<i>${sws.length}</i></button>
         </div>
+        ${pick === 'swipes' ? `<p class="trs-swnote">Your own swipe-file videos on how to do a transition — anything tagged <b>Transition</b>. Tap one to open it.</p>
+          ${sws.length ? `<div class="trs-swgrid">${(await Promise.all(sws.map(async x => `<button class="trs-sw" data-swopen="${esc(x.id)}">
+              <i style="background-image:${await swCover(x)}"></i><b>${esc(x.title || 'Untitled swipe')}</b>${x.hook ? `<small>${esc(x.hook.slice(0, 90))}</small>` : ''}</button>`))).join('')}</div>`
+            : `<div class="empty"><b>${q ? `No swipes match “${esc(q)}”` : 'No transition swipes yet'}</b>In the swipe file, tag a video <i>Technique → Transition</i> and it shows up here.</div>`}` : `
         <div class="trs-sels">
           <label class="trs-selw${og ? ' on' : ''}"><select data-type aria-label="Type">
             <option value="" ${og ? '' : 'selected'}>All types</option>
@@ -91,7 +117,7 @@
           : `<div class="empty"><b>${pick === 'kept' ? 'Nothing kept yet' : cur ? 'Not read yet' : 'No transitions yet'}</b>${
               pick === 'kept' ? 'Open one and tap ☆ Keep — the ones you use go here.'
               : can ? `Tap “${cur ? 'Read from Eyecandy' : 'Read …'}” and the app looks at ${cur ? 'its page' : 'their pages'} for you — links only, nothing is downloaded.`
-              : 'Open the Transitions tab on the laptop and read them from Eyecandy there. They show up here on their own.'}</div>`}`;
+              : 'Open the Transitions tab on the laptop and read them from Eyecandy there. They show up here on their own.'}</div>`}`}`;
       Transitions.wireImgs(host);
       if(sel){ const f = host.querySelector('.trs-search'); f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
     }
@@ -182,6 +208,8 @@
       qt = setTimeout(() => { q = e.target.value.trim(); render(); }, 220);
     });
     host.addEventListener('click', async e => {
+      const so = e.target.closest('[data-swopen]');
+      if(so) return Screens.push('swipe', { id:so.dataset.swopen, onChange:render });
       const p = e.target.closest('[data-p]');
       if(p){ setPick(p.dataset.p); setOpen(''); return render(); }
       const a = e.target.closest('[data-a]');

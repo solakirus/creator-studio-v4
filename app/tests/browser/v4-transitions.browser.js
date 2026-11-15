@@ -60,7 +60,7 @@ const top = '.screen:last-child';
     await p.click('.ctnav [data-v="transitions"]'); await p.waitForSelector('#trHost .trs-pills'); await p.waitForTimeout(300);
     const groups = await p.$$eval('#trHost [data-type] option', x => x.map(y => y.textContent.trim()));
     ok(groups.length === 5 && /^Transitions & cuts/.test(groups[1]), 'the starter techniques sit in their types', groups.join(' | '));
-    ok((await p.$$('#trHost .trs-top > button')).length === 2 && !!(await p.$('#trHost .trs-search')), 'the top row is search, Kept and All');
+    ok((await p.$$('#trHost .trs-top > button')).length === 3 && !!(await p.$('#trHost .trs-search')) && !!(await p.$('#trHost [data-p="swipes"]')), 'the top row is search, Kept, All and My swipes');
     ok(await p.$eval('#trHost [data-tech]', x => x.disabled), 'the technique drop-down waits for a type');
     await p.selectOption('#trHost [data-type]', 'cuts'); await p.waitForTimeout(300);
     const pills = await p.$$eval('#trHost [data-tech] option', x => x.map(y => y.textContent.trim()));

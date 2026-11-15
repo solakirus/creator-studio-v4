@@ -69,6 +69,8 @@
         unit: type === 'own' ? String(src.unit || '').trim() : ''
       },
       at: h.at || '',
+      /* v4: made from a swipe (a routine to follow) — its daily task links it */
+      swipeId: h.swipeId || null,
       order: h.order == null ? Date.now() : h.order,
       createdKey: h.createdKey || keyOf(Date.now()),
       createdAt: h.createdAt || Date.now(),
@@ -126,6 +128,7 @@
       pri: 'med', at: h.at || '', mins: 0,
       prog: amount ? (`0 / ${amount} ${h.source.unit || ''}`).trim() : '',
       subs: [], shots: [], view: 'todo',
+      ...(h.swipeId ? { swipeIds:[h.swipeId] } : {}),
       habitId: h.id, series: 'habit:' + h.id
     };
   }

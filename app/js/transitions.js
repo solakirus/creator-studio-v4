@@ -436,6 +436,14 @@
       <img alt="" hidden referrerpolicy="no-referrer"><i>Can’t load here</i>
       <span>${r.kept ? '★ ' : ''}${esc(r.title || techName((r.tech || [])[0]))}</span></button>`;
   const CSS = `
+  .trs-swnote{margin:0 0 12px;color:var(--muted);font-size:13.5px}
+  .trs-swnote b{color:var(--cream)}
+  .trs-swgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+  .trs-sw{display:flex;flex-direction:column;gap:6px;padding:0 0 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);color:var(--cream);font:inherit;text-align:left;cursor:pointer;overflow:hidden}
+  .trs-sw:hover{border-color:var(--orange)}
+  .trs-sw i{display:block;aspect-ratio:4/5;background-size:cover;background-position:center;background-color:#221F1A}
+  .trs-sw b{padding:0 10px;font-size:14px;line-height:1.3}
+  .trs-sw small{padding:0 10px;color:var(--muted);font-size:12px;line-height:1.35}
   .trs-pills{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
   .trs-pills button{flex:0 0 auto;height:34px;padding:0 12px;border-radius:var(--r);border:1px solid var(--line);background:var(--surface-1);color:var(--cream);font-size:14px;white-space:nowrap;cursor:pointer}
   .trs-top{overflow:visible;flex-wrap:nowrap;align-items:center}

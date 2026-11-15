@@ -29,11 +29,49 @@
       const id = sid('tg', name);
       return { id, name, tags: tags.map((t, i) => ({ id: sid('tag', id, t), name: t, color: COLORS[i % COLORS.length] })) };
     };
-    return [
+    /* the first starters, so a swipe tagged with one before any list was
+       saved keeps its tag; the new groups go in front of them */
+    return withSpec([
       g('Use it for', ['Hook', 'B-roll idea', 'Edit style', 'Thumbnail', 'Transition']),
       g('Vibe', ['Funny', 'Cinematic', 'Motivational']),
       g('Format', ['Talking head', 'Voiceover', 'Day in the life'])
-    ];
+    ]);
+  }
+  /* v4 (Nov 2026): the swipe file sorts your whole life, not just videos —
+     a Life area first (one per swipe), then the groups that matter for some
+     areas. Added into a list you already have once (settings 'swipe-tags-v2',
+     which syncs, so every device does it once and a tag you later delete
+     stays deleted); your own groups and tags stay, after these. */
+  const SPEC = [
+    ['Life area', ['Creator', 'Craft', 'Fitness', 'Family', 'Mindset', 'Home & Garden']],
+    ['Use it for', ['Primer', 'Hook', 'Structure', 'B-roll idea', 'Thumbnail', 'Edit style']],
+    ['For which', ['Weekly vlog', 'Series episode', 'Short / Reel']],
+    ['Technique', ['VFX', 'Transition', 'Camera move', 'Color', 'Sound', 'Text & graphics', 'Lighting']],
+    ['Routine', ['Workout', 'Stretch & mobility', 'Form check', 'Make it a habit']],
+    ['Status', ['To try', 'Using now', 'Done']]
+  ];
+  const V2 = 'swipe-tags-v2';
+  function withSpec(list){
+    const out = clone(list);
+    const front = [];
+    SPEC.forEach(([n, tags]) => {
+      const id = sid('tg', n);
+      let gr = out.find(x => x.id === id) || out.find(x => x.name.toLowerCase() === n.toLowerCase());
+      if(gr) out.splice(out.indexOf(gr), 1); else gr = { id, name:n, tags:[] };
+      tags.forEach(t => { if(!gr.tags.some(x => x.name.toLowerCase() === t.toLowerCase()))
+        gr.tags.push({ id:sid('tag', gr.id, t), name:t, color:COLORS[gr.tags.length % COLORS.length] }); });
+      front.push(gr);
+    });
+    return front.concat(out);
+  }
+  async function upgrade(list){
+    let done = false;
+    try { done = !!(await Store.get('settings', V2)); } catch(e){}
+    if(done) return list;
+    const next = withSpec(list);
+    await Store.put('settings', next, KEY);
+    await Store.put('settings', true, V2);
+    return next;
   }
 
   let cache = null;
@@ -41,7 +79,7 @@
     if(cache) return cache;
     let list;
     try { list = await Store.get('settings', KEY); } catch(e){}
-    cache = Array.isArray(list) ? list : starters();
+    cache = Array.isArray(list) ? await upgrade(list) : starters();
     return cache;
   }
   const invalidate = () => { cache = null; vcache = null; bcache = null; };
