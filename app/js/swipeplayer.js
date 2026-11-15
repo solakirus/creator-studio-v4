@@ -143,6 +143,7 @@
     box.innerHTML = `
       <div class="spl-top">
         <span class="spl-count"></span>
+        <button class="spl-alt" data-spl="igalt" hidden title="Instagram has a few players for the same post — try the next one">↻ Try another way</button>
         <button class="spl-x" data-spl="close" aria-label="Close">✕</button>
       </div>
       <div class="spl-mid">
@@ -155,7 +156,6 @@
         <div class="spl-sort"></div>
         <div class="spl-acts">
           <span class="spl-own"></span>
-          <button class="btn-sm" data-spl="igalt" hidden title="Instagram has a few players for the same post — try the next one">↻ Try another way</button>
           <button class="btn-sm" data-spl="swipe">Open the swipe</button>
           <button class="btn-sm" data-spl="source"></button>
         </div>

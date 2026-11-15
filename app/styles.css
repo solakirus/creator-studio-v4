@@ -4195,6 +4195,9 @@ html.spl-open,html.spl-open body{overflow:hidden}
   padding:calc(var(--sat,0px) + 10px) 12px calc(var(--sab,0px) + 14px);touch-action:pan-y}
 .spl-top{display:flex;align-items:center;justify-content:space-between;min-height:40px}
 .spl-count{color:var(--muted);font-size:13.5px;padding-left:4px}
+.spl-alt{margin-left:auto;margin-right:10px;height:32px;padding:0 12px;border:1px solid var(--line);border-radius:16px;background:rgba(21,19,18,.7);color:var(--cream);font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+.spl-alt:hover{border-color:var(--orange)}
+.spl-alt[hidden]{display:none}
 .spl-x{width:40px;height:40px;border-radius:50%;border:1px solid rgba(237,229,210,.25);background:rgba(21,21,21,.7);
   color:var(--cream);font-size:17px;cursor:pointer}
 .spl-mid{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;gap:12px}
