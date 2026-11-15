@@ -205,12 +205,11 @@ async function freshen(job, t) {
   return freshened;
 }
 
-async function grabVideo(job, t, url, outRoot, o) {
-  const site = siteOf(url);
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cs3-grab-'));
-  job.emit(`▶ ${url}`);
+/* yt-dlp one video into tmp, with the sign-in fallbacks (below) — for a
+   whole grab (grabVideo) and a reference's section (grabSection) */
+async function fetchVideo(job, t, url, tmp, o, extra) {
   const base = ['--no-playlist', '--no-part', '--no-mtime', '--newline', '--restrict-filenames',
-    '-f', VIDEO_FORMAT, '--merge-output-format', 'mp4', '--ffmpeg-location', path.dirname(t.ffmpeg),
+    '-f', (extra && extra.format) || VIDEO_FORMAT, ...((extra && extra.args) || []), '--merge-output-format', 'mp4', '--ffmpeg-location', path.dirname(t.ffmpeg),
     '-o', path.join(tmp, 'video.%(ext)s'),
     '--print', 'before_dl:@@T %(title)s', '--print', 'after_move:@@F %(filepath)s', '--no-simulate'];
   /* v4: the app's own sign-in (made in its window, borrowed or pasted) comes
@@ -271,6 +270,40 @@ async function grabVideo(job, t, url, outRoot, o) {
     const any = fs.readdirSync(tmp).find(f => /\.(mp4|webm|mkv|mov)$/i.test(f));
     if (any) file = path.join(tmp, any);
   }
+  if (!file || !fs.existsSync(file)) {
+    const any = fs.readdirSync(tmp).find(f => /\.(mp4|webm|mkv|mov)$/i.test(f));
+    if (any) file = path.join(tmp, any);
+  }
+  return { r, title, file };
+}
+
+/* v4: a reference on a shot (refclip.js) — just start→end of a video, kept
+   as an mp4 to watch with sound, and a 3-second GIF from its start for the
+   shot card. Files stay in a temp folder; the app reads them in and keeps
+   them in its own Library (References), then they're deleted here. */
+async function grabSection(job, t, url, start, end, o) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cs4-ref-'));
+  start = Math.max(0, +start || 0); end = Math.max(0, +end || 0);
+  const span = `*${start}-${end > start ? end : 'inf'}`;
+  job.emit(`▶ ${url}  (${span.slice(1)} s)`);
+  const { r, title, file } = await fetchVideo(job, t, url, tmp, o || {}, { args: ['--download-sections', span, '--force-keyframes-at-cuts'] });
+  if (job.stopped) return { ok: false, why: 'Stopped' };
+  if (r.code !== 0 || !file) {
+    const why = (r.err.match(/ERROR:.*$/m) || [''])[0].replace(/^ERROR:\s*/, '');
+    return { ok: false, why: why || 'yt-dlp couldn’t get it', tmp };
+  }
+  const gif = path.join(tmp, 'ref.gif');
+  const g = await job.run(t.ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', '-ss', '0', '-t', '3', '-i', file,
+    '-filter_complex', `fps=${GIF_FPS},scale='min(${GIF_W},iw)':-2:flags=lanczos,split[a][b];[a]palettegen=max_colors=${GIF_COLOURS}:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4`,
+    '-loop', '0', gif]);
+  return { ok: true, title, clip: file, gif: g.code === 0 && fs.existsSync(gif) ? gif : null, tmp };
+}
+
+async function grabVideo(job, t, url, outRoot, o) {
+  const site = siteOf(url);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cs3-grab-'));
+  job.emit(`▶ ${url}`);
+  const { r, title, file } = await fetchVideo(job, t, url, tmp, o);
   if (job.stopped) return 0;
   if (r.code !== 0 || !file) {
     const why = (r.err.match(/ERROR:.*$/m) || [''])[0];
@@ -556,6 +589,6 @@ async function setup(job, t) {
   return code;
 }
 
-module.exports = { Browser, tools, grab, scan, setup, makeJob, isVideoLink, isSocial, postLink, mediaOn, cutTimes, SCENE, GIF_FPS, GIF_W, MIN_SHOT };
+module.exports = { Browser, tools, grab, grabSection, scan, setup, makeJob, isVideoLink, isSocial, postLink, mediaOn, cutTimes, SCENE, GIF_FPS, GIF_W, MIN_SHOT };
 /* tests: forget that yt-dlp was already updated this run */
 module.exports._resetFreshen = () => { freshened = null; };

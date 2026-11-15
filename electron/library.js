@@ -302,6 +302,29 @@ function wire({ ipcMain, dialog, shell, net, getWin }) {
     try { return await Builtin.Browser.isSignedIn(String(url || '')); } catch (err) { return false; }
   });
 
+  /* v4: a reference's section, for a shot (refclip.js): the mp4 and a
+     3-second GIF come back as bytes, and the temp files go */
+  let refBusy = false;
+  ipcMain.handle('cs4:ref-grab', async (e, o) => {
+    if (refBusy) return { ok: false, why: 'Already grabbing a reference — one at a time' };
+    const t = Builtin.tools();
+    if (!(t.ytdlp && t.ffmpeg)) return { ok: false, why: 'yt-dlp isn’t installed yet — open the Grabber and press “Install yt-dlp and ffmpeg”' };
+    refBusy = true;
+    const lines = [];
+    const b = Builtin.makeJob(l => { lines.push(l); try { e.sender.send('cs4:ref-line', l); } catch (err) {} });
+    let res;
+    try { res = await Builtin.grabSection(b, t, String(o && o.url || ''), +(o && o.start) || 0, +(o && o.end) || 0, { cookies: o && o.cookies }); }
+    catch (err) { res = { ok: false, why: err.message }; }
+    refBusy = false;
+    const out = { ok: !!res.ok, why: res.why || '', title: res.title || '', lines: lines.slice(-12) };
+    if (res.ok) {
+      try { out.clip = fs.readFileSync(res.clip); } catch (err) { out.ok = false; out.why = 'The download went missing'; }
+      try { if (res.gif) out.gif = fs.readFileSync(res.gif); } catch (err) { /* no gif */ }
+    }
+    if (res.tmp) { try { fs.rmSync(res.tmp, { recursive: true, force: true }); } catch (err) {} }
+    return out;
+  });
+
   ipcMain.handle('cs3:grab-run', (e, o) => {
     if (job) return { ok: false, why: 'A grab is already running' };
     if (!kitReady(o.setting)) {

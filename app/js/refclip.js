@@ -10,7 +10,17 @@
      RefClip.label(v)             "0:10 – 1:23"
      RefClip.site(url)            "YouTube"
      await RefClip.edit(v, title) → { url, start, end, n } | 'clear' | null
-     RefClip.play(v, title)       the pop-out player, that section only */
+     RefClip.play(v, title)       that section: the grabbed copy when there is
+                                  one, else the site's player
+     RefClip.canGrab()            the laptop app, with its grabber
+     await RefClip.grab(v, title) → v with gif + clip (Library uids, References)
+     await RefClip.drop(v)        → v without its grabbed copy
+     await RefClip.cleanup()      grabbed copies go 3 days after the episode is
+                                  posted (its Edit walkthrough all ticked)
+
+   The grabbed copy (laptop only — the Library's own files don't sync): the
+   section as an mp4 to watch with sound, and a 3-second GIF of its start
+   that loops on the shot card. vref.gif / vref.clip are its Library uids. */
 (function(global){
   const esc = s => global.U && U.esc ? U.esc(s) : String(s == null ? '' : s);
 
@@ -50,8 +60,30 @@
   const label = v => !v ? '' : v.start || v.end ? `${fmt(v.start || 0)} – ${v.end ? fmt(v.end) : 'end'}` : 'whole video';
   const isYT = url => !!(global.Embed && Embed.youtubeId && Embed.youtubeId(url));
 
-  function play(v, title){
-    if(!v || !v.url || !global.SwipePlayer) return;
+  /* the grabbed copy, played here — no site player, so no sign-in */
+  async function localUrl(uid){
+    if(!uid || !global.MediaLib) return null;
+    try { const lib = await MediaLib.load(); const it = MediaLib.find(lib, uid); return it ? await MediaLib.url(it) : null; } catch(e){ return null; }
+  }
+  function playLocal(src, v, title){
+    css();
+    const box = document.createElement('div');
+    box.className = 'rc-pop';
+    box.innerHTML = `<div class="rc-popin"><video src="${esc(src)}" controls autoplay playsinline></video>
+      <p>${esc((title ? title + ' · ' : '') + 'reference · ' + label(v))} <small>· the grabbed copy</small></p>
+      <button class="rc-x" aria-label="Close">✕</button></div>`;
+    const close = () => { document.removeEventListener('keydown', key, true); box.remove(); };
+    const key = e => { if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); close(); } };
+    box.addEventListener('click', e => { if(e.target === box || e.target.closest('.rc-x')) close(); });
+    document.addEventListener('keydown', key, true);
+    document.body.appendChild(box);
+  }
+
+  async function play(v, title){
+    if(!v || !v.url) return;
+    const local = v.clip ? await localUrl(v.clip) : null;
+    if(local) return playLocal(local, v, title);
+    if(!global.SwipePlayer) return;
     const t = (title ? title + ' · ' : '') + 'reference · ' + label(v);
     /* ↗ opens it on the site at From — YouTube takes t= */
     let openUrl = v.url;
@@ -59,6 +91,57 @@
     SwipePlayer.open([{ id:'vref', title:t, url:v.url, openUrl, start:v.start || 0, end:v.end || 0 }], 0, { noun:'reference' });
     if(!isYT(v.url) && (v.start || v.end) && global.U && U.toast) U.toast(`${site(v.url)} plays it all — watch ${label(v)}`);
   }
+
+  const canGrab = () => !!(global.CS3Lib && CS3Lib.refGrab);
+  async function grab(v, title){
+    if(!canGrab() || !v || !v.url) return null;
+    let cookies = 'none';
+    try { const s = MediaLib.settings ? await MediaLib.settings() : null; if(s && s.cookies) cookies = s.cookies; } catch(e){}
+    const r = await CS3Lib.refGrab({ url:v.url, start:v.start || 0, end:v.end || 0, cookies });
+    if(!r || !r.ok){
+      const tip = (r && r.lines || []).filter(l => /Firefox|sign in|close/i.test(l)).pop();
+      throw new Error((r && r.why ? r.why : 'Couldn’t grab it') + (tip ? ' — ' + tip.trim() : ''));
+    }
+    const name = (title || 'Reference').slice(0, 60);
+    const o = { label:`${name} · ${label(v)}`, library:'References', page:'Grabbed sections', link:v.url, source:v.url };
+    const clip = await MediaLib.addBlob(new Blob([r.clip], { type:'video/mp4' }), { ...o, kind:'video', name:'reference.mp4' });
+    const gif = r.gif ? await MediaLib.addBlob(new Blob([r.gif], { type:'image/gif' }), { ...o, kind:'gif', name:'reference.gif' }) : null;
+    return { ...v, clip, ...(gif ? { gif } : {}), grabbedAt:Date.now() };
+  }
+  async function drop(v){
+    if(!v) return v;
+    const ids = [v.gif, v.clip].filter(Boolean);
+    if(ids.length && global.MediaLib) try { await MediaLib.remove(ids); } catch(e){}
+    const o = { ...v }; delete o.gif; delete o.clip; delete o.grabbedAt;
+    return o;
+  }
+  /* an episode is posted when its Edit walkthrough is all ticked; its
+     grabbed references go 3 days after the last tick */
+  const KEEP_DAYS = 3;
+  function postedAt(vlog){
+    const L = Array.isArray(vlog.editSteps) ? vlog.editSteps : [];
+    if(!L.length || L.some(x => !x.done)) return 0;
+    return Math.max(0, ...L.map(x => +x.at || 0));
+  }
+  async function cleanup(now){
+    if(!global.Store || !global.MediaLib) return 0;
+    now = now || Date.now();
+    let vlogs = [];
+    try { vlogs = (await Store.all('vlogs')).values || []; } catch(e){ return 0; }
+    let n = 0;
+    for(const v of vlogs){
+      const at = postedAt(v);
+      if(!at || now - at < KEEP_DAYS * 86400000) continue;
+      let changed = false;
+      for(const a of v.acts || []) for(const b of a.beats || []) for(const sh of b.shots || []){
+        if(sh && sh.vref && (sh.vref.gif || sh.vref.clip)){ sh.vref = await drop(sh.vref); changed = true; n++; }
+      }
+      if(changed) await Store.put('vlogs', v);
+    }
+    return n;
+  }
+  /* once a while after the app opens, on the device that holds the copies */
+  if(global.addEventListener) global.addEventListener('load', () => setTimeout(() => { cleanup().catch(() => {}); }, 20000));
 
   function edit(v, title){
     v = v || {};
@@ -117,9 +200,17 @@
     .rc-msg{color:var(--red)}
     .rc-chip{display:flex;align-items:center;gap:6px}
     .rc-play{flex:1;min-width:0;height:32px;padding:0 10px;border:1px solid rgba(232,133,58,.5);border-radius:var(--r);background:rgba(232,133,58,.1);color:#F2B27A;font:inherit;font-size:13px;font-weight:600;text-align:left;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .rc-n{font-size:12.5px;color:var(--muted);line-height:1.4;margin:-2px 0 0}`;
+    .rc-n{font-size:12.5px;color:var(--muted);line-height:1.4;margin:-2px 0 0}
+    .rc-play .rc-gif{display:inline-block;width:46px;height:26px;margin:-4px 7px -9px -4px;border-radius:3px;overflow:hidden;vertical-align:middle;background:#221F1A}
+    .rc-gif img,.rc-gif canvas,.rc-gif video{width:100%;height:100%;object-fit:cover;display:block}
+    .rc-gif i{display:none}
+    .rc-pop{position:fixed;inset:0;z-index:9999;background:rgba(10,9,8,.88);display:flex;align-items:center;justify-content:center;padding:20px}
+    .rc-popin{position:relative;max-width:min(1000px,100%);width:100%;display:flex;flex-direction:column;gap:10px}
+    .rc-popin video{width:100%;max-height:78vh;background:#000;border-radius:var(--r)}
+    .rc-popin p{margin:0;color:var(--cream);font-weight:700;text-align:center}.rc-popin small{color:var(--muted);font-weight:400}
+    .rc-x{position:absolute;top:-12px;right:-6px;width:40px;height:40px;border-radius:50%;border:1px solid rgba(237,229,210,.25);background:rgba(21,21,21,.8);color:var(--cream);font-size:16px;cursor:pointer}`;
     document.head.appendChild(st);
   }
 
-  global.RefClip = { fmt, parse, timeIn, site, label, edit, play, css };
+  global.RefClip = { fmt, parse, timeIn, site, label, edit, play, css, canGrab, grab, drop, cleanup, postedAt, KEEP_DAYS };
 })(window);

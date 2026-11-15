@@ -556,3 +556,22 @@ and YouTube's embedded player answered with "Sign in to confirm you're not a
 bot". main.js now sets a plain Chrome agent on the app's session (and
 `app.userAgentFallback`), as the grab window already did. A reference's ↗
 YouTube opens the video at its From time (`openUrl` with t=).
+
+### Grabbing a reference section (laptop)
+
+On the laptop a reference has **⬇ Grab**. electron/library.js `cs4:ref-grab`
+→ grab-builtin.js `grabSection`: yt-dlp downloads just start→end
+(`--download-sections *10-83 --force-keyframes-at-cuts`, ≤720p, with the same
+sign-in fallbacks as a grab — `fetchVideo`), then ffmpeg makes a 3-second GIF
+from its start. Both come back as bytes, go into the app's Library
+(References · Grabbed sections, MediaLib.addBlob) and the temp files go;
+`vref.clip` / `vref.gif` are their uids. The card's reference button then
+shows the GIF looping, "· grabbed", and 🗑; playing it opens the grabbed mp4
+in the app (RefClip.playLocal) — no site player, so no sign-in. Changing the
+link or times deletes the old copy. The Library's own files don't sync, so the
+phone keeps playing the link.
+
+**Cleanup**: an episode counts as posted when every step of its Edit
+walkthrough is ticked; `RefClip.cleanup()` (20 s after the app opens) deletes
+the grabbed copies of its shots 3 days after the last tick, keeping the link
+and times.

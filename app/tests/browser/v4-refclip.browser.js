@@ -12,6 +12,8 @@ const ok = (c, l, x) => { console.log(`  ${c ? 'ok  ' : 'FAIL'}  ${l}${x !== und
 const appDir = path.resolve(__dirname, '../..');
 const url = 'file:///' + path.join(appDir, 'index.html').replace(/\\/g, '/');
 const top = '.screen:last-child';
+const FIX = f => fs.readFileSync(path.join(__dirname, '..', 'fixtures', f)).toString('base64');
+const CLIP = FIX('clip.webm'), GIFB = FIX('opener.gif');
 
 (async () => {
   fs.mkdirSync(out, { recursive: true });
@@ -58,6 +60,40 @@ const top = '.screen:last-child';
     await p.evaluate(() => SwipePlayer.close()); await p.click('[data-next]'); await p.waitForTimeout(500);
     ok(!(await p.$('.sr [data-vref]')), 'a shot with no reference has no button');
     await p.evaluate(() => Screens.pop()); await p.waitForTimeout(700);
+    /* grab just that section on the laptop: a 3-second GIF on the card, the clip plays here */
+    await p.evaluate(([clip, gif]) => {
+      const bytes = b64 => { const bin = atob(b64), u8 = new Uint8Array(bin.length); for(let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return u8; };
+      window.CS3Lib = { ...(window.CS3Lib || {}), refGrab: async o => { window._grabbed = o; return { ok:true, title:'Test', clip:bytes(clip), gif:bytes(gif), lines:[] }; } };
+    }, [CLIP, GIFB]);
+    await p.evaluate(() => Screens.replace ? Screens.replace('vlog-day', { vlogId:'v1', actId:'a1' }) : null); await p.waitForTimeout(1500);
+    ok(!!(await p.$(`${top} [data-sbvgrab="0"]`)), 'on the laptop a reference has ⬇ Grab');
+    await p.click(`${top} [data-sbvgrab="0"]`); await p.waitForTimeout(2500);
+    s = await shots();
+    const lib = await p.evaluate(async ids => { const l = await MediaLib.load(); return ids.map(id => { const it = MediaLib.find(l, id); return it ? it.kind + ':' + it.page.split('|')[1] : null; }); }, [s[0].vref.gif, s[0].vref.clip]);
+    ok(s[0].vref.clip && s[0].vref.gif && lib.join() === 'gif:References,video:References', 'it keeps the section and a 3-second GIF in the Library (References)', lib.join());
+    ok(await p.evaluate(() => window._grabbed.start === 10 && window._grabbed.end === 83), 'it asks for just 0:10 to 1:23');
+    ok(/grabbed/.test(await p.textContent(`${top} [data-sbvplay="0"]`)) && !!(await p.$(`${top} [data-sbvplay="0"] .rc-gif`)), 'the card shows the GIF and “grabbed”');
+    await p.screenshot({ path: path.join(out, `refgrab-${name}.png`) });
+    await p.click(`${top} [data-sbvplay="0"]`); await p.waitForTimeout(800);
+    ok(!!(await p.$('.rc-pop video[src^="blob:"]')) && !(await p.$('.spl-frame')), 'playing it plays the grabbed copy here — no YouTube player');
+    await p.click('.rc-pop .rc-x'); await p.waitForTimeout(300);
+    await p.click(`${top} [data-sbvdrop="0"]`); await p.waitForTimeout(1200);
+    s = await shots();
+    ok(!s[0].vref.clip && !s[0].vref.gif && s[0].vref.url && /⬇ Grab/.test(await p.textContent(`${top} [data-sbvgrab="0"]`)), '🗑 deletes the grabbed copy; the link and times stay');
+    /* 3 days after the episode is posted, it goes on its own */
+    await p.click(`${top} [data-sbvgrab="0"]`); await p.waitForTimeout(2500);
+    const res = await p.evaluate(async () => {
+      const v = await Store.get('vlogs', 'v1'); const uid = v.acts[0].beats[0].shots[0].vref.clip;
+      v.editSteps = [{ n:'Import', done:true, at:Date.now() - 86400000 }, { n:'Post', done:true, at:Date.now() - 86400000 }]; await Store.put('vlogs', v);
+      const early = await RefClip.cleanup();
+      v.editSteps.forEach(x => { x.at = Date.now() - 4 * 86400000; }); await Store.put('vlogs', v);
+      const late = await RefClip.cleanup();
+      const after = await Store.get('vlogs', 'v1');
+      return { early, late, clip:after.acts[0].beats[0].shots[0].vref.clip || null, url:after.acts[0].beats[0].shots[0].vref.url, inLib:!!MediaLib.find(await MediaLib.load(), uid) };
+    });
+    ok(res.early === 0 && res.late === 1 && !res.clip && res.url && !res.inLib, 'posted 1 day ago it stays; 4 days ago the copy is deleted (the link stays)', JSON.stringify(res));
+    await p.evaluate(() => Screens.replace ? Screens.replace('vlog-day', { vlogId:'v1', actId:'a1' }) : null); await p.waitForTimeout(1500);
+
     /* take it off */
     await p.click(`${top} [data-sbvedit="0"]`); await p.waitForTimeout(500);
     await p.click('#sheet [data-rcoff]'); await p.waitForTimeout(1200);

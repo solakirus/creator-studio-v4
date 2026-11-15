@@ -143,7 +143,10 @@
               const seqRow = seqSet ? `<div class="sb-seqrow"><button class="sb-seq" data-sbseq="${i}" title="Open the shots inside this one">▦ Sequence · ${nseq} shot${nseq === 1 ? '' : 's'}${s.seq.slots.some(x => x.item) ? ` · ${s.seq.slots.filter(x => x.item).length} with frames` : ''}</button>
                   ${A.host ? `<button class="lv-btn sm ghost" data-sbshoot="${i}" title="Shoot mode from this shot: it, then the shots inside it, then the next">▶</button>` : ''}
                   <button class="lv-btn sm ghost" data-sbunseq="${i}" title="Take the sequence off (back to one picture)" aria-label="Take the sequence off">✕</button></div>` : '';
-              const refRow = refSet ? `<div class="rc-chip"><button class="rc-play" data-sbvplay="${i}" title="Play just that section">▶ Reference · ${esc(RefClip.site(s.vref.url))} · ${esc(RefClip.label(s.vref))}</button>
+              const got = refSet && s.vref.clip;
+              const refRow = refSet ? `<div class="rc-chip"><button class="rc-play" data-sbvplay="${i}" title="${got ? 'Play the grabbed copy' : 'Play just that section'}">${got && s.vref.gif ? `<span class="rc-gif" data-slpic="${esc(s.vref.gif)}"></span>` : '▶ '}Reference · ${esc(RefClip.site(s.vref.url))} · ${esc(RefClip.label(s.vref))}${got ? ' · grabbed' : ''}</button>
+                  ${got ? `<button class="lv-btn sm ghost" data-sbvdrop="${i}" title="Delete the grabbed copy (the link stays)" aria-label="Delete the grabbed copy">🗑</button>`
+                    : RefClip.canGrab() ? `<button class="lv-btn sm ghost" data-sbvgrab="${i}" title="Download just this section — plays here with no sign-in, as a 3-second GIF on the card" aria-label="Grab this section">⬇ Grab</button>` : ''}
                   <button class="lv-btn sm ghost" data-sbvedit="${i}" title="Change the link or the times" aria-label="Change the reference">✎</button></div>${s.vref.n ? `<p class="rc-n">${esc(s.vref.n)}</p>` : ''}` : '';
               const adds = [global.Notebook && !nseq ? `<button class="sb-seqadd" data-sbmkseq="${i}" title="Shots inside this shot — shoot mode runs through them, then goes on">▦ Add a sequence</button>` : '',
                 global.RefClip && !refSet ? `<button class="sb-seqadd" data-sbvedit="${i}" title="A section of a video you want to recreate — from one time to another">＋ Reference video</button>` : ''].filter(Boolean);
@@ -293,13 +296,36 @@
       if(mk) return seqSheet(+mk.dataset.sbmkseq);
       const vp = g.closest('[data-sbvplay]');
       if(vp){ const sh = shots[+vp.dataset.sbvplay]; return RefClip.play(sh.vref, sh.text || ''); }
+      const vg = g.closest('[data-sbvgrab]');
+      if(vg){
+        const k = +vg.dataset.sbvgrab, sh = shots[k];
+        vg.disabled = true; vg.textContent = 'Grabbing…';
+        U.toast(`Grabbing ${RefClip.label(sh.vref)} — a minute or so`);
+        try {
+          const nv = await RefClip.grab(sh.vref, sh.text || 'Shot ' + (k + 1));
+          const cur = shots.find(x => x.id === sh.id) || sh;
+          cur.vref = nv; clearTimeout(tt); await save(); draw();
+          U.toast('Grabbed — it plays here now, and goes 3 days after the episode is posted');
+        } catch(err){ vg.disabled = false; vg.textContent = '⬇ Grab'; U.toast(err.message || 'Couldn’t grab it'); }
+        return;
+      }
+      const vd = g.closest('[data-sbvdrop]');
+      if(vd){
+        const k = +vd.dataset.sbvdrop;
+        shots[k].vref = await RefClip.drop(shots[k].vref); clearTimeout(tt); await save(); draw();
+        return U.toast('Grabbed copy deleted — the link and times stay');
+      }
       const ve = g.closest('[data-sbvedit]');
       if(ve){
         const k = +ve.dataset.sbvedit, sh = shots[k];
         const r = await RefClip.edit(sh.vref, sh.text || 'Shot ' + (k + 1));
         if(!r) return;
         clearTimeout(tt);
-        if(r === 'clear') delete shots[k].vref; else shots[k].vref = r;
+        const old = sh.vref || {};
+        const same = r !== 'clear' && old.url === r.url && (old.start || 0) === r.start && (old.end || 0) === r.end;
+        if(r === 'clear'){ if(old.clip || old.gif) await RefClip.drop(old); delete shots[k].vref; }
+        else if(same) shots[k].vref = { ...r, ...(old.clip ? { clip:old.clip } : {}), ...(old.gif ? { gif:old.gif } : {}), ...(old.grabbedAt ? { grabbedAt:old.grabbedAt } : {}) };
+        else { if(old.clip || old.gif) await RefClip.drop(old); shots[k].vref = r; }
         await save(); draw();
         return U.toast(r === 'clear' ? 'Reference taken off' : `Reference saved · ${RefClip.label(r)}`);
       }
