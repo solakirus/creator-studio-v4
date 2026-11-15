@@ -490,3 +490,13 @@ default. The swipe player shows **↻ Try another way** in its top bar for an In
 each tap moves to Instagram's next player address (reel player, post with
 caption, old video player, then back), and the one you land on is remembered
 for that post on this device (localStorage `cs4-igv`, ig.html `&v=`).
+
+### Finding what still needs a tag
+
+- **🏷 No tags yet · N** on the swipe file (beside the views) shows only the
+  swipes with no tag that exists now (`f.untagged`, SwipeTags.untagged).
+- Each group's dropdown also has **No <group> tag yet** (`'__none'` — nothing
+  from that group) and, under *Without*, **Without <tag>** (`'not:<id>'`) for
+  every tag. They combine with the other dropdowns and can be saved as a view.
+Open the player on the filtered list and tap the tag chips under each video to
+label them one after another.

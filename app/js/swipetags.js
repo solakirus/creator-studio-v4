@@ -17,7 +17,8 @@
      await SwipeTags.byId()             { tagId: { tag, group } }
      SwipeTags.addGroup / renameGroup / removeGroup / addTag / editTag / removeTag
      await SwipeTags.apply(swipeIds, tagId, on)
-     SwipeTags.matches(swipe, f)        f = { sel:{ groupId: tagId }, src, angle, when, nofolder, intent, channel, target }
+     SwipeTags.matches(swipe, f)        f = { sel:{ groupId: tagId | '__none' | 'not:<tagId>' }, src, angle, when, nofolder, intent, channel, target, untagged }
+     SwipeTags.untagged(swipe)          no tag that exists now
      await SwipeTags.views() / saveView(name, f) / removeView(id)          */
 (function(global){
   const KEY = 'swipe-tags', VIEWS = 'swipe-views';
@@ -156,7 +157,7 @@
     { k:'channel', label:'Channel', on:true },
     { k:'target',  label:'Target platform' }
   ];
-  const blank = () => ({ sel:{}, src:'', angle:'', when:'', nofolder:false, intent:'', channel:'', target:'' });
+  const blank = () => ({ sel:{}, src:'', angle:'', when:'', nofolder:false, intent:'', channel:'', target:'', untagged:false });
   /* views saved before the dropdowns came back kept a list of tags */
   function norm(f){
     const o = { ...blank(), ...(f || {}) };
@@ -165,11 +166,23 @@
     delete o.tags; delete o.match;
     return o;
   }
-  const active = f => !!f && (Object.values(f.sel || {}).some(Boolean) || f.src || f.angle || f.when || f.nofolder || f.intent || f.channel || f.target);
+  const active = f => !!f && (Object.values(f.sel || {}).some(Boolean) || f.src || f.angle || f.when || f.nofolder || f.intent || f.channel || f.target || f.untagged);
+  /* the tag ids that exist now (a swipe can hold ids of tags since deleted) */
+  const knownIds = () => new Set((cache || []).flatMap(g => g.tags.map(t => t.id)));
+  /* no tag at all yet — the ones still to label */
+  const untagged = s => { const k = knownIds(); return !(s.tagIds || []).some(id => k.has(id)); };
   function matches(s, f, folderIds){
     if(!f) return true;
     const mine = s.tagIds || [];
-    for(const t of Object.values(f.sel || {})) if(t && !mine.includes(t)) return false;
+    /* a group's dropdown holds a tag, '__none' (nothing from this group yet)
+       or 'not:<tag>' (everything without that tag) */
+    for(const [gid, t] of Object.entries(f.sel || {})){
+      if(!t) continue;
+      if(t === '__none'){ const g = (cache || []).find(x => x.id === gid); if(g && g.tags.some(x => mine.includes(x.id))) return false; continue; }
+      if(t.startsWith('not:')){ if(mine.includes(t.slice(4))) return false; continue; }
+      if(!mine.includes(t)) return false;
+    }
+    if(f.untagged && !untagged(s)) return false;
     if(f.src && s.source !== f.src) return false;
     if(f.angle === 'none' && (s.myAngle || '').trim()) return false;
     if(f.angle === 'has' && !(s.myAngle || '').trim()) return false;
@@ -220,5 +233,5 @@
   }
 
   global.SwipeTags = { COLORS, WHEN, BUILTINS, all, byId, save, invalidate, addGroup, renameGroup, removeGroup, addTag, editTag,
-    removeTag, apply, blank, norm, active, matches, builtins, setBuiltin, views, saveView, removeView, starters };
+    removeTag, apply, blank, norm, active, matches, untagged, builtins, setBuiltin, views, saveView, removeView, starters };
 })(window);

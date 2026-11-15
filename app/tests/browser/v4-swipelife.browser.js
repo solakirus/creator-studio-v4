@@ -49,6 +49,25 @@ const top = '.screen:last-child';
       await Store.put('swipes', { id:'sw_x', title:'A thumbnail idea', source:'reel', url:'', tagIds:[find('Use it for', 'Thumbnail')], savedAt:Date.now() });
     });
 
+    /* the swipe file: show only what still needs a tag */
+    await p.evaluate(async () => { await Store.put('swipes', { id:'sw_none', title:'Never sorted', source:'reel', url:'', tagIds:[], savedAt:Date.now() });
+      localStorage.removeItem('cs4-swipe-filter'); Screens.push('swipe-file'); });
+    await p.waitForTimeout(1800);
+    const ids = () => p.$$eval(`${top} .swipecard[data-open]`, xs => xs.map(x => x.dataset.open).sort().join());
+    ok(/No tags yet · 1/.test(await p.textContent(`${top} [data-a="untagged"]`)), 'a 🏷 No tags yet button, counting the swipes with none');
+    await p.click(`${top} [data-a="untagged"]`); await p.waitForTimeout(900);
+    ok(await ids() === 'sw_none', 'it shows only those', await ids());
+    await p.click(`${top} [data-a="untagged"]`); await p.waitForTimeout(900);
+    const la = await p.evaluate(async () => (await SwipeTags.all()).find(x => x.name === 'Life area'));
+    await p.selectOption(`${top} [data-fg="${la.id}"]`, '__none'); await p.waitForTimeout(900);
+    ok(await ids() === 'sw_none,sw_x', 'a group’s “No Life area tag yet” shows the swipes with nothing from it', await ids());
+    const fit = la.tags.find(t => t.name === 'Fitness').id;
+    await p.selectOption(`${top} [data-fg="${la.id}"]`, 'not:' + fit); await p.waitForTimeout(900);
+    ok(await ids() === 'sw_none,sw_tr,sw_x', '“Without Fitness” leaves out the swipes tagged Fitness', await ids());
+    await p.screenshot({ path: path.join(out, `untagged-${name}.png`) });
+    await p.click(`${top} [data-a="clearf"]`).catch(() => {}); await p.waitForTimeout(600);
+    await p.evaluate(() => Screens.pop()); await p.waitForTimeout(500);
+
     /* Transitions: its own section for your transition swipes */
     await p.evaluate(() => Screens.push('transitions')); await p.waitForTimeout(1500);
     ok(/My swipes\s*1/.test(await p.textContent(`${top} [data-p="swipes"]`)), 'the Transitions tab has a ✂ My swipes section, counting 1');

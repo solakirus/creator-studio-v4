@@ -363,7 +363,7 @@
           <input class="wide" id="q" type="text" placeholder="${inFolder() ? 'Search this folder…' : inInbox() ? 'Search the Inbox — a creator, a word…' : 'Search swipes…'}" value="${esc(q)}">
           ${window.SwipeTags ? filterSelects(groups, bi) : ''}
         </div>
-        ${window.SwipeTags ? filterLinks(svs) : ''}
+        ${window.SwipeTags ? filterLinks(svs, everything.filter(x => (!inInbox() || x.inbox) && SwipeTags.untagged(x)).length) : ''}
 
         ${(() => {
           /* the same video saved twice (two devices, two imports): swipekey.js */
@@ -423,7 +423,13 @@
     function filterSelects(groups, bi){
       const sel = (attr, v, cur, first, opts) => `<select ${attr}="${v}"${cur ? ' class="on"' : ''}><option value="">${esc(first)}</option>
         ${opts.map(([k, l]) => `<option value="${esc(k)}"${cur === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
-      return groups.map(g => sel('data-fg', g.id, (f.sel || {})[g.id] || '', g.name, g.tags.map(t => [t.id, t.name]))).join('') +
+      /* a group: any, none from it yet, one of its tags — or without one */
+      const gsel = g => { const cur = (f.sel || {})[g.id] || '';
+        return `<select data-fg="${g.id}"${cur ? ' class="on"' : ''}><option value="">${esc(g.name)}</option>
+          <option value="__none"${cur === '__none' ? ' selected' : ''}>No ${esc(g.name)} tag yet</option>
+          ${g.tags.map(t => `<option value="${esc(t.id)}"${cur === t.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}
+          ${g.tags.length ? `<optgroup label="Without">${g.tags.map(t => `<option value="not:${esc(t.id)}"${cur === 'not:' + t.id ? ' selected' : ''}>Without ${esc(t.name)}</option>`).join('')}</optgroup>` : ''}</select>`; };
+      return groups.map(gsel).join('') +
         (bi.src ? sel('data-fb', 'src', f.src, 'Any source', Object.entries(SOURCES).map(([k, v]) => [k, v.n])) : '') +
         (bi.angle ? sel('data-fb', 'angle', f.angle, 'Any angle', [['none', 'No angle yet'], ['has', 'Has my angle']]) : '') +
         (bi.when ? sel('data-fb', 'when', f.when, 'Saved any time', Object.entries(SwipeTags.WHEN).map(([k, v]) => [k, v[0]])) : '') +
@@ -433,9 +439,10 @@
         (bi.target ? sel('data-fb', 'target', f.target, 'Any target', Object.entries(SOURCES).map(([k, v]) => [k, v.n])) : '');
     }
     /* saved views, and what you can do with the filters as they are */
-    function filterLinks(svs){
+    function filterLinks(svs, nUntagged){
       const on = SwipeTags.active(f);
       return `<div class="stg-bar">
+          ${nUntagged || f.untagged ? `<button class="pill" data-a="untagged" aria-pressed="${!!f.untagged}" title="Only the swipes with no tags yet — to label them">🏷 No tags yet · ${nUntagged}</button>` : ''}
           ${svs.length ? `<button class="pill" data-sv="" aria-pressed="${!viewId && !on}">All</button>
             ${svs.map(v => `<button class="pill" data-sv="${v.id}" aria-pressed="${viewId === v.id}">${esc(v.name)}</button>`).join('')}` : ''}
           <span class="stg-links">
@@ -724,6 +731,7 @@
         return render();
       }
       if(a && a.dataset.a === 'clearf'){ f = SwipeTags.blank(); viewId = null; remember(); return render(); }
+      if(a && a.dataset.a === 'untagged'){ f = { ...f, untagged:!f.untagged }; viewId = null; remember(); return render(); }
       if(a && a.dataset.a === 'saveview'){
         const name = (prompt('Name this view — e.g. "Hooks with no angle"') || '').trim(); if(!name) return;
         const v = await SwipeTags.saveView(name, f); viewId = v.id; remember(); U.toast(`Saved “${name}”`); return render();
