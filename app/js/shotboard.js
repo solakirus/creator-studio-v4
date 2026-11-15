@@ -136,9 +136,13 @@
             ${s.clip ? (() => { const c = clips.get(s.clip); return `<div class="sb-cliprow"><button class="sb-clip" data-sbclipopen="${esc(s.clip)}" title="Open it">▶ ${c ? `${kindOf(c)} · ${esc(c.title || 'Untitled')}` : 'A clip that isn’t on this device'}</button>
               <button class="lv-btn sm ghost" data-sbclipoff="${i}" title="Take it off this shot (the clip stays)" aria-label="Take the clip off this shot">✕</button></div>`; })() : ''}
             ${linesHTML(s, i)}
+            ${global.Notebook ? (nseq
+              ? `<div class="sb-seqrow"><button class="sb-seq" data-sbseq="${i}" title="Open the shots inside this one">▦ Sequence · ${nseq} shot${nseq === 1 ? '' : 's'}${s.seq.slots.some(x => x.item) ? ` · ${s.seq.slots.filter(x => x.item).length} with frames` : ''}</button>
+                  ${A.host ? `<button class="lv-btn sm ghost" data-sbshoot="${i}" title="Shoot mode from this shot: it, then the shots inside it, then the next">▶</button>` : ''}
+                  <button class="lv-btn sm ghost" data-sbunseq="${i}" title="Take the sequence off (back to one picture)" aria-label="Take the sequence off">✕</button></div>`
+              : `<button class="sb-seqadd" data-sbmkseq="${i}" title="Shots inside this shot — shoot mode runs through them, then goes on">▦ Add a sequence</button>`) : ''}
             ${!isOpen(s) ? `<div class="sb-fold"><label class="tp-done" title="Filmed"><input type="checkbox" data-sbf="done" data-i="${i}" ${s.done ? 'checked' : ''}></label>
-              <span class="sb-facts">${[s.role, s.secs ? fmt(s.secs) : '', nseq ? `▦ ${nseq}` : '', s.desc || s.note ? '✎' : ''].filter(Boolean).map(esc).join(' · ') || '<i>Nothing set yet</i>'}</span>
-              ${nseq && A.host ? `<button class="lv-btn sm ghost" data-sbshoot="${i}" title="Shoot mode from this shot">▶</button>` : ''}
+              <span class="sb-facts">${[s.role, s.secs ? fmt(s.secs) : '', s.desc || s.note ? '✎' : ''].filter(Boolean).map(esc).join(' · ') || '<i>Nothing set yet</i>'}</span>
               </div>` : `
             <div class="sb-more">
             <div class="lv-row"><span class="tp-drag" title="Drag to reorder">⠿</span>
@@ -149,11 +153,6 @@
             <input class="lv-in" data-sbf="desc" data-i="${i}" value="${esc(s.desc || '')}" placeholder="Description — what we see in it">
             <div class="lv-row">${sel(`data-sbf="framing" data-i="${i}"`, T().SIZES, s.framing || '—', 'Shot type')}
               ${sel(`data-sbf="movement" data-i="${i}"`, T().MOVES, s.movement || '—', 'Move')}</div>
-            ${global.PagesEditor && hasLib() ? `<div class="lv-row">${nseq
-              ? `<button class="lv-btn sm" data-sbseq="${i}">▦ ${s.seq.slots.filter(x => x.item).length}/${nseq} Open sequence</button>
-                 ${A.host ? `<button class="lv-btn sm ghost" data-sbshoot="${i}" title="Shoot mode from this shot: it, then the shots inside it, then the next">▶ Shoot</button>` : ''}
-                 <button class="lv-btn sm ghost" data-sbunseq="${i}" title="Back to one picture (the sequence is removed)">✕</button>`
-              : `<button class="lv-btn sm ghost" data-sbmkseq="${i}" title="Hold up to nine more shots inside this one">▦ Task sequence</button>`}</div>` : ''}
             ${global.Devices ? `<div class="lv-row"><span class="tp-then">ON</span><button class="lv-btn sm ghost" data-sbdev="${i}" title="What it's shot on">${esc(s.dev || 'Pick a device')}</button>${s.off ? '<small style="color:#7FB6F5">▣ on the computer</small>' : ''}</div>` : ''}
             ${s.clip ? '' : `<div class="lv-row"><button class="lv-btn sm ghost" data-sbclip="${i}" title="This shot is a short or clip you made (or will make)">＋ Attach a short or clip</button></div>`}
             <textarea class="lv-in lv-ta" data-sbf="note" data-i="${i}" rows="2" placeholder="Notes: lens, audio, line…">${esc(s.note || '')}</textarea>
@@ -282,12 +281,7 @@
         return;
       }
       const mk = g.closest('[data-sbmkseq]');
-      if(mk){
-        const i = +mk.dataset.sbmkseq, s = shots[i];
-        const q = Notebook.copyNew(Notebook.stepsPage(s.text || s.role || 'Shot ' + (i + 1)));
-        if(s.item && q.slots && q.slots[0]) q.slots[0].item = s.item;
-        s.seq = q; await save(); return openSeq(i);
-      }
+      if(mk) return seqSheet(+mk.dataset.sbmkseq);
       const sq = g.closest('[data-sbseq]');
       if(sq) return openSeq(+sq.dataset.sbseq);
       const sh = g.closest('[data-sbshoot]');
@@ -350,6 +344,46 @@
       await save(); draw();
     });
 
+    /* a sequence for a shot: a blank 9-shot page (the default), or a copy of
+       one of your template pages — shoot mode runs the shot, then each shot
+       inside it, then the next shot on the storyboard */
+    async function seqSheet(i){
+      const s = shots[i];
+      const name = s.text || s.role || 'Shot ' + (i + 1);
+      const opts = [];
+      if(global.ShotTemplates) try {
+        for(const t of await ShotTemplates.all()){
+          const sh = (t.shots || []).filter(x => x.item || x.label || x.name);
+          if(sh.length) opts.push({ t:t.name || 'Template', p:'its shot list', n:Math.min(sh.length, Notebook.MAX_STEPS || 9), make:() => ShotTemplates.pageFrom(t) });
+          for(const pg of t.sheets || []) if((pg.slots || []).length) opts.push({ t:t.name || 'Template', p:pg.name || Notebook.layoutName(pg.layout) || 'Page', n:pg.slots.length, make:() => Notebook.copyNew(pg) });
+          for(const x of t.shots || []) if(x.sequence && (x.sequence.slots || []).length) opts.push({ t:t.name || 'Template', p:(x.label || x.name || 'A shot') + '’s sequence', n:x.sequence.slots.length, make:() => Notebook.copyNew(x.sequence) });
+        }
+      } catch(e){}
+      App.sheet(`<h2 style="margin:0 0 4px">A sequence inside “${esc(name)}”</h2>
+        <p class="hintline" style="margin:0 0 12px">Shoot mode goes to this shot, through every shot inside it, then on to the next one.</p>
+        <button class="vt-pick sb-seqopt" data-seqblank><b>▦ Blank 9-shot page</b><small>Nine spots to fill — frames, words, a tick for each</small></button>
+        ${opts.length ? `<p class="lv-group" style="margin:14px 0 6px">Or one of your template pages</p>
+          ${opts.map((o2, k) => `<button class="vt-pick sb-seqopt" data-seqtpl="${k}"><b>${esc(o2.t)} · ${esc(o2.p)}</b><small>${o2.n} shot${o2.n === 1 ? '' : 's'}</small></button>`).join('')}`
+          : '<p class="hintline" style="margin:12px 0 0">Your template pages show here too — make them on the Templates tab.</p>'}
+        <div class="sheetcta"><button class="btn-ghost" data-seqno>Cancel</button></div>`, sh => {
+        sh.addEventListener('click', async ev => {
+          if(ev.target.closest('[data-seqno]')) return App.closeSheet();
+          const bl = ev.target.closest('[data-seqblank]'), tp = ev.target.closest('[data-seqtpl]');
+          if(!bl && !tp) return;
+          let q = bl ? Notebook.copyNew(Notebook.stepsPage(name)) : opts[+tp.dataset.seqtpl].make();
+          if(!q) return U.toast('That page is empty');
+          q = Notebook.copyNew(q);
+          q.slots = (q.slots || []).map(x => ({ ...x, done:false }));
+          if(bl) q.name = 'Sequence · ' + name;
+          if(s.item && q.slots[0] && !q.slots[0].item) q.slots[0].item = s.item;
+          s.seq = q; clearTimeout(tt);
+          App.closeSheet(); await save(); draw();
+          if(bl && global.PagesEditor) return openSeq(i);
+          U.toast(`Sequence added — ${q.slots.length} shot${q.slots.length === 1 ? '' : 's'} inside “${name}”`);
+        });
+      });
+    }
+
     function openSeq(i){
       const s = shots[i];
       Screens.push('shot-seq', { kicker:A.title(), title:s.text || 'Task sequence', page:s.seq,
@@ -387,6 +421,11 @@
   .sb-tog{margin-left:4px;height:24px;padding:0 9px;border:1px solid var(--line);border-radius:12px;background:transparent;color:var(--muted);font:inherit;font-size:11.5px;cursor:pointer;white-space:nowrap}
   .sb-tog[aria-expanded="true"]{color:var(--cream);border-color:var(--muted)}
   .sb-alldet{height:26px;padding:0 10px;border:1px solid var(--line);border-radius:13px;background:transparent;color:var(--muted);font:inherit;font-size:12px;cursor:pointer}
+  .sb-seqrow{display:flex;align-items:center;gap:6px}
+  .sb-seq{flex:1;min-width:0;height:32px;padding:0 10px;border:1px solid rgba(125,180,245,.45);border-radius:var(--r);background:rgba(125,180,245,.1);color:#9CC6F5;font:inherit;font-size:13px;font-weight:600;text-align:left;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sb-seqadd{align-self:flex-start;height:28px;padding:0 10px;border:1px dashed var(--line);border-radius:var(--r);background:transparent;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer}
+  .sb-seqadd:hover{border-color:#9CC6F5;color:var(--cream)}
+  .sb-seqopt{margin:0 0 7px}
   .sb-fold{display:flex;align-items:center;gap:8px;min-height:32px}
   .sb-facts{flex:1;min-width:0;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .sb-facts i{color:var(--dim);font-style:normal}

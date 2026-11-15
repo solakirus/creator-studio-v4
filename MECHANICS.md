@@ -427,3 +427,15 @@ alike:
   writes the shoot task and the clip's steps both.
 The Steps editor and the Shot page are gone from Shoot (the shots are on Plan);
 Notes and References stay below.
+
+### A sequence inside a storyboard shot
+
+Every Storyboard card (ShotBoard) has **▦ Add a sequence** right on the card
+(not inside Details, and on the phone too). It opens a sheet: **Blank 9-shot
+page** first (Notebook.stepsPage, opened in the shot-seq editor to fill in),
+then every page from your Templates — each template's shot list
+(ShotTemplates.pageFrom), its notebook pages, and its shots' own sequences —
+copied in as the shot's `seq` with every tick cleared. Once set, the card shows
+"▦ Sequence · N shots" (open it), ▶ (shoot mode from this shot) and ✕ (take
+it off). Shoot mode runs the shot, then "Shot 2.1 · part 1 of N" … through the
+sequence, then the next storyboard shot.
