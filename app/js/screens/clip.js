@@ -342,7 +342,7 @@
       const nShots = shotList().length;
       /* the task's own Steps + Shot page (shotlist.js host), first on Shoot */
       S.shots = `
-        <div class="cp-steps">${p.beats.length ? '<div id="clipStruct"></div>' : ''}<div id="clipShots"></div></div>`;
+        <div class="cp-steps"><div id="clipShots"></div></div>`;
       S.versionsEdit = versionsHTML('edit');
       /* v4: the edit walkthrough (editsteps.js) and the shots in one line with their footage (editline.js) */
       const est = window.EditSteps ? EditSteps.stage(clip) : null;
@@ -402,14 +402,9 @@
       const refsSec = el.querySelector('#sec-refs');
       if(refsSec) refsSec.addEventListener('toggle', () => { refsOpen = refsSec.open; });
       const cs = el.querySelector('#clipShots');
-      /* Shoot: the structure as one bar over the Steps (chips jump to a beat);
-         the two redraw each other */
-      const stepsIn = () => cs && ShotList.embed(cs, ShotList.hostClip(clip.id), async () => {
-        await pullShots(); const sb = el.querySelector('#clipStruct'); if(sb && sb._st) sb._st.refresh(); });
-      stepsIn();
-      const sb = el.querySelector('#clipStruct');
-      if(sb) Structures.bar(sb, { host:ShotList.hostClip(clip.id), plan:() => clip.plan, savePlan:flushClip, flush:flushClip,
-        onChange: async () => { await pullShots(); stepsIn(); } });
+      /* Shoot: just the shots, in the order you film them, under their beats.
+         The structure (change it, edit or paste) is planning — it lives on Plan. */
+      if(cs) ShotList.embed(cs, ShotList.hostClip(clip.id), pullShots);
       el.querySelectorAll('details[data-grp]').forEach(d => d.addEventListener('toggle', () => { grpOpen[d.dataset.grp] = d.open; }));
       const sc = el.querySelector('#clipScript');
       if(sc) Structures.script(sc, { autoBeats:true, host:ShotList.hostClip(clip.id), plan:() => clip.plan, savePlan:flushClip, flush:flushClip, onChange:pullShots,

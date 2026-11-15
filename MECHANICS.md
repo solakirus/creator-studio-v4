@@ -392,3 +392,10 @@ the HOOK tag. A hook written somewhere else (an older clip, an AI draft or an
 import) is put onto that shot as its first line when the shot has no words
 yet. The readiness gap reads "No hook — give your first shot a line" and jumps
 to the script; "Hook style not chosen" no longer counts.
+
+### Shoot is just the shots
+
+A clip's Shoot tab no longer carries the structure bar (Change · Edit beats ·
+Paste a script · beat chips). It is the shots in the order you film them, in
+the Steps under their beat names, with the Shot page and shoot mode. Changing
+beats, renaming them and pasting a script happen on Plan's columns.
