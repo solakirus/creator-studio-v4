@@ -170,11 +170,11 @@ const head = s => console.log(`\n— ${s} —`);
 
   head('Edit: the cut list');
   await lap.evaluate(id => { Screens.pop(); Screens.push('clip', { id, tab: 'edit' }); }, cid); await lap.waitForTimeout(2000);
-  ui = await lap.evaluate(t => { const s = document.querySelector(t); return { cuts: s.querySelectorAll('#clipCuts .sx-cut').length,
-    beats: [...s.querySelectorAll('#clipCuts p.k')].map(x => x.textContent), said: [...s.querySelectorAll('#clipCuts .sx-cut')][3].querySelectorAll('.said .l').length,
+  ui = await lap.evaluate(t => { const s = document.querySelector(t); return { cuts: s.querySelectorAll('#clipCuts .sx-ccard').length,
+    beats: [...s.querySelectorAll('#clipCuts .sx-cbn')].map(x => x.textContent), said: s.querySelectorAll('#clipCuts [data-shot="3"] .said .l').length,
     taken: [...s.querySelectorAll('#clipCuts .taken')].map(x => x.textContent.trim()), whole: !!s.querySelector('.view [data-f="script"]'),
     secs: [...s.querySelectorAll('.view > details > summary')].map(x => x.firstChild.textContent.trim()) }; }, top);
-  ok(ui.cuts === 6 && ui.beats.length === 6 && ui.said === 3, 'every shot in story order under its beat, with the words over it');
+  ok(ui.cuts === 6 && ui.beats.length === 6 && ui.said === 3, 'every shot in a column under its beat, with the words over it');
   ok(ui.taken[0] === '✓ Taken' && ui.taken[1] === 'Not taken yet', 'filmed on the shoot task shows as Taken');
   ok(!ui.whole && ui.secs.join() === 'Edit walkthrough,The shots and their footage,Cut list,Versions,Notes', 'no whole script, length or references on Edit', ui.secs.join(' · '));
   await lap.fill(`${top} #clipCuts [data-en="3"]`, 'Cut the second um'); await lap.dispatchEvent(`${top} #clipCuts [data-en="3"]`, 'change'); await lap.waitForTimeout(1200);

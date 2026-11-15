@@ -104,6 +104,22 @@ const GIF = 'R0lGODlhoABaAIEAAP+MAB48jAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQADAA
     await p.evaluate(id => Screens.push('clip', { id, tab: 'plan' }), cid); await p.waitForTimeout(1300);
     ok(!(await p.$(`${S} .sx-cols`)), 'and the choice is remembered');
     await p.click(`${S} [data-sxv="cols"]`); await p.waitForTimeout(500);
+
+    /* the cut list on Edit: the same columns, a card per cut */
+    const C = '.screen:last-child #clipCuts';
+    await p.click('.screen:last-child [data-ctab="edit"]'); await p.waitForTimeout(1800);
+    const bnow = (await rec()).beats;
+    const cc = await p.$$eval(`${C} .sx-cols > .sx-beat`, xs => xs.map(x => [x.querySelector('.sx-cbn').textContent, x.querySelectorAll('.sx-ccard').length]));
+    ok(cc.length === bnow.length && cc.every((c, k) => c[0] === bnow[k]), 'the cut list is a column per beat', JSON.stringify(cc));
+    const said = await p.evaluate(c => [...document.querySelectorAll(c + ' .sx-ccard .said')].map(x => x.textContent).join(' | '), C);
+    ok(/The first hour is mine/.test(said), 'each cut card shows the words over it', said.slice(0, 80));
+    await p.fill(`${C} [data-en="0"]`, 'Trim the first second'); await p.dispatchEvent(`${C} [data-en="0"]`, 'change'); await p.waitForTimeout(1200);
+    ok((await rec()).st[0].editNote === 'Trim the first second', 'an edit note on a card is kept');
+    ok((await p.$$(`${C} .sx-trgap, ${C} .sx-tr`)).length >= 1, 'transitions sit between the cuts');
+    await p.screenshot({ path: path.join(out, `cutcols-${name}.png`) });
+    await p.click(`${C} [data-sxv="rows"]`); await p.waitForTimeout(600);
+    ok(!!(await p.$(`${C} .sx-cuthead`)) && !(await p.$(`${C} .sx-cols`)), 'Rows gives the table back');
+    await p.click(`${C} [data-sxv="cols"]`); await p.waitForTimeout(500);
     await ctx.close();
   }
   await b.close();

@@ -399,3 +399,14 @@ A clip's Shoot tab no longer carries the structure bar (Change · Edit beats ·
 Paste a script · beat chips). It is the shots in the order you film them, in
 the Steps under their beat names, with the Shot page and shoot mode. Changing
 beats, renaming them and pasting a script happen on Plan's columns.
+
+### The cut list as columns
+
+Edit's cut list (Structures.cuts) follows the same Rows / Columns choice as
+Plan (`cs4-sx-cols`, Columns by default). Columns: one per beat, "Beat N of M"
+and its name; each cut is a card with its frame (when it has one), number,
+role and name, ✓ Taken / Not taken yet, the words over it (VO / CAM / TXT),
+and the edit note; the transition into the next shot sits under the card. The
+top line has the beat and cut counts, ⏸ Stop GIFs when any cut has a frame,
+and the Rows / Columns switch; Rows is the old three-column table. A clip with
+no beats keeps the plain table.

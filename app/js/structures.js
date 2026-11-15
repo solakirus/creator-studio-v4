@@ -287,6 +287,18 @@
   .sx-adds{display:flex;gap:6px;flex-wrap:wrap}
   .sx-head .sl-motion{height:30px}
   .sx.cols .sx-foot [data-st="addbeat"]{display:none}
+  .sx-cuttop{margin:0 0 10px;padding:0 14px}
+  .sx-cutcols .sx-cols{padding:0 14px 8px}
+  .sx-cutcols .sx-cbn{flex:1;min-width:0;font-family:var(--display),sans-serif;font-weight:900;font-size:16px}
+  .sx-ccard .sx-body{gap:7px}
+  .sx-ccard .sx-cpic{width:100%;height:auto;aspect-ratio:16/9;max-height:170px}
+  .sx-ccard .sx-cn{flex:1;min-width:0;font-size:14.5px}
+  .sx-ccard .taken{font-size:12px;color:var(--green);white-space:nowrap}.sx-ccard .taken.no{color:var(--dim)}
+  .sx-ccard.tk{border-color:rgba(91,190,106,.45)}
+  .sx-ccard .said{display:flex;flex-direction:column;gap:5px;font-size:14px;line-height:1.45}
+  .sx-ccard .said .l{display:flex;gap:7px;align-items:baseline}
+  .sx-cutcols .sx-tr{margin:2px 0 6px}
+  .sx-cutcols .sx-trgap{margin:-2px auto 0}
   .sx-addcol:hover{border-color:var(--orange);color:var(--cream)}
   /* a phone: no frame column, tighter boxes, so the lines get the width */
   @media (max-width:600px){
@@ -416,6 +428,22 @@
         <textarea class="sx-en" rows="1" data-en="${i}" placeholder="Note for the edit — take, trim, effect…" aria-label="Edit note for shot ${i + 1}">${esc(s2.editNote || '')}</textarea>
       </div>${i < slots(t).length - 1 ? trRow(i, s2.tr) : ''}`;
     }
+    /* a cut as a card in its beat's column: the frame, the words over it,
+       filmed or not, the note for the edit, then the transition out */
+    function cutCard(i){
+      const sl = slots(t)[i] || {}, s2 = stepOf(t, i) || {};
+      const ls = (s2.lines || []).filter(l => String(l.t || '').trim());
+      const tk = opts.taken ? opts.taken(i) : !!s2.done;
+      return `<div class="sx-shot sx-ccard${tk ? ' tk' : ''}" data-shot="${i}">
+        <div class="sx-body">
+          ${sl.item ? `<span class="sx-pic sx-cpic" data-slpic="${esc(sl.item)}"></span>` : ''}
+          <div class="sx-sh"><span class="sx-no">${String(i + 1).padStart(2, '0')}</span>${sl.role ? `<span class="sx-role">${esc(sl.role)}</span>` : ''}
+            <b class="sx-cn">${esc(sl.text || 'Shot ' + (i + 1))}</b><span class="taken${tk ? '' : ' no'}">${tk ? '✓ Taken' : 'Not taken yet'}</span></div>
+          <div class="said">${ls.length ? ls.map(l => `<span class="l"><span class="sx-tag ${l.k || 'vo'}">${KIND_NAME[l.k] || 'VO'}</span><span>${esc(l.t)}</span></span>`).join('')
+            : '<span style="color:var(--dim);font-size:13px">No words — let it breathe</span>'}</div>
+          <textarea class="sx-en" rows="1" data-en="${i}" placeholder="Note for the edit — take, trim, effect…" aria-label="Edit note for shot ${i + 1}">${esc(s2.editNote || '')}</textarea>
+        </div></div>${i < slots(t).length - 1 ? trRow(i, s2.tr) : ''}`;
+    }
     /* v4: between two cuts — the transition into the next one, or a quiet way to add one */
     function trRow(i, tr){
       if(!global.Transitions) return '';
@@ -454,6 +482,30 @@
           ${bn.length ? `<div class="sx-jump">${bn.map((b, k) => `<button data-stjump="${k}">${esc(b || 'Beat ' + (k + 1))}<i>${groups[k].length}</i></button>`).join('')}</div>`
             : '<p class="sx-none">Pick one and its beats head your steps, with a shot for each.</p>'}
         </div>`;
+        return stat();
+      }
+      if(mode === 'cuts' && n && bn.length){
+        const cols = colsOn();
+        const tog = `<div class="sx-head sx-cuttop"><span class="k">${bn.length} beat${bn.length === 1 ? "" : "s"} · ${n} cut${n === 1 ? '' : 's'}</span><b></b>
+          ${slots(t).some(x => x.item) && global.ShotList && ShotList.motionBtn ? ShotList.motionBtn() : ''}
+          <span class="sx-view" role="group" aria-label="Lay the cuts out as"><button data-sxv="rows" aria-pressed="${!cols}">Rows</button><button data-sxv="cols" aria-pressed="${cols}">Columns</button></span></div>`;
+        if(cols){
+          container.innerHTML = `<div class="sx cols sx-cutcols">${tog}
+            <div class="sx-cols">${bn.map((b, k) => `<section class="sx-beat">
+              <div class="sx-bh"><span class="sx-bk">Beat ${k + 1} of ${bn.length}</span><b class="sx-cbn">${esc(b || 'Beat ' + (k + 1))}</b>
+                <span class="cnt">${groups[k].length} cut${groups[k].length === 1 ? '' : 's'}</span></div>
+              <div class="sx-shots">${groups[k].map(i => cutCard(i)).join('') || '<p class="sx-none" style="padding:4px 2px 8px">No shots in this beat</p>'}</div>
+            </section>`).join('')}</div></div>`;
+          container.querySelectorAll('.sx-en').forEach(grow);
+          if(global.ShotList) ShotList.fillPics(container);
+          return stat();
+        }
+        container.innerHTML = tog + `
+          <div class="sx-cuthead"><span class="k">The shot</span><span class="k">Over this cut</span><span class="k">Edit note</span></div>
+          ${bn.map((b, k) => groups[k].length ? `<p class="k" style="margin:12px 10px 4px;color:var(--orange)">${k + 1} · ${esc(b || 'Beat ' + (k + 1))}</p>
+            <div>${groups[k].map(i => cutRow(i)).join('')}</div>` : '').join('')}`;
+        container.querySelectorAll('.sx-en').forEach(grow);
+        if(global.ShotList) ShotList.fillPics(container);
         return stat();
       }
       if(mode === 'cuts'){
