@@ -136,11 +136,19 @@
             ${s.clip ? (() => { const c = clips.get(s.clip); return `<div class="sb-cliprow"><button class="sb-clip" data-sbclipopen="${esc(s.clip)}" title="Open it">▶ ${c ? `${kindOf(c)} · ${esc(c.title || 'Untitled')}` : 'A clip that isn’t on this device'}</button>
               <button class="lv-btn sm ghost" data-sbclipoff="${i}" title="Take it off this shot (the clip stays)" aria-label="Take the clip off this shot">✕</button></div>`; })() : ''}
             ${linesHTML(s, i)}
-            ${global.Notebook ? (nseq
-              ? `<div class="sb-seqrow"><button class="sb-seq" data-sbseq="${i}" title="Open the shots inside this one">▦ Sequence · ${nseq} shot${nseq === 1 ? '' : 's'}${s.seq.slots.some(x => x.item) ? ` · ${s.seq.slots.filter(x => x.item).length} with frames` : ''}</button>
+            ${(() => {
+              /* a sequence inside the shot, and a reference video to recreate — set
+                 ones get their own row, the ones still to add share a row */
+              const seqSet = global.Notebook && nseq, refSet = global.RefClip && s.vref && s.vref.url;
+              const seqRow = seqSet ? `<div class="sb-seqrow"><button class="sb-seq" data-sbseq="${i}" title="Open the shots inside this one">▦ Sequence · ${nseq} shot${nseq === 1 ? '' : 's'}${s.seq.slots.some(x => x.item) ? ` · ${s.seq.slots.filter(x => x.item).length} with frames` : ''}</button>
                   ${A.host ? `<button class="lv-btn sm ghost" data-sbshoot="${i}" title="Shoot mode from this shot: it, then the shots inside it, then the next">▶</button>` : ''}
-                  <button class="lv-btn sm ghost" data-sbunseq="${i}" title="Take the sequence off (back to one picture)" aria-label="Take the sequence off">✕</button></div>`
-              : `<button class="sb-seqadd" data-sbmkseq="${i}" title="Shots inside this shot — shoot mode runs through them, then goes on">▦ Add a sequence</button>`) : ''}
+                  <button class="lv-btn sm ghost" data-sbunseq="${i}" title="Take the sequence off (back to one picture)" aria-label="Take the sequence off">✕</button></div>` : '';
+              const refRow = refSet ? `<div class="rc-chip"><button class="rc-play" data-sbvplay="${i}" title="Play just that section">▶ Reference · ${esc(RefClip.site(s.vref.url))} · ${esc(RefClip.label(s.vref))}</button>
+                  <button class="lv-btn sm ghost" data-sbvedit="${i}" title="Change the link or the times" aria-label="Change the reference">✎</button></div>${s.vref.n ? `<p class="rc-n">${esc(s.vref.n)}</p>` : ''}` : '';
+              const adds = [global.Notebook && !nseq ? `<button class="sb-seqadd" data-sbmkseq="${i}" title="Shots inside this shot — shoot mode runs through them, then goes on">▦ Add a sequence</button>` : '',
+                global.RefClip && !refSet ? `<button class="sb-seqadd" data-sbvedit="${i}" title="A section of a video you want to recreate — from one time to another">＋ Reference video</button>` : ''].filter(Boolean);
+              return seqRow + refRow + (adds.length ? `<div class="sb-adds">${adds.join('')}</div>` : '');
+            })()}
             ${!isOpen(s) ? `<div class="sb-fold"><label class="tp-done" title="Filmed"><input type="checkbox" data-sbf="done" data-i="${i}" ${s.done ? 'checked' : ''}></label>
               <span class="sb-facts">${[s.role, s.secs ? fmt(s.secs) : '', s.desc || s.note ? '✎' : ''].filter(Boolean).map(esc).join(' · ') || '<i>Nothing set yet</i>'}</span>
               </div>` : `
@@ -173,6 +181,7 @@
       </div>`;
       box.querySelectorAll('.lv-ta').forEach(ta => { ta.style.height = 'auto'; ta.style.height = Math.max(46, ta.scrollHeight) + 'px'; });
       if(global.Structures && Structures.css) Structures.css();
+      if(global.RefClip) RefClip.css();
       box.querySelectorAll('.sb-lines .sx-lt').forEach(grow);
       if(global.ShotList) ShotList.fillPics(box);
     }
@@ -282,6 +291,18 @@
       }
       const mk = g.closest('[data-sbmkseq]');
       if(mk) return seqSheet(+mk.dataset.sbmkseq);
+      const vp = g.closest('[data-sbvplay]');
+      if(vp){ const sh = shots[+vp.dataset.sbvplay]; return RefClip.play(sh.vref, sh.text || ''); }
+      const ve = g.closest('[data-sbvedit]');
+      if(ve){
+        const k = +ve.dataset.sbvedit, sh = shots[k];
+        const r = await RefClip.edit(sh.vref, sh.text || 'Shot ' + (k + 1));
+        if(!r) return;
+        clearTimeout(tt);
+        if(r === 'clear') delete shots[k].vref; else shots[k].vref = r;
+        await save(); draw();
+        return U.toast(r === 'clear' ? 'Reference taken off' : `Reference saved · ${RefClip.label(r)}`);
+      }
       const sq = g.closest('[data-sbseq]');
       if(sq) return openSeq(+sq.dataset.sbseq);
       const sh = g.closest('[data-sbshoot]');
@@ -421,6 +442,7 @@
   .sb-tog{margin-left:4px;height:24px;padding:0 9px;border:1px solid var(--line);border-radius:12px;background:transparent;color:var(--muted);font:inherit;font-size:11.5px;cursor:pointer;white-space:nowrap}
   .sb-tog[aria-expanded="true"]{color:var(--cream);border-color:var(--muted)}
   .sb-alldet{height:26px;padding:0 10px;border:1px solid var(--line);border-radius:13px;background:transparent;color:var(--muted);font:inherit;font-size:12px;cursor:pointer}
+  .sb-adds{display:flex;gap:6px;flex-wrap:wrap}
   .sb-seqrow{display:flex;align-items:center;gap:6px}
   .sb-seq{flex:1;min-width:0;height:32px;padding:0 10px;border:1px solid rgba(125,180,245,.45);border-radius:var(--r);background:rgba(125,180,245,.1);color:#9CC6F5;font:inherit;font-size:13px;font-weight:600;text-align:left;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .sb-seqadd{align-self:flex-start;height:28px;padding:0 10px;border:1px dashed var(--line);border-radius:var(--r);background:transparent;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer}

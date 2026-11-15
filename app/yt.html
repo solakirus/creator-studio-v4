@@ -13,7 +13,7 @@
      player (a blank screen). Loaded from this page on the app's own site
      (GitHub Pages, or nastime over https), the player gets a proper origin and
      referrer. embed.js points every YouTube embed here:
-       yt.html?v=<id>[&autoplay=1][&t=<seconds>] -->
+       yt.html?v=<id>[&autoplay=1][&t=<seconds>][&e=<seconds>] -->
 <style>html,body{margin:0;height:100%;background:#000;overflow:hidden}
 iframe{position:fixed;inset:0;width:100%;height:100%;border:0}</style>
 </head>
@@ -27,6 +27,9 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0}</style>
     autoplay: q.get('autoplay') === '1' ? '1' : '0' });
   var t = parseInt(q.get('t') || '0', 10);
   if(t > 0) p.set('start', String(t));
+  /* a reference section: stop at e (refclip.js) */
+  var e = parseInt(q.get('e') || '0', 10);
+  if(e > 0 && e > t) p.set('end', String(e));
   var f = document.createElement('iframe');
   f.src = 'https://www.youtube-nocookie.com/embed/' + v + '?' + p.toString();
   f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen; accelerometer; gyroscope; clipboard-write; web-share';

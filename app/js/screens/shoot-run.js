@@ -57,7 +57,7 @@
         /* a spot with no frame: an episode shot's Reference Library still, if it has one */
         const sh = !sl.item && (t.shots || [])[i];
         const ref = sh ? (sh.angles || []).flatMap(a => a.refIds || [])[0] : null;
-        const main = { i, item:sl.item || '', ref:ref || null, role:sl.role || '', text:sl.text || `Shot ${i + 1}`, note:step.note || sl.note || '', done:!!step.done, lines, beat };
+        const main = { i, item:sl.item || '', ref:ref || null, role:sl.role || '', text:sl.text || `Shot ${i + 1}`, note:step.note || sl.note || '', done:!!step.done, lines, beat, vref:step.vref && step.vref.url ? step.vref : null };
         /* v4: a shot with a task sequence inside it (the Storyboard's ▦):
            the shot, then each of its parts, then on to the next shot */
         const parts = step.seq && Array.isArray(step.seq.slots) ? step.seq.slots : [];
@@ -159,6 +159,7 @@
   .sr-all button{min-width:240px;height:52px;border-radius:var(--r,4px);border:1px solid #2F2C26;background:#1F1C17;color:#EDE5D2;font-size:16px}
   .sr-all .sr-go{background:#FB6900;border-color:#FB6900;color:#151515;font-family:var(--display),sans-serif;font-weight:900}
   .sr-tw{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:46px;margin:10px 0 0;border:1px solid #4A453C;border-radius:var(--r,4px);background:transparent;color:#EDE5D2;font-size:15px}
+  .sr-vref{border-color:rgba(232,133,58,.6);color:#F2B27A}
   .sr-tw svg{width:14px;height:14px;transition:transform .15s}
   .sr-tw.on{border-color:#FB6900;color:#FB6900}
   .sr-tw.on svg{transform:rotate(90deg)}
@@ -321,6 +322,7 @@
           <p class="sr-k">Shot ${num(s)}${s.j != null ? ` · part ${s.j + 1} of ${s.of} · ${esc(s.parent)}` : ''}${s.role ? ' · ' + esc(s.role) : ''}${s.beat ? ' · ' + esc(s.beat) : ''}</p>
           <p class="sr-t">${esc(s.text)}</p>
           ${s.note ? `<p class="sr-note">${esc(s.note)}</p>` : ''}
+          ${s.vref && global.RefClip ? `<button class="sr-tw sr-vref" data-vref title="${esc(s.vref.n || 'Play just that section')}">▶ Reference · ${esc(RefClip.site(s.vref.url))} · ${esc(RefClip.label(s.vref))}</button>` : ''}
           ${s.lines.length ? `<button class="sr-tw${scriptOpen ? ' on' : ''}" data-script aria-expanded="${scriptOpen}">${TW} ${scriptOpen ? 'Hide the script' : `Script for this shot · ${s.lines.length} line${s.lines.length === 1 ? '' : 's'}`}</button>
             ${scriptOpen ? `<div class="sr-lines">${s.lines.map(l => `<div class="sr-line"><i class="${l.k || 'vo'}">${KIND[l.k] || 'VO'}</i><span>${esc(l.t)}</span></div>`).join('')}</div>` : ''}` : ''}
           <div class="sr-next">${nx >= 0 && nx !== at ? `${mn ? `<span class="th">${picHTML(mn, true)}</span>` : ''}<span>Up next · <b>${num(shots[nx])}. ${esc(shots[nx].text)}</b>${shots[nx].j === 0 ? ` · ▦ ${shots[nx].of} inside shot ${shots[nx].i + 1}` : ''}${at === shots.length - 1 && pi < pages.length - 1 ? ` · › for ${esc(pageName(t, pages[pi + 1]))}` : ''}</span>`
@@ -383,6 +385,7 @@
       if(e.target.closest('[data-pgprev]')){ const pi = pages.indexOf(pg); if(pi > 0) toPage(pages[pi - 1], 'open'); return; }
       if(e.target.closest('[data-got]')) return got();
       if(e.target.closest('[data-srdev]')){ (async () => { const d = await Devices.pick('What are you shooting on?', Devices.last()); if(d !== null){ Devices.setLast(d); render(); } })(); return; }
+      if(e.target.closest('[data-vref]')){ const s = shots[at]; if(s && s.vref) RefClip.play(s.vref, s.text); return; }
       if(e.target.closest('[data-script]')){ scriptOpen = !scriptOpen; try { localStorage.setItem('cs4.sr.script', scriptOpen ? '1' : '0'); } catch(err){} return render(); }
       if(e.target.closest('[data-prev]')) return go(at - 1);
       if(e.target.closest('[data-next]')) return go(at + 1);

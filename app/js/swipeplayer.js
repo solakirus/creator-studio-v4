@@ -98,6 +98,8 @@
       else why = 'This is a Facebook share link, and Facebook\'s player can only open the video\'s own address. The phone app looks it up the first time you play it there.';
     }
     const f = why ? null : frame(playUrl, room);
+    /* a reference section (refclip.js): YouTube starts and stops there */
+    if(f && f.kind === 'youtube' && (s.start || s.end)) f.src += (s.start ? '&t=' + Math.round(s.start) : '') + (s.end ? '&e=' + Math.round(s.end) : '');
     const title = s.title && !/^untitled swipe$/i.test(s.title) ? s.title : (s.author ? '@' + s.author : 'Untitled swipe');
     const cover = opts.cover ? opts.cover(s) : '';
     box.querySelector('.spl-stage').innerHTML = f

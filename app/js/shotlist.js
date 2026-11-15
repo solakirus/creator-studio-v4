@@ -51,6 +51,8 @@
     if(x.clip) o.clip = String(x.clip);
     /* v4: the Storyboard's description line — what we see in it */
     if(x.desc) o.desc = String(x.desc);
+    /* v4: a section of someone else's video to recreate (refclip.js) */
+    if(x.vref && x.vref.url) o.vref = { url:String(x.vref.url), start:Math.max(0, +x.vref.start || 0), end:Math.max(0, +x.vref.end || 0), ...(x.vref.n ? { n:String(x.vref.n) } : {}) };
     /* v4: the footage (editline.js): device, on the computer, where, cut */
     if(x.dev) o.dev = String(x.dev);
     if(x.off) o.off = true;

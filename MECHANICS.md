@@ -500,3 +500,19 @@ for that post on this device (localStorage `cs4-igv`, ig.html `&v=`).
   every tag. They combine with the other dropdowns and can be saved as a view.
 Open the player on the filtered list and tap the tag chips under each video to
 label them one after another.
+
+## A reference video on a shot
+
+Every Storyboard card has **＋ Reference video** (beside ▦ Add a sequence).
+Its sheet (refclip.js, RefClip.edit) takes a link, **From** and **To** (0:10,
+1:23, 83, 1m23s or 1:02:05 all read; a link with t= fills From) and a line on
+what to take from it. It lives on the shot as `vref: { url, start, end, n }`
+(seconds; end 0 = to the end), carried through the Steps, tasks and shoot mode
+by shotlist.js extras.
+
+The card then shows **▶ Reference · YouTube · 0:10 – 1:23** (✎ to change or
+take it off). Playing opens the pop-out player on just that section: YouTube
+gets `t`/`e` through yt.html, which asks YouTube's player to start at `start`
+and stop at `end`. Other sites play the whole video with a toast saying which
+part to watch. In shoot mode a shot with a reference has the same ▶ Reference
+button beside its Script.
