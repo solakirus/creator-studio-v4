@@ -10,7 +10,7 @@
 
      YouTube   — youtube.com/embed/<id>
      TikTok    — tiktok.com/embed/v2/<id>
-     Instagram — instagram.com/<p|reel>/<code>/embed
+     Instagram — instagram.com/<p|reel>/<code>/embed/, through ig.html
      Facebook  — facebook.com/plugins/video.php?href=<the whole url>, which is
                  why this one is passed through rather than picked apart
      X         — no keyless embed that renders in a plain iframe; its widget
@@ -80,11 +80,14 @@
     return PAGES;
   }
 
-  /* posts, reels and tv all embed the same way */
-  function instagramCode(url){
-    const m = String(url || '').match(/instagram\.com\/(?:p|reel|reels|tv)\/([\w-]{5,})/i);
-    return m ? m[1] : null;
+  /* posts, reels and tv. Links come as /p/<code>, /reel/<code>, /reels/<code>,
+     /tv/<code>, and the newer /<username>/reel/<code> or /<username>/p/<code> */
+  function instagramPost(url){
+    const m = String(url || '').match(/instagram\.com\/(?:[\w.]+\/)?(p|reels?|tv)\/([\w-]{5,})/i);
+    if(!m || /^(?:stories|explore|accounts)$/i.test(m[1])) return null;
+    return { code:m[2], kind:/^reels?$/i.test(m[1]) ? 'reel' : m[1].toLowerCase() };
   }
+  function instagramCode(url){ const p = instagramPost(url); return p ? p.code : null; }
 
   /* The embed url for a link, or null when the platform has none worth using. */
   function forUrl(url){
@@ -100,8 +103,10 @@
     if(tt) return { kind:'tiktok', src:`https://www.tiktok.com/embed/v2/${tt}`,
                     ratio:'150%' };      /* portrait, and their chrome is tall */
 
-    const ig = instagramCode(url);
-    if(ig) return { kind:'instagram', src:`https://www.instagram.com/p/${ig}/embed`,
+    /* through ig.html on the app's own site — inside the apps Instagram's
+       embed has no real address to go on and calls good posts "broken" */
+    const ig = instagramPost(url);
+    if(ig) return { kind:'instagram', src:`${relayBase()}ig.html?c=${ig.code}&k=${ig.kind}`,
                     ratio:'125%' };
 
     const fb = facebookUrl(url);

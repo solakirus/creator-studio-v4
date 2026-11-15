@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Instagram</title>
+<!-- Instagram's embed, from a real web address.
+
+     Inside the apps (Android's https://localhost, the laptop's app://)
+     Instagram's embed page can't tell what site it's on and answers "The link
+     to this photo or video may be broken" for posts that are fine. Loaded from
+     this page on the app's own site (GitHub Pages, or nastime over https), it
+     gets a proper origin and referrer — the same fix as yt.html for YouTube.
+     embed.js points every Instagram embed here:
+       ig.html?c=<shortcode>&k=<p|reel|tv> -->
+<style>html,body{margin:0;height:100%;background:#fff;overflow:hidden}
+iframe{position:fixed;inset:0;width:100%;height:100%;border:0}</style>
+</head>
+<body>
+<script>
+(function(){
+  var q = new URLSearchParams(location.search);
+  var c = (q.get('c') || '').replace(/[^\w-]/g, '').slice(0, 40);
+  var k = /^(p|reel|tv)$/.test(q.get('k') || '') ? q.get('k') : 'p';
+  if(!c) return;
+  var f = document.createElement('iframe');
+  f.src = 'https://www.instagram.com/' + k + '/' + c + '/embed/';
+  f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen; clipboard-write; web-share';
+  f.allowFullscreen = true;
+  f.referrerPolicy = 'strict-origin-when-cross-origin';
+  f.setAttribute('scrolling', 'no');
+  f.title = 'Instagram post';
+  document.body.appendChild(f);
+})();
+</script>
+</body>
+</html>

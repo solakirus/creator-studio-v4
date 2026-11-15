@@ -473,3 +473,15 @@ It saves a habit with `swipeId` (group Body for Fitness/routines, Mind for
 Mindset, Home for Home & Garden, Content for Creator/Craft) and each day's
 habit task carries `swipeIds:[swipe]`, so the to-do item has the video on it.
 The swipe then shows ✓ Habit · name, which opens the habit.
+
+### Instagram through ig.html
+
+Instagram embeds now load through `ig.html?c=<code>&k=<p|reel|tv>` on the
+app's own site (embed.js relayBase — GitHub Pages inside the apps), like
+yt.html for YouTube: inside the Android app (https://localhost) or the laptop
+app (app://) Instagram's embed page has no real address to go on and answers
+"The link to this photo or video may be broken" for posts that are fine.
+ig.html iframes `instagram.com/<k>/<code>/embed/` from a proper origin.
+Links read: /p/, /reel/, /reels/, /tv/, and the newer /<username>/reel/<code>.
+A post that really is private, removed, or has embedding switched off still
+shows Instagram's message — ↗ Instagram opens it in the app.
