@@ -124,6 +124,8 @@
         <button class="row" data-go="sync"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${D.sync}"/></svg>
           <span class="lbl">Sync with your server<small id="syLine">checking…</small></span>
           <i class="bkdot" id="syDot"></i>${chev}</button>
+        <button class="row" data-go="trash"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>
+          <span class="lbl">Recently deleted<small id="trLine">kept 30 days, on every device</small></span>${chev}</button>
         <button class="row" data-go="appupdate"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${D.down}"/></svg>
           <span class="lbl">App updates<small id="upLine">checking…</small></span>${chev}</button>
         ${row(D.down,'Import from CSV','Meals, clips, tasks or pantry items','data-go="csv"')}
@@ -203,6 +205,7 @@
 
     /* the sync line: same idea as the backup one below */
     (async () => {
+      if(window.Trash) Trash.count().then(n => { const t = el.querySelector('#trLine'); if(t && n) t.textContent = `${n} thing${n === 1 ? '' : 's'} you can bring back · kept 30 days`; }).catch(() => {});
       const line = el.querySelector('#syLine'), dot = el.querySelector('#syDot');
       if(!line || !window.Sync) return;
       try {
@@ -297,6 +300,7 @@
       if(go.dataset.go === 'planpack')  return openPlanPack();
       if(go.dataset.go === 'ai')        return ShotAI.openSettings();
       if(go.dataset.go === 'sync')      return openSync(() => mount(el));
+      if(go.dataset.go === 'trash')     return window.Trash && Trash.open(() => mount(el));
       if(go.dataset.go === 'appupdate') return openUpdates(() => mount(el));
       if(go.dataset.go === 'autobackup') return openAutoBackup(() => mount(el));
       if(go.dataset.go === 'backup')    return doBackup();

@@ -4285,3 +4285,19 @@ html.spl-open,html.spl-open body{overflow:hidden}
 .wkc-seq{touch-action:pan-x pan-y}
 .wkdef{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0 18px}
 .wkdef-s{color:var(--muted);font-size:13px}
+
+/* v4: Recently deleted (trash.js) */
+.undo-bar{position:fixed;left:12px;right:12px;bottom:calc(var(--h-tabbar, 64px) + var(--sab, 0px) + 74px);z-index:62;max-width:520px;margin:0 auto;
+  display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:var(--surface-2, #1c1c1f);
+  border:1px solid var(--line);box-shadow:0 8px 28px rgba(0,0,0,.35);font-size:14px;
+  opacity:0;transform:translateY(10px);pointer-events:none;transition:opacity .18s,transform .18s}
+.undo-bar.on{opacity:1;transform:none;pointer-events:auto}
+.undo-bar span{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tr-list{display:flex;flex-direction:column;gap:8px;max-height:62vh;overflow:auto}
+.tr-item{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--line);border-radius:var(--r, 12px);background:var(--surface-1)}
+.tr-main{flex:1 1 200px;min-width:0;display:flex;flex-direction:column;gap:3px}
+.tr-main small{color:var(--dim);font-size:12.5px}
+.tr-main .tr-two{color:var(--amber)}
+.tr-acts{display:flex;gap:6px}
+.tr-acts .sm,.tr-vers .sm{padding:7px 12px;font-size:13px;width:auto;min-height:0}
+.tr-vers{flex:1 1 100%;display:flex;gap:6px;flex-wrap:wrap}

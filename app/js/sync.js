@@ -340,6 +340,11 @@
     const d = await getDirty(dk);
     const theirs = c.deleted ? undefined : Transfer.decode(c.data, null);
     const write = async v => {
+      /* another device deleted it: Recently deleted keeps this device's
+         version too, if it's different from the one that was deleted */
+      if(v === undefined && global.Trash && Trash.fromElsewhere){
+        try { const cur = await Store.get(c.store, key); if(cur !== undefined) await Trash.fromElsewhere(c.store, key, cur); } catch(e){}
+      }
       if(v === undefined) await raw.del(c.store, key);
       else if(kp[c.store]) await raw.put(c.store, v);
       else await raw.put(c.store, v, key);

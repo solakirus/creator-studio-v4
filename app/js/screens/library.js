@@ -389,7 +389,7 @@
       body.addEventListener('click', async e => {
         if(e.target.closest('[data-keepnow]') || e.target.closest('[data-getnew]')) return get('', '');
         if(e.target.closest('[data-retry]')){ await MediaLib.probeRemote().catch(() => {}); return render(); }
-        if(e.target.closest('[data-nasset]')) return window.NasAddr ? NasAddr.ask().then(ch => { if(ch) render(); }) : App.go && App.go('settings');
+        if(e.target.closest('[data-nasset]')) return window.NasAddr ? NasAddr.ask().then(ch => { if(ch) render(); }) : Screens.push('settings', {});
       });
     }
 
