@@ -139,6 +139,31 @@ const head = s => console.log(`\n— ${s} —`);
     await I.screenshot({ path: path.join(out, 'onelib-ipad-folders.png'), fullPage: true });
     ok(await I.evaluate(() => NasAddr.host()) === '127.0.0.1', 'nastime’s address is the page’s own host');
 
+    head('phone whose page can’t load nastime’s pictures');
+    const qctx = await b.newContext({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true });
+    await qctx.addInitScript(nas => {
+      const b64 = buf => { let s = ''; const u = new Uint8Array(buf); for(let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+      window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: {
+        CapacitorHttp: { request: async o => { const r = await fetch(o.url); if(window.__files404 && /\/shotlib\//.test(o.url)) return { status:404, data:'', headers:{} };
+          return { status:r.status, data: o.responseType === 'json' ? await r.json() : b64(await r.arrayBuffer()), headers:{} }; } } } };
+      localStorage.setItem('cs4-update-nas', nas);
+    }, NAS);
+    const Q = await qctx.newPage(); Q.on('pageerror', e => errs.push('phone2: ' + e.message));
+    /* the WebView refusing plain-http pictures: every <img>/<video> from nastime fails */
+    await Q.route(/\/shotlib\//, r => ['image', 'media'].includes(r.request().resourceType()) ? r.abort() : r.continue());
+    await Q.goto(url); await Q.waitForFunction(() => window.App && window.MediaLib && MediaLib.remote(), null, { timeout: 15000 }).catch(() => {});
+    await Q.evaluate(() => App.go('series')); await Q.waitForSelector('.ctnav [data-v]', { timeout: 10000 }).catch(() => {}); await Q.waitForTimeout(400);
+    await Q.tap('.ctnav [data-v="library"]'); await Q.waitForTimeout(3500);
+    const shown = await Q.$$eval('.lv-deck .lv-tile img', x => x.filter(i => i.complete && i.naturalWidth > 0 && i.src.startsWith('blob:')).length);
+    ok(shown >= 3, 'the pictures come through the app instead (no broken tiles)', String(shown));
+    await Q.screenshot({ path: path.join(out, 'onelib-phone-viaapp.png') });
+    await Q.tap('.lv-tabs [data-tab="folders"]'); await Q.waitForTimeout(3000);
+    ok(!!(await Q.$('[data-viaapp]')) && !(await Q.$('[data-fileswarn]')), 'Folders: connected, files through the app — no warning');
+    await Q.evaluate(() => { window.__files404 = true; }); await Q.tap('.lv-tabs [data-tab="deck"]'); await Q.waitForTimeout(500);
+    await Q.tap('.lv-tabs [data-tab="folders"]'); await Q.waitForTimeout(3500);
+    ok(/won’t send its files \(nastime answered 404\)/.test(await Q.textContent('[data-fileswarn]').catch(() => '')), 'files nastime won’t send: Folders says so, and what to check');
+    await Q.screenshot({ path: path.join(out, 'onelib-phone-fileswarn.png'), fullPage: true });
+
     head('laptop');
     const lctx = await b.newContext({ viewport: { width: 1280, height: 860 } });
     await lctx.addInitScript(nas => { localStorage.setItem('cs4-update-nas', nas); window.CS3Lib = { home: async () => ({ path:'/x', exists:true }), scan: async () => ({ items: [], pages: [], roots: [], errors: [] }),

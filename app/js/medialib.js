@@ -773,6 +773,48 @@
     if(others.some(o => o && (o === b || b.startsWith(o + '/') || o.startsWith(b + '/')))) return 'That folder is already in the Library — choose an empty or separate folder';
     return '';
   }
+  /* nastime's files when the page can't load them itself — the phone app's
+     page is https://localhost, and its WebView may refuse plain-http pictures
+     from nastime. Fetched outside the page (CapacitorHttp) instead and shown
+     as blob: URLs, a few hundred at a time. */
+  const viaApp = new Map();
+  async function fetchFile(url){
+    const http = global.Capacitor && Capacitor.Plugins && Capacitor.Plugins.CapacitorHttp;
+    if(http && phoneApp()){
+      const r = await http.request({ url, method:'GET', responseType:'blob', connectTimeout:6000, readTimeout:60000 });
+      if(r.status && r.status >= 400) throw new Error('nastime answered ' + r.status);
+      const bin = atob(String(r.data || ''));
+      const u8 = new Uint8Array(bin.length);
+      for(let k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k);
+      const type = /\.gif(\?|$)/i.test(url) ? 'image/gif' : /\.(mp4|m4v)(\?|$)/i.test(url) ? 'video/mp4' : /\.webm/i.test(url) ? 'video/webm'
+        : /\.png/i.test(url) ? 'image/png' : /\.jpe?g/i.test(url) ? 'image/jpeg' : /\.webp/i.test(url) ? 'image/webp' : '';
+      return new Blob([u8], type ? { type } : {});
+    }
+    const r = await fetch(url, { cache:'no-store' });
+    if(!r.ok) throw new Error('nastime answered ' + r.status);
+    return r.blob();
+  }
+  async function blobUrlOf(url){
+    if(viaApp.has(url)){ const u = viaApp.get(url); viaApp.delete(url); viaApp.set(url, u); return u; }
+    const u = URL.createObjectURL(await fetchFile(url));
+    viaApp.set(url, u);
+    if(viaApp.size > 400){ const [k, old] = viaApp.entries().next().value; viaApp.delete(k); try { URL.revokeObjectURL(old); } catch(e){} }
+    return u;
+  }
+  /* any picture or clip from nastime that fails to load, anywhere in the app,
+     gets one more try through the app */
+  if(typeof document !== 'undefined' && remoteable()){
+    document.addEventListener('error', async e => {
+      const el = e.target;
+      if(!el || !/^(IMG|VIDEO|SOURCE)$/.test(el.tagName) || el.dataset.viaApp) return;
+      const src = el.currentSrc || el.src || '';
+      if(!/^https?:\/\//i.test(src) || !/\/shotlib\//.test(src)) return;
+      el.dataset.viaApp = '1';
+      try { el.src = await blobUrlOf(src.split('#')[0]) + (src.includes('#') ? '#' + src.split('#')[1] : ''); }
+      catch(err){ el.dataset.viaAppFailed = String(err.message || err); el.title = 'Couldn’t load from nastime — ' + (err.message || err); }
+    }, true);
+  }
+
   /* the phone and the iPad: is nastime there? Checked at start, coming back
      to the app, and every few minutes — so a home Wi-Fi coming and going is
      noticed (remembered between starts) */
@@ -800,7 +842,7 @@
     allStars, saveStar, deleteStar, starInto, unstar, starredSet,
     deck, search, target, setTarget, disk, videoPoster,
     hasLibrary, remote: () => remoteOn && !disk(), probeRemote, phone: phoneApp, keeps, readRemote,
-    nastime: () => remoteBase, remoteable,
+    nastime: () => remoteBase, remoteable, fetchFile, blobUrlOf,
     onLibraryChange: f => { if(typeof f === 'function') libListeners.add(f); },
     copyNow, setCopy, copyProblem,
     rescan: () => { diskCache = null; cache = null; return load(true); }

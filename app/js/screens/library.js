@@ -109,7 +109,14 @@
         grid.innerHTML = shown.length ? shown.map(it =>
           tile(it, { check:selecting, sel:sel.has(it.uid), caption:true,
             extra: t && !selecting ? `<button class="lv-plus" data-plus="${esc(it.uid)}" title="Add to ${esc(t.label)}">＋</button>` : '' })
-        ).join('') : `<div class="empty" style="grid-column:1/-1"><b>${l.items.length ? 'Nothing matches' : 'Your Library is empty'}</b>${
+        ).join('') : !l.items.length && MediaLib.keeps() && !MediaLib.remote()
+          /* the phone or the iPad, nastime out of reach and nothing kept yet */
+          ? `<div class="empty" style="grid-column:1/-1"><b>nastime can’t be reached</b>The Shot Library lives on nastime. ${
+              MediaLib.phone() ? 'At home on Wi-Fi, check nastime’s address in Settings → Sync.'
+              : /github\.io$/i.test(location.hostname) ? 'This copy of the app opens from GitHub, and Safari won’t let it read nastime — open the app from nastime’s address (http://nastime.local:8795) and add that to the Home Screen.'
+              : 'At home on Wi-Fi, check nastime is on.'}
+              <br><button class="lv-btn" data-tab="folders" style="margin-top:14px">Folders</button></div>`
+          : `<div class="empty" style="grid-column:1/-1"><b>${l.items.length ? 'Nothing matches' : 'Your Library is empty'}</b>${
           l.items.length ? 'Try another filter or search.' : 'Add GIFs, clips and stills from this device, a link, or (on the laptop) a folder.'}
           ${l.items.length ? '' : '<br><button class="lv-btn" data-go="add" style="margin-top:14px">＋ Add to the Library</button>'}</div>`;
         if(list.length > shown.length) grid.insertAdjacentHTML('beforeend',
@@ -328,6 +335,16 @@
         dot.classList.add('on');
         line.innerHTML = `nastime is connected <small>${esc(nas.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</small>`;
         PhoneLib.check({ cat }).catch(() => {});
+        /* can the files themselves come through? (the list can, or we wouldn't be here) */
+        const sample = cat.flatMap(l => l.pages.flatMap(p => p.items)).find(x => x.kind === 'gif' || x.kind === 'image');
+        if(sample) (async () => {
+          const viaPage = await new Promise(res => { const im = new Image(); const t = setTimeout(() => res(false), 7000);
+            im.onload = () => { clearTimeout(t); res(true); }; im.onerror = () => { clearTimeout(t); res(false); }; im.src = sample.url; });
+          let bad = '';
+          if(!viaPage){ try { await MediaLib.fetchFile(sample.url); } catch(err){ bad = err.message || String(err); } }
+          if(bad && body.isConnected) line.insertAdjacentHTML('afterend', `<p class="lv-warn" data-fileswarn>⚠ nastime lists the Shot Library but won’t send its files (${esc(bad)}). On nastime, the Creator Studio v4 app needs the Shot Library folder at /shotlib — in CasaOS, open the app’s settings and check the volume /DATA/AppData/Projects/shot-library → /shotlib.</p>`);
+          else if(!viaPage && body.isConnected) line.insertAdjacentHTML('beforeend', ' <small data-viaapp>· files through the app</small>');
+        })();
       } else {
         dot.classList.add('off');
         line.innerHTML = `nastime can’t be reached <small>— showing what’s on this ${where}</small>`;
