@@ -89,6 +89,7 @@
           <button class="lv-btn sm" data-sel="star">★ Star into…</button>
           ${inStar ? `<button class="lv-btn sm ghost" data-sel="unstar">Take out of ★ ${esc(inStar.name)}</button>` : ''}
           <button class="lv-btn sm" data-sel="board">◈ Add to board</button>
+          ${window.ShotTemplates ? '<button class="lv-btn sm" data-sel="mktpl" title="A shot list from these — Gym 1, Car 2 — to drop into any video">▦ Make a template</button>' : ''}
           ${t ? `<button class="lv-btn sm" data-sel="target">＋ Add to ${esc(t.label || 'template')}</button>` : ''}
           <button class="lv-btn sm ghost" data-sel="all">Select all shown</button>
           <button class="lv-btn sm ghost" data-sel="invert" title="Tick the ones you want to keep, then Invert and Delete">Invert</button>
@@ -149,6 +150,7 @@
           if(act === 'unstar' && inStar){ const n = await MediaLib.unstar(inStar.id, [...sel]); sel.clear(); U.toast(`Took ${plural(n, 'frame')} out — they leave the phone`); return render(); }
           if(act === 'target'){ await addToTarget([...sel]); sel.clear(); return render(); }
           if(act === 'delete') return confirmDelete([...sel]);
+          if(act === 'mktpl') return makeTemplate([...sel]);
         }
         if(e.target.closest('[data-more]')){ limit += 1500; return draw(); }
         if(e.target.closest('[data-moreall]')){ limit = 1e9; return draw(); }
@@ -390,6 +392,38 @@
         if(e.target.closest('[data-keepnow]') || e.target.closest('[data-getnew]')) return get('', '');
         if(e.target.closest('[data-retry]')){ await MediaLib.probeRemote().catch(() => {}); return render(); }
         if(e.target.closest('[data-nasset]')) return window.NasAddr ? NasAddr.ask().then(ch => { if(ch) render(); }) : Screens.push('settings', {});
+      });
+    }
+
+    /* v4: a template straight from the ticked frames, with a place — it shows
+       in Shots → My shots and in every "＋ Template" (shotbank.js) */
+    async function makeTemplate(uids){
+      if(!uids.length) return;
+      const pl = window.ShotBank ? await ShotBank.places() : [];
+      App.sheet(`<h2 style="margin:0 0 6px">Make a template</h2>
+        <p class="hintline" style="margin:0 0 10px">${plural(uids.length, 'shot')}, in the order you ticked them. Drop it into any episode or clip later.</p>
+        <div class="field"><label for="mtName">Name</label><input id="mtName" placeholder="Gym 1"></div>
+        <div class="field"><label for="mtPlace">Place</label>${window.ShotBank ? ShotBank.placeSelect('mtPlace', pl, '') : '<select id="mtPlace"><option value=""></option></select>'}</div>
+        <div class="sheetcta"><button class="btn-primary" data-ok>Make it</button><button class="btn-ghost" data-no>Cancel</button></div>`, sh => {
+        sh.querySelector('#mtName').focus();
+        sh.addEventListener('click', async e => {
+          if(e.target.closest('[data-no]')) return App.closeSheet();
+          if(!e.target.closest('[data-ok]')) return;
+          const name = sh.querySelector('#mtName').value.trim();
+          if(!name) return U.toast('Name it first — Gym 1, Car 2…');
+          const place = window.ShotBank ? await ShotBank.readPlace(sh.querySelector('#mtPlace')) : '';
+          const l = await MediaLib.load();
+          const shots = [];
+          for(const u of uids){
+            const it = MediaLib.find(l, u);
+            if(!it) continue;
+            const ts = await ShotTemplates.shotFromItem(l, it).catch(() => null);
+            shots.push(ts || ShotTemplates.shot({ item:u, label:it.label || it.name || '' }));
+          }
+          await ShotTemplates.save({ ...ShotTemplates.blank(), name, place, shots });
+          App.closeSheet(); selecting = false; sel.clear(); render();
+          U.toast(`“${name}” — ${plural(shots.length, 'shot')}. It’s in Shots → My shots${place ? ' · ' + place : ''}`);
+        });
       });
     }
 

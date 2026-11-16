@@ -1,21 +1,23 @@
-/* Shots — the planned list, the reference library and the swipe file together.
+/* Shots — This week, My shots and Core references together (v4).
 
    They answer the same question at three distances: what am I shooting, what
    should it look like, and what made me want to shoot it. Keeping them apart
    meant crossing the app to check one against another. */
 (function(){
 
+  /* v4: what to shoot this week (by place), your own shots and templates,
+     and the videos that define the look (screens/shots-hub.js) */
   const NAV = [
-    { v:'list', label:'Shot list', screen:'shot-list',
+    { v:'week', label:'This week', screen:'shots-week',
+      d:'M3 5h18v15H3zM3 9h18M8 3v4M16 3v4M7 13h3M7 16.5h3M13 13h4' },
+    { v:'bank', label:'My shots', screen:'shot-bank',
       d:'M2.5 6h13v12h-13zM15.5 10.5L21.5 7.5v9l-6-3M6 12h5' },
-    { v:'refs', label:'References', screen:'reference-library',
-      d:'M3 5h18v14H3zM3 10h18M9 10v9' },
-    { v:'swipe', label:'Swipe file', screen:'swipe-file',
-      d:'M6 3h12v18l-6-4-6 4z' }
+    { v:'core', label:'Core refs', screen:'core-refs',
+      d:'M12 3.5l2.6 5.3 5.9.9-4.25 4.1 1 5.85L12 16.9l-5.25 2.75 1-5.85L3.5 9.7l5.9-.9z' }
   ];
 
   async function mount(el, params){
-    let view = (params && params.view) || 'list';
+    let view = (params && params.view) || 'week';
 
     function shell(){
       el.innerHTML = `

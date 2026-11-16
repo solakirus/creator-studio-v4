@@ -22,7 +22,7 @@
   /* what's worth keeping, most important first (the group's name comes from the first) */
   const KINDS = { vlogs:'Episode', videos:'Video', series:'Series', clips:'Clip', 'shot-templates':'Template',
     'seq-template':'Sequence', months:'Month', quarters:'Quarter', challenges:'Challenge', swipes:'Swipe',
-    transitions:'Transition', refs:'Reference', inbox:'Capture', tasks:'Task' };
+    transitions:'Transition', refs:'Reference', inbox:'Capture', 'my-shots':'Shot', tasks:'Task' };
   const ORDER = Object.keys(KINDS);
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
   const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;

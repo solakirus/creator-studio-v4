@@ -59,6 +59,12 @@
     if(x.off) o.off = true;
     if(x.loc) o.loc = String(x.loc);
     if(x.cut) o.cut = true;
+    /* v4: where it's shot (Shots → This week groups by it), the shot in My shots
+       it came from (shotbank.js — linked: the bank's changes reach it), and
+       when it was ticked */
+    if(x.location) o.location = String(x.location);
+    if(x.bank) o.bank = String(x.bank);
+    if(+x.doneAt > 0) o.doneAt = +x.doneAt;
     /* v4: the shots inside this one (a notebook page — the Storyboard's ▦ task
        sequence), so shoot mode can go through them after it */
     if(x.seq && Array.isArray(x.seq.slots) && x.seq.slots.length) o.seq = x.seq;
@@ -309,7 +315,7 @@
      carries (framing, movement, the lines said over it, its task sequence)
      is kept from the shot of the same words — saving the steps doesn't strip
      a plan's detail. Shared by every host. */
-  const KEEP = ['framing', 'movement', 'editNote', 'seq'];
+  const KEEP = ['framing', 'movement', 'editNote', 'seq', 'location', 'bank', 'dev', 'doneAt'];
   function restore(old, list){
     const was = (old || []).map(x => x == null ? null : typeof x === 'string' ? norm([x])[0] : { ...x, ...(norm([x])[0] || {}) }).filter(Boolean);
     return list.map(s => {

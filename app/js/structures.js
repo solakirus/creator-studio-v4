@@ -528,7 +528,7 @@
               <button class="mini" data-brm="${k}" aria-label="Remove this beat">×</button></div>
             ${gd[k] ? `<p class="sx-guide">${esc(gd[k])}</p>` : ''}
             <div class="sx-shots">${groups[k].map(i => shotCard(i, k)).join('')}
-              <span class="sx-adds"><button class="sx-add" data-sadd="${k}">+ Add a shot to ${esc(b || 'this beat')}</button>${hasLib() ? `<button class="sx-add" data-sxframes="${k}" title="Pick GIFs or stills — each one becomes a shot in this beat">+ Shots from frames</button>` : ''}</span></div>
+              <span class="sx-adds"><button class="sx-add" data-sadd="${k}">+ Add a shot to ${esc(b || 'this beat')}</button>${hasLib() ? `<button class="sx-add" data-sxframes="${k}" title="Pick GIFs or stills — each one becomes a shot in this beat">+ Shots from frames</button>` : ''}${global.ShotBank ? `<button class="sx-add" data-sxtpl="${k}" title="A whole template, or some of My shots, into this beat">+ Template or My shots</button>` : ''}</span></div>
           </section>`).join('');
       container.innerHTML = `<div class="sx${cols ? ' cols' : ''}">
         <div class="sx-head"><span class="k">Structure</span>
@@ -605,6 +605,43 @@
       if(ff){ const sl = slots(t)[+ff.dataset.sxframe];
         if(sl && sl.item && hasLib() && global.LibView && LibView.view) return LibView.view(sl.item);
         return pickFor(+ff.dataset.sxframe); }
+      /* v4: a template or some of My shots into this beat (shotbank.js). The
+         page holds a shot's words and frame; its place, camera and link to My
+         shots go onto the record's shot list right after */
+      const tb = e.target.closest('[data-sxtpl]');
+      if(tb && global.ShotBank){
+        const k = +tb.dataset.sxtpl;
+        const r = await ShotBank.pick({ title:`Add to ${beats()[k] || 'this beat'}` });
+        if(!r || !r.shots.length) return;
+        let made = 0;
+        for(const x of r.shots){
+          const i = addShot(t, k, x.text || '', x.role || '');
+          if(i < 0) break;
+          if(x.item) slots(t)[i].item = x.item;
+          made++;
+        }
+        await persist();
+        const key = /^(clip|video):/.test(String(t.id || '')) ? t.id : '';
+        if(key && global.ShotList && ShotList.board){
+          try {
+            const bd = ShotList.board(key), list = await bd.load();
+            if(list){
+              const tail = r.shots.slice(0, made);
+              let j = list.length - 1;
+              for(let q = tail.length - 1; q >= 0 && j >= 0; q--){
+                while(j >= 0 && (list[j].text || '') !== (tail[q].text || '')) j--;
+                if(j < 0) break;
+                const x = tail[q], m = list[j];
+                if(x.location) m.location = x.location; if(x.bank) m.bank = x.bank; if(x.dev) m.dev = x.dev; if(x.note && !m.note) m.note = x.note;
+                m.beat = k; j--;
+              }
+              await bd.save(list);
+              t = await opts.host.load(); draw();
+            }
+          } catch(err){ console.warn('could not keep the shots’ places', err); }
+        }
+        return U.toast(made < r.shots.length ? `${made} shots added — the page is full` : `${made} shot${made === 1 ? '' : 's'} from “${r.name}” added`);
+      }
       const fm = e.target.closest('[data-sxframes]');
       if(fm){
         const k = +fm.dataset.sxframes;

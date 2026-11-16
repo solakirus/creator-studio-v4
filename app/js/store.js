@@ -2,7 +2,7 @@
    One database, one version, every store declared in one place. */
 (function(global){
   const DB_NAME = global.CS_DB_NAME || 'creator-studio-4';   /* tests set CS_DB_NAME so they never touch real data */
-  const DB_VERSION = 42;
+  const DB_VERSION = 43;
   const STORES = {
     art:            {},                  // task card images, keyed by item slug
     focal:          {},                  // {x,y} focal point per item slug
@@ -81,7 +81,9 @@
     /* v4: a reference video's grabbed section and its 3-second GIF (refclip.js),
        synced so the phone and the iPad play it too, offline; gone 3 days after
        the episode is posted */
-    'ref-clips':    { keyPath:'id' }
+    'ref-clips':    { keyPath:'id' },
+    /* v4: My shots (shotbank.js) — your own shots, filed by place, assigned to videos */
+    'my-shots':     { keyPath:'id' }
   };
 
   let dbp = null;

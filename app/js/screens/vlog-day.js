@@ -139,6 +139,7 @@
                 <button class="dc-t" data-seq="${b.id}" title="Open the sequence"><b>${esc(b.title)}</b></button>
                 <div class="dc-meta">${timeChip(b)}${setupTag(b)}<small data-count="${b.id}">${countLine(b)}</small></div>
                 <div class="dc-acts">${sh.length ? `<button class="dc-shoot" data-shootseq="${b.id}">▶ Shoot it</button>` : ''}
+                  <button data-addtpl="${b.id}" title="Add a template or some of My shots to this sequence">＋ Template</button>
                   <button data-moveto="${b.id}">Move</button>${sh.length ? `<button data-keep="${b.id}">Save as template</button>` : ''}</div>
               </div>
               <div class="sc-host" data-host="${b.id}"></div>
@@ -168,6 +169,7 @@
                 ${open ? `<div class="sc-host" data-host="${b.id}" data-selectable="1"></div>` : ''}
                 <div class="sc-foot">
                   <button data-seq="${b.id}">Open the sequence</button>
+                  <button data-addtpl="${b.id}">＋ Template or My shots</button>
                   <button data-moveto="${b.id}">Move to another day</button>
                   ${sh.length ? `<button data-keep="${b.id}">Save as a template</button>` : ''}
                 </div>
@@ -519,11 +521,32 @@
 
       if(e.target.closest('[data-a="add"]')) return addSheet();
 
-      /* keep one you have built, for next week */
+      /* v4: a template, or some of My shots, into this sequence (shotbank.js) */
+      const at = e.target.closest('[data-addtpl]');
+      if(at && window.ShotBank){
+        const b = (act.beats || []).find(x => x.id === at.dataset.addtpl);
+        if(!b) return;
+        const r = await ShotBank.pick({ title:`Add to “${b.title || 'this sequence'}”` });
+        if(!r || !r.shots.length) return;
+        b.shots = (b.shots || []).concat(r.shots);
+        b.shotsSig = '';
+        await save(); await load(); render();
+        return U.toast(`${r.shots.length} shot${r.shots.length === 1 ? '' : 's'} from “${r.name}” added`);
+      }
+
+      /* keep one you have built, for next week — a shot template with its
+         frames and place (My shots and every "＋ Template" offer it) */
       const keep = e.target.closest('[data-keep]');
       if(keep){
         const b = (act.beats || []).find(x => x.id === keep.dataset.keep);
         if(!b) return;
+        if(window.ShotTemplates && window.ShotBank){
+          const places = (b.shots || []).map(x => x && x.location).filter(Boolean);
+          const pl = places.length && places.every(x => x === places[0]) ? places[0] : '';
+          await ShotTemplates.save({ ...ShotTemplates.blank(), name:b.title || 'Sequence', place:pl,
+            shots:(b.shots || []).filter(Boolean).map(x => ShotTemplates.shot({ label:x.text || '', item:x.item || '', role:x.role || 'Action', notes:x.note || '' })) });
+          return U.toast(`"${b.title}" saved as a template — in My shots${pl ? ' · ' + pl : ''}`);
+        }
         await SeqLib.save(SeqLib.fromSequence(b));
         return U.toast(`"${b.title}" saved as a template`);
       }
