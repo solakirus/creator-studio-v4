@@ -37,7 +37,7 @@
     return String(t).replace(/\s+/g, ' ').trim().slice(0, 90);
   };
   const device = () => {
-    if(global.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) return 'phone';
+    if(global.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()){ try { return Math.min(screen.width, screen.height) >= 600 ? 'tablet' : 'phone'; } catch(e){ return 'phone'; } }
     if(global.CS3Lib) return 'computer';
     if(/iPad/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)) return 'iPad';
     return 'browser';

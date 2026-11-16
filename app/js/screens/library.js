@@ -302,7 +302,7 @@
           <div class="lv-devhead"><span class="lv-dot" data-nasdot></span><b data-nasline>Looking for nastime…</b></div>
           <p class="hintline" style="margin:4px 0 10px">The Shot Library lives on nastime. Browse all of it whenever this ${where} can reach nastime; switch on <b>Keep on this ${where}</b> for the folders you want with you anywhere, offline.</p>
           <div data-newline></div>
-          <div class="lv-row lv-devstats"><span>📦 On this ${where}: <b>${hereCount}</b> frame${hereCount === 1 ? '' : 's'} · ${mb(hereBytes)}</span>
+          <div class="lv-row lv-devstats"><span>📦 On this ${where}: <b>${hereCount}</b> frame${hereCount === 1 ? '' : 's'}${hereCount ? ' · ' + mb(hereBytes) : ''}</span>
             <button class="lv-btn sm" data-keepnow ${k.libs.length || k.pages.length ? '' : 'disabled'}>⟳ Update now</button><small data-keepstate></small></div>
           <label class="lv-row lv-auto"><input type="checkbox" data-keepauto ${autoOn ? 'checked' : ''}>
             <span>Download new GIFs by themselves <small>— otherwise this ${where} asks first</small></span></label>

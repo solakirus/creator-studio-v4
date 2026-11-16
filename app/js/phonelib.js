@@ -99,7 +99,9 @@
     return running;
   }
 
-  const where = () => native() ? 'phone' : /iPad|Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1 ? 'iPad' : 'device';
+  /* an Android tablet (the Lenovo) runs the phone app too: it's a tablet when its short side is wide */
+  const bigScreen = () => { try { return Math.min(screen.width, screen.height) >= 600; } catch(e){ return false; } };
+  const where = () => native() ? (bigScreen() ? 'tablet' : 'phone') : /iPad|Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1 ? 'iPad' : 'device';
 
   /* what nastime has for the kept folders that this device doesn't, as [item, page] */
   function wanted(cat, k, have){
