@@ -69,8 +69,9 @@ const CLIP = FIX('clip.webm'), GIFB = FIX('opener.gif');
     ok(!!(await p.$(`${top} [data-sbvgrab="0"]`)), 'on the laptop a reference has ⬇ Grab');
     await p.click(`${top} [data-sbvgrab="0"]`); await p.waitForTimeout(2500);
     s = await shots();
-    const lib = await p.evaluate(async ids => { const l = await MediaLib.load(); return ids.map(id => { const it = MediaLib.find(l, id); return it ? it.kind + ':' + it.page.split('|')[1] : null; }); }, [s[0].vref.gif, s[0].vref.clip]);
-    ok(s[0].vref.clip && s[0].vref.gif && lib.join() === 'gif:References,video:References', 'it keeps the section and a 3-second GIF in the Library (References)', lib.join());
+    const lib = await p.evaluate(async ids => { const l = await MediaLib.load(); return ids.map(id => { const it = MediaLib.find(l, id); return it ? it.kind + ':' + it.src : null; }); }, [s[0].vref.gif, s[0].vref.clip]);
+    ok(/^rc:/.test(s[0].vref.clip) && lib.join() === 'gif:rc,video:rc' && (await p.evaluate(() => Store.all('ref-clips').then(r => r.values.length))) === 1,
+      'it keeps the section and a 3-second GIF in the synced reference copies', lib.join());
     ok(await p.evaluate(() => window._grabbed.start === 10 && window._grabbed.end === 83), 'it asks for just 0:10 to 1:23');
     ok(/grabbed/.test(await p.textContent(`${top} [data-sbvplay="0"]`)) && !!(await p.$(`${top} [data-sbvplay="0"] .rc-gif`)), 'the card shows the GIF and “grabbed”');
     await p.screenshot({ path: path.join(out, `refgrab-${name}.png`) });

@@ -18,9 +18,13 @@
      await RefClip.cleanup()      grabbed copies go 3 days after the episode is
                                   posted (its Edit walkthrough all ticked)
 
-   The grabbed copy (laptop only — the Library's own files don't sync): the
-   section as an mp4 to watch with sound, and a 3-second GIF of its start
-   that loops on the shot card. vref.gif / vref.clip are its Library uids. */
+   The grabbed copy (grabbed on the laptop, played on every device): the
+   section as an mp4 (720p at most) to watch with sound, and a 3-second GIF
+   of its start that loops on the shot card. Both live in the synced
+   'ref-clips' store, so the phone and the iPad get them with the plan and
+   play them offline; vref.clip / vref.gif are 'rc:<id>:clip' / 'rc:<id>:gif'
+   (MediaLib finds them like any frame). Older grabs kept in the laptop's
+   Library move there by themselves (moveOld). */
 (function(global){
   const esc = s => global.U && U.esc ? U.esc(s) : String(s == null ? '' : s);
 
@@ -103,10 +107,46 @@
       throw new Error((r && r.why ? r.why : 'Couldn’t grab it') + (tip ? ' — ' + tip.trim() : ''));
     }
     const name = (title || 'Reference').slice(0, 60);
-    const o = { label:`${name} · ${label(v)}`, library:'References', page:'Grabbed sections', link:v.url, source:v.url };
-    const clip = await MediaLib.addBlob(new Blob([r.clip], { type:'video/mp4' }), { ...o, kind:'video', name:'reference.mp4' });
-    const gif = r.gif ? await MediaLib.addBlob(new Blob([r.gif], { type:'image/gif' }), { ...o, kind:'gif', name:'reference.gif' }) : null;
-    return { ...v, clip, ...(gif ? { gif } : {}), grabbedAt:Date.now() };
+    /* into the synced 'ref-clips' store: every device plays it, offline too */
+    const id = await keepCopy({ url:v.url, start:v.start || 0, end:v.end || 0, title:`${name} · ${label(v)}`,
+      clip:new Blob([r.clip], { type:'video/mp4' }), gif: r.gif ? new Blob([r.gif], { type:'image/gif' }) : null });
+    return { ...v, clip:`rc:${id}:clip`, ...(r.gif ? { gif:`rc:${id}:gif` } : {}), grabbedAt:Date.now() };
+  }
+  async function keepCopy(o){
+    const id = 'rc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const rec = { id, url:o.url, start:o.start, end:o.end, title:o.title, clip:o.clip, at:Date.now() };
+    if(o.gif) rec.gif = o.gif;
+    await Store.put('ref-clips', rec);
+    if(MediaLib.invalidate) MediaLib.invalidate();
+    return id;
+  }
+
+  /* references grabbed before they synced: their copies were in the laptop's
+     own Library — move them into 'ref-clips' so the phone and the iPad get them */
+  async function moveOld(){
+    if(!global.Store || !global.MediaLib) return 0;
+    let vlogs = [];
+    try { vlogs = (await Store.all('vlogs')).values || []; } catch(e){ return 0; }
+    const lib = await MediaLib.load(true);
+    let n = 0;
+    for(const v of vlogs){
+      let changed = false;
+      for(const a of v.acts || []) for(const b of a.beats || []) for(const sh of b.shots || []){
+        const r = sh && sh.vref;
+        if(!r || !r.clip || /^rc:/.test(r.clip)) continue;
+        const ci = MediaLib.find(lib, r.clip), gi = r.gif ? MediaLib.find(lib, r.gif) : null;
+        const clip = ci ? await MediaLib.blobOf(ci) : null;
+        if(!clip) continue;                       /* not on this device: the laptop moves it */
+        const gif = gi ? await MediaLib.blobOf(gi) : null;
+        const id = await keepCopy({ url:r.url, start:r.start || 0, end:r.end || 0, title:(ci.label || 'Reference'),
+          clip:clip.type ? clip : new Blob([clip], { type:'video/mp4' }), gif: gif ? (gif.type ? gif : new Blob([gif], { type:'image/gif' })) : null });
+        try { await MediaLib.remove([r.clip, r.gif].filter(Boolean)); } catch(e){}
+        sh.vref = { ...r, clip:`rc:${id}:clip`, ...(gif ? { gif:`rc:${id}:gif` } : {}) };
+        changed = true; n++;
+      }
+      if(changed) await Store.put('vlogs', v);
+    }
+    return n;
   }
   async function drop(v){
     if(!v) return v;
@@ -141,7 +181,9 @@
     return n;
   }
   /* once a while after the app opens, on the device that holds the copies */
-  if(global.addEventListener) global.addEventListener('load', () => setTimeout(() => { cleanup().catch(() => {}); }, 20000));
+  if(global.addEventListener) global.addEventListener('load', () => setTimeout(() => {
+    (canGrab() ? moveOld() : Promise.resolve(0)).catch(() => 0).then(() => cleanup()).catch(() => {});
+  }, 20000));
 
   function edit(v, title){
     v = v || {};
@@ -216,5 +258,5 @@
     document.head.appendChild(st);
   }
 
-  global.RefClip = { fmt, parse, timeIn, site, label, edit, play, css, canGrab, grab, drop, cleanup, postedAt, KEEP_DAYS };
+  global.RefClip = { moveOld, keepCopy, fmt, parse, timeIn, site, label, edit, play, css, canGrab, grab, drop, cleanup, postedAt, KEEP_DAYS };
 })(window);

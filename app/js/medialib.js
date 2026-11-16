@@ -210,6 +210,22 @@
       name:r.name || 'frame', label:r.label || '', caption:r.caption || '', link:'', page:'', bytes:r.bytes || 0,
       createdAt:r.keptAt || 0, mime:r.mime || '', big:'', source:'', tags:[], from:'' }));
   }
+  /* reference sections grabbed on the laptop (refclip.js, the synced
+     'ref-clips' store): 'rc:<id>:clip' and 'rc:<id>:gif' — found like any
+     frame, never shown in the Library's grids */
+  async function refItems(){
+    let recs = [];
+    try { recs = (await Store.all('ref-clips')).values; } catch(e){ recs = []; }
+    const out = [];
+    for(const r of recs){
+      if(!r || !r.id) continue;
+      const base = { src:'rc', id:r.id, label:r.title || 'Reference', caption:'', link:r.url || '', page:'', createdAt:r.at || 0,
+                     big:'', source:r.url || '', tags:[], from:'' };
+      if(r.clip) out.push({ ...base, uid:`rc:${r.id}:clip`, part:'clip', kind:'video', name:'reference.mp4', bytes:r.clip.size || 0, mime:'video/mp4' });
+      if(r.gif) out.push({ ...base, uid:`rc:${r.id}:gif`, part:'gif', kind:'gif', name:'reference.gif', bytes:r.gif.size || 0, mime:'image/gif' });
+    }
+    return out;
+  }
   async function keptRecord(uid){ try { return await Store.get('task-frames', uid); } catch(e){ return null; } }
 
   /* library.rs reindex: collections from pages, newest page first */
@@ -270,6 +286,7 @@
          Library uid they were copied from, so a page or shot finds them on the
          phone, which has no Library. They are not Library items: they never show
          in the Library's own grids, and the Library's copy wins on the laptop. */
+      for(const it of await refItems()) c.byUid.set(it.uid, it);
       for(const it of await keptItems()){
         if(!c.byUid.has(it.uid)) c.byUid.set(it.uid, it);
         const plain = it.uid.includes('|') ? it.uid.slice(it.uid.indexOf('|') + 1) : '';
@@ -313,6 +330,14 @@
       if(b){ const u = URL.createObjectURL(b); urls.set(k, u); return u; }
     }
     if(it.src === 'h') return it.url;
+    if(it.src === 'rc'){
+      const k = it.uid;
+      if(urls.has(k)) return urls.get(k);
+      const r = await Store.get('ref-clips', it.id).catch(() => null);
+      const b = r && r[it.part];
+      if(!b) return null;
+      const u = URL.createObjectURL(b); urls.set(k, u); return u;
+    }
     if(urls.has(it.src + ':' + it.id)) return urls.get(it.src + ':' + it.id);
     let blob = null;
     if(it.src === 'tf'){ const r = await keptRecord(it.uid); blob = r && r.blob || null; }
@@ -337,6 +362,7 @@
     if(!it) return null;
     if(it.src === 'db'){ try { return await Store.get('lib-blob', it.id); } catch(e){ return null; } }
     if(it.src === 'h' && it.localId){ const b = await Store.get('lib-blob', it.localId).catch(() => null); if(b) return b; }
+    if(it.src === 'rc'){ const r = await Store.get('ref-clips', it.id).catch(() => null); return r && r[it.part] || null; }
     if(it.src === 'tf'){ const r = await keptRecord(it.uid); return r && r.blob || null; }
     try { const r = await fetch(it.url); return r.ok ? await r.blob() : null; } catch(e){ return null; }
   }
@@ -470,6 +496,11 @@
     for(const u of uids){
       const it = find(lib, u);
       if(!it) continue;
+      if(it.src === 'rc'){
+        try { await Store.del('ref-clips', it.id); } catch(e){}
+        for(const k of [`rc:${it.id}:clip`, `rc:${it.id}:gif`]) if(urls.has(k)){ URL.revokeObjectURL(urls.get(k)); urls.delete(k); }
+        n++; continue;
+      }
       if(it.src === 'db'){
         await Store.del('lib-items', it.id);
         await Store.del('lib-blob', it.id);
