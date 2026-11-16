@@ -10,8 +10,9 @@
 #
 # Where it copies to is asked once and kept in nas-target.txt. Either:
 #   a mounted share   e.g. the folder Files shows after opening
-#                     smb://192.168.4.23/creator-studio-v4
-#   or SSH            e.g.  kris@192.168.4.23:/DATA/AppData/Projects/creator-studio-v4
+#                     smb://nastime.local/creator-studio-v4 (or its IP)
+#   or SSH            e.g.  kris@nastime.local:/DATA/AppData/Projects/creator-studio-v4
+# When nastime's IP changed, it tries nastime.local and nastime by itself.
 set -u
 cd "$(dirname "$0")"
 QUIET=0; [ "${1:-}" = "--quiet" ] && QUIET=1   # from update.sh: no questions
@@ -46,6 +47,38 @@ DEST="${DEST#\'}"; DEST="${DEST%\'}"
 
 SSH=0
 case "$DEST" in *@*:*|*:/*) [ -d "$DEST" ] || SSH=1;; esac
+
+# nastime moved to a new IP? Try the same folder by its name (nastime.local,
+# nastime). A share from Files: mount it again (it unmounts after a restart).
+gvfs_mount() {   # path under gvfs/smb-share:server=H,share=S → gio mount smb://H/S
+  local sv sh
+  sv="$(printf '%s' "$1" | sed -n 's#.*smb-share:server=\([^,]*\),share=\([^/]*\).*#\1#p')"
+  sh="$(printf '%s' "$1" | sed -n 's#.*smb-share:server=\([^,]*\),share=\([^/]*\).*#\2#p')"
+  [ -n "$sv" ] && [ -n "$sh" ] && command -v gio >/dev/null && gio mount "smb://$sv/$sh" </dev/null >/dev/null 2>&1
+}
+if [ "$SSH" = 0 ] && [ ! -d "$DEST" ]; then
+  gvfs_mount "$DEST"
+  if [ ! -d "$DEST" ]; then
+    OLDH="$(printf '%s' "$DEST" | sed -n 's#.*smb-share:server=\([^,]*\),.*#\1#p')"
+    for h in nastime.local nastime; do
+      [ -n "$OLDH" ] || break
+      TRY="${DEST/server=$OLDH,/server=$h,}"
+      gvfs_mount "$TRY"
+      if [ -d "$TRY" ]; then echo " $OLDH didn't answer - found the share at $h and switched to that."; DEST="$TRY"; break; fi
+    done
+  fi
+fi
+if [ "$SSH" = 1 ]; then
+  SSHH="${DEST%%:*}"
+  if ! ssh -o BatchMode=yes -o ConnectTimeout=4 "$SSHH" true 2>/dev/null; then
+    U=""; case "$SSHH" in *@*) U="${SSHH%%@*}@";; esac
+    for h in nastime.local nastime; do
+      if ssh -o BatchMode=yes -o ConnectTimeout=4 "$U$h" true 2>/dev/null; then
+        echo " ${SSHH#*@} didn't answer - found nastime at $h and switched to that."; DEST="$U$h:${DEST#*:}"; break
+      fi
+    done
+  fi
+fi
 
 if [ "$SSH" = 0 ] && [ ! -d "$DEST" ]; then
   echo

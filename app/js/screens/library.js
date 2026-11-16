@@ -411,6 +411,13 @@
         if(!own.length) return U.toast('These live in the Shot Library on nastime — delete them on the laptop, or stop keeping the folder in Folders');
         uids = own;
       }
+      /* the desktop shows nastime's frames it has no folder for: those are deleted where they live */
+      if(MediaLib.disk()){
+        const l = await MediaLib.load();
+        const own = uids.filter(u => { const it = MediaLib.find(l, u); return it && !/^https?:/i.test(it.url || ''); });
+        if(!own.length) return U.toast('These live on nastime — delete them on the computer that has the Shot Library folder');
+        uids = own;
+      }
       const lib = MediaLib.disk() ? 'They’re moved into Shot Library/_Deleted when they live in a folder, so you can still get those back.' : 'They’re taken out of the app.';
       App.sheet(`<h2 style="margin:0 0 10px">Delete ${plural(uids.length, 'frame')}?</h2>
         <p class="hintline" style="margin:0 0 6px">${lib} Boards and templates that use them show an empty spot.</p>
@@ -571,6 +578,11 @@
 
     /* ---------------------------------------------------------- Folders */
     async function foldersPage(body, lib, s){
+      body.addEventListener('change', async e => {
+        if(!e.target.closest('[data-nasread]')) return;
+        await MediaLib.setSettings({ nasRead: e.target.checked });
+        await MediaLib.rescan(); render();
+      });
       const d = MediaLib.disk();
       const homeInfo = d ? await d.home() : null;
       const hidden = new Set(s.hidden || []);
@@ -619,6 +631,15 @@
           <div class="lv-row"><button class="lv-btn sm" data-addroot>Choose a folder…</button>
             <button class="lv-btn sm ghost" data-rescan>⟳ Refresh</button></div>
           ${(lib.errors || []).map(e => `<p class="hintline" style="color:var(--red)">${esc(e)}</p>`).join('')}
+        </div>
+        <div class="lv-card lv-dev">
+          <div class="lv-devhead"><span class="lv-dot ${lib.nastime && !lib.nastime.off ? 'on' : lib.nastime ? 'off' : ''}"></span>
+            <b>${lib.nastime && !lib.nastime.off ? 'nastime is connected' : lib.nastime ? 'nastime can’t be reached' : 'nastime isn’t read here'}</b>
+            ${lib.nastime && lib.nastime.base ? `<small>${esc(lib.nastime.base.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</small>` : ''}</div>
+          <p class="hintline" style="margin:4px 0 8px">${lib.nastime && !lib.nastime.off
+            ? (lib.nastime.added ? `${plural(lib.nastime.added, 'frame')} from nastime’s Shot Library that aren’t in the folders above show in the Deck too — no share to mount.` : 'Everything on nastime is already in the folders above.')
+            : 'When nastime can be reached, its Shot Library shows in the Deck too — no share to mount.'}</p>
+          <label class="lv-row lv-auto"><input type="checkbox" data-nasread ${s.nasRead === false ? '' : 'checked'}><span>Show nastime’s Shot Library here</span></label>
         </div>` : MediaLib.remote() ? `<div class="lv-card">
           <h3>The Shot Library on nastime</h3>
           <p class="hintline" style="margin:0 0 10px">This iPad reads the same folder as the laptop, straight from nastime. Grabs and new folders are added on the laptop; they show here the next time you refresh.</p>
@@ -632,7 +653,7 @@
           const state = on === 0 ? 'off' : on === c.pages.length ? 'on' : 'some';
           return `<details class="lv-col">
             <summary><input type="checkbox" data-col="${esc(c.key)}" ${state === 'on' ? 'checked' : ''} ${state === 'some' ? 'data-some' : ''}>
-              <b>${esc(c.name)}</b><small>${plural(c.pages.length, 'page')} · ${c.counts[0]} GIFs · ${c.counts[1]} clips · ${c.counts[2]} stills${c.src === 'h' ? ' · on disk' : ''}</small></summary>
+              <b>${esc(c.name)}</b><small>${plural(c.pages.length, 'page')} · ${c.counts[0]} GIFs · ${c.counts[1]} clips · ${c.counts[2]} stills${c.src === 'h' ? (c.root === 'nastime' ? ' · on nastime' : ' · on disk') : ''}</small></summary>
             ${c.pages.map(pu => { const p = lib.pageIdx.get(pu); return `<div class="lv-row lv-page">
               <input type="checkbox" data-page="${esc(pu)}" ${hidden.has(pu) ? '' : 'checked'}>
               <span class="lv-pt">${esc(MediaLib.pageLabel(p))}</span>

@@ -141,9 +141,10 @@ const head = s => console.log(`\n— ${s} —`);
 
     head('laptop');
     const lctx = await b.newContext({ viewport: { width: 1280, height: 860 } });
-    await lctx.addInitScript(() => { window.CS3Lib = { home: async () => ({ path:'/x', exists:true }), scan: async () => ({ items: [], pages: [], roots: [], errors: [] }),
+    await lctx.addInitScript(nas => { localStorage.setItem('cs4-update-nas', nas); window.CS3Lib = { home: async () => ({ path:'/x', exists:true }), scan: async () => ({ items: [], pages: [], roots: [], errors: [] }),
+      fetchJson: async u => { try { const r = await fetch(u); return r.ok ? r.json() : null; } catch(e){ return null; } },
       pickFolder: async () => null, open: async () => {}, trash: async () => 0, boardFolder: async () => ({}), shotline: async () => null,
-      grabFind: async () => null, grabRun: async () => ({}), grabStop: async () => {}, grabStatus: async () => ({ running:false, lines:[], links:[] }), onGrab: () => () => {} }; });
+      grabFind: async () => null, grabRun: async () => ({}), grabStop: async () => {}, grabStatus: async () => ({ running:false, lines:[], links:[] }), onGrab: () => () => {} }; }, NAS);
     const L = await lctx.newPage(); L.on('pageerror', e => errs.push('laptop: ' + e.message));
     await L.goto(url); await L.waitForFunction(() => window.App && window.MediaLib, null, { timeout: 15000 }); await L.waitForTimeout(800);
     await L.evaluate(() => App.go('series')); await L.waitForTimeout(400);
@@ -153,6 +154,17 @@ const head = s => console.log(`\n— ${s} —`);
     ok(!(await L.$('[data-forphone]')), 'no “For the phone” file');
     await L.click('.lv-tabs [data-tab="folders"]'); await L.waitForTimeout(700);
     ok(/Folders on this computer/.test(await L.textContent('#libBody')), 'its Folders tab is the laptop’s folders');
+    ok(/nastime is connected/.test(await L.textContent('#libBody')), 'and says nastime is connected (no share mounted)');
+    await L.screenshot({ path: path.join(out, 'onelib-desktop-folders.png'), fullPage: true });
+    await L.click('.lv-tabs [data-tab="deck"]'); await L.waitForTimeout(800);
+    ok((await L.$$('.lv-deck .lv-tile')).length === 5, 'the desktop’s Deck shows nastime’s Shot Library (Linux without the share)', String((await L.$$('.lv-deck .lv-tile')).length));
+    await L.click('.lv-tabs [data-tab="folders"]'); await L.waitForTimeout(600);
+    await L.uncheck('[data-nasread]'); await L.waitForTimeout(800);
+    await L.click('.lv-tabs [data-tab="deck"]'); await L.waitForTimeout(800);
+    ok((await L.$$('.lv-deck .lv-tile')).length === 0, 'switching it off shows just the computer’s own folders');
+    const gv = await L.evaluate(async () => { await MediaLib.setSettings({ roots:['/run/user/1000/gvfs/smb-share:server=192.168.4.23,share=shot-library'], mirrors:{} });
+      localStorage.setItem('cs4-update-nas', 'http://192.168.4.23:8795/'); await NasAddr.set('nastime.local'); return (await MediaLib.settings()).roots[0]; });
+    ok(gv === '/run/user/1000/gvfs/smb-share:server=nastime.local,share=shot-library', 'Linux: the share mounted in Files follows nastime’s new address', gv);
     const sw = await L.evaluate(async () => { await MediaLib.setSettings({ roots:['\\\\192.168.4.23\\shot-library'], mirrors:{ '\\\\192.168.4.23\\shot-library':'C:\\Copy' } });
       localStorage.setItem('cs4-update-nas', 'http://192.168.4.23:8795/');
       const r = await NasAddr.set('http://127.0.0.1:8795'); const s = await MediaLib.settings();

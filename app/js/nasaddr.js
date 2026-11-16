@@ -110,7 +110,12 @@
     /* the laptop's Shot Library share (\\old\shot-library) */
     if(old && old !== h && global.MediaLib && MediaLib.disk && MediaLib.disk()){
       const s = await MediaLib.settings();
-      const swap = p => typeof p === 'string' ? p.replace(new RegExp('^\\\\\\\\' + old.replace(/\./g, '\\.') + '(?=\\\\)', 'i'), '\\\\' + h) : p;
+      const o = old.replace(/\./g, '\\.');
+      /* Windows \\old\share, Linux's Files mount …/smb-share:server=old,share=…, smb://old/ */
+      const swap = p => typeof p === 'string' ? p
+        .replace(new RegExp('^\\\\\\\\' + o + '(?=\\\\)', 'i'), '\\\\' + h)
+        .replace(new RegExp('(smb-share:server=)' + o + '(?=,)', 'i'), '$1' + h)
+        .replace(new RegExp('(smb://)' + o + '(?=/)', 'i'), '$1' + h) : p;
       const roots = (s.roots || []).map(swap);
       const mirrors = Object.fromEntries(Object.entries(s.mirrors || {}).map(([a, b]) => [swap(a), swap(b)]));
       if(JSON.stringify(roots) !== JSON.stringify(s.roots || []) || JSON.stringify(mirrors) !== JSON.stringify(s.mirrors || {})){

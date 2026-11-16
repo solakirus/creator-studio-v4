@@ -20,9 +20,13 @@ THE GRABBER (yt-dlp + ffmpeg)
    then Library > Add & grab > Check again.
 
 THE SHOT LIBRARY ON THE NAS
-   Mount the NAS share (Files > Other Locations > smb://192.168.4.23), then
-   Library > Folders > Choose a folder... and pick it. "Keep a copy..." works
-   the same as on Windows.
+   Nothing to mount: at home the Library shows nastime's Shot Library by
+   itself (Library > Folders: "nastime is connected"). It uses nastime's
+   address from Settings > Sync > nastime's address (nastime.local, or its IP).
+   To grab into the Shot Library or keep a copy on this computer, mount the
+   share too (Files > Other Locations > smb://nastime.local/shot-library),
+   then Library > Folders > Choose a folder... and pick it. When nastime's
+   address changes in Settings, that folder follows it.
 
 NEW VERSIONS
    Unzip the update over the project folder, then run  ./build-linux.sh  in it.

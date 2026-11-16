@@ -65,6 +65,11 @@ const head = s => console.log(`\n— ${s} —`);
   head('laptop B: the template shows them, its Library doesn\'t have them');
   const B = await laptop('B', nasIndex);
   await B.evaluate(h => Sync.connect(h, 'tok', 'replace'), hub.url); await B.waitForTimeout(1500);
+  /* v4: a desktop reads nastime's Shot Library itself, so a frame there isn't missing */
+  const live = await B.evaluate(async () => { const l = await MediaLib.rescan(); const it = MediaLib.find(l, 'h:nastime|Trippin/Lisbon/gifs/tram.gif'); return it ? it.url : ''; });
+  ok(live === 'http://nastime.test:8795/shotlib/Trippin/Lisbon/gifs/tram.gif', 'B shows the frame nastime has straight from nastime', live);
+  /* with "Show nastime's Shot Library here" off, B gets frames into its own folder (below) */
+  await B.evaluate(async () => { await MediaLib.setSettings({ nasRead:false }); await MediaLib.rescan(); });
   const miss = await B.evaluate(async () => FrameGet.missing([...TaskFrames.collect((await Store.get('shot-templates', 'tpl_m')).shots)]));
   ok(miss.length === 4, 'all four are missing from B\'s Library', String(miss.length));
   await B.evaluate(() => Screens.push('shot-templates', { id: 'tpl_m' })); await B.waitForTimeout(1200);

@@ -35,6 +35,13 @@
   const libListeners = new Set();
   /* JSON from nastime: the phone asks outside the page (no CORS, no mixed content) */
   async function getJson(url){
+    const d0 = disk();
+    if(d0 && typeof d0.fetchJson === 'function'){
+      /* away from home a lookup can hang for a while: the Library doesn't wait */
+      const j = await Promise.race([d0.fetchJson(url), new Promise(r => setTimeout(() => r(null), 4000))]);
+      if(!j) throw new Error('nastime can’t be reached');
+      return j;
+    }
     const http = global.Capacitor && Capacitor.Plugins && Capacitor.Plugins.CapacitorHttp;
     if(http && phoneApp()){
       const r = await http.request({ url, method:'GET', responseType:'json', connectTimeout:5000, readTimeout:20000 });
@@ -65,7 +72,7 @@
         const j = await getJson(b + 'shotlib-index.json?t=' + Date.now());
         if(!j || j.format !== 'cs4-shotlib' || !Array.isArray(j.items)) throw new Error('Not a Shot Library list');
         j.items.forEach(it => { it.src = 'h'; it.url = new URL(it.url, b).href; });
-        j.pages.forEach(p => { p.src = 'h'; });
+        j.pages.forEach(p => { p.src = 'h'; if(!p.root) p.root = 'nastime'; });
         remoteBase = b; j.base = b;
         return j;
       } catch(e){ last = e; }
@@ -173,6 +180,20 @@
       const r = await d.scan(s.roots || [], s.mirrors || {});
       r.items.forEach(it => { it.src = 'h'; });
       r.pages.forEach(p => { p.src = 'h'; });
+      /* v4: the desktop (Windows laptop, Linux) reads nastime too, so a
+         computer without the share mounted still has the whole Shot Library
+         at home. A frame its folders already have (same path) shows once. */
+      if(s.nasRead !== false && typeof d.fetchJson === 'function'){
+        try {
+          const j = await readRemote();
+          const have = new Set(r.items.map(x => x.path).filter(Boolean));
+          const add = j.items.filter(x => x.path && !have.has(x.path));
+          const used = new Set(add.map(x => x.page));
+          r.items.push(...add);
+          r.pages.push(...j.pages.filter(p => used.has(p.uid)));
+          r.nastime = { base:j.base, total:j.items.length, added:add.length };
+        } catch(e){ r.nastime = { off:true, why:e.message || String(e) }; }
+      }
       diskCache = r;
     } catch(e){
       console.warn('Library folders could not be read', e);
@@ -257,6 +278,7 @@
       c.roots = h.roots || [];
       c.errors = h.errors || [];
       c.fallback = h.fallback || [];
+      c.nastime = h.nastime || null;
       cache = c;
       if(loading === run) loading = null;
       return c;
