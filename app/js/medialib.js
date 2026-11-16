@@ -427,7 +427,7 @@
   async function addBlob(blob, o){
     const kind = o.kind || kindOf(o.name, blob.type);
     if(!kind || !blob) return null;
-    if(o.from || o.path){
+    if((o.from || o.path) && !o.fresh){
       const have = (await Store.all('lib-items').catch(() => ({ values:[] }))).values
         .find(r => (o.from && r.from === o.from) || (o.path && r.path === o.path));
       if(have) return uidOf(have);

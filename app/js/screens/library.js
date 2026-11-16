@@ -310,7 +310,7 @@
           <p class="hintline" style="margin:4px 0 10px">The Shot Library lives on nastime. Browse all of it whenever this ${where} can reach nastime; switch on <b>Keep on this ${where}</b> for the folders you want with you anywhere, offline.</p>
           <div data-newline></div>
           <div class="lv-row lv-devstats"><span>📦 On this ${where}: <b>${hereCount}</b> frame${hereCount === 1 ? '' : 's'}${hereCount ? ' · ' + mb(hereBytes) : ''}</span>
-            <button class="lv-btn sm" data-keepnow ${k.libs.length || k.pages.length ? '' : 'disabled'}>⟳ Update now</button><small data-keepstate></small></div>
+            <button class="lv-btn sm" data-keepnow ${k.all || k.libs.length || k.pages.length ? '' : 'disabled'}>⟳ Update now</button><small data-keepstate></small></div>
           <label class="lv-row lv-auto"><input type="checkbox" data-keepauto ${autoOn ? 'checked' : ''}>
             <span>Download new GIFs by themselves <small>— otherwise this ${where} asks first</small></span></label>
         </div>
@@ -355,20 +355,25 @@
             b:p.items.reduce((x, it) => x + (it.bytes || 0), 0) })) }))
         : here.map(l => ({ name:l.library, pages:l.pages.map(p => ({ dir:p.dir, name:p.page, n:p.count, b:p.bytes })), offline:true }));
       body.querySelector('[data-colcount]').textContent = libs.length;
-      box.innerHTML = libs.length ? libs.map(l => {
-        const on = k.libs.includes(l.name);
+      const allN = libs.reduce((a, l) => a + l.pages.reduce((x, p) => x + p.n, 0), 0), allB = libs.reduce((a, l) => a + l.pages.reduce((x, p) => x + p.b, 0), 0);
+      const everything = cat && libs.length ? `<div class="lv-col lv-keepcol lv-keepall"><div class="lv-kahead"><b>Everything on nastime</b>
+          <small>${plural(allN, 'frame')} · ${mb(allB)}${k.all ? ` · <span class="lv-kst on">${hereCount >= allN ? `✓ all on this ${where}` : `${hereCount} of ${allN} on this ${where}`}</span>` : ''}</small>
+          <label class="lv-switch" title="Keep everything on this ${where}"><input type="checkbox" data-kall ${k.all ? 'checked' : ''}><i></i><span>Keep all</span></label></div>
+          <p class="hintline" style="margin:4px 0 0">${k.all ? `This ${where} matches nastime: new GIFs download by themselves, and ones deleted from nastime leave this ${where} too.` : `Download everything and keep this ${where} in step with nastime — new ones come down, deleted ones go.`}</p></div>` : '';
+      box.innerHTML = everything + (libs.length ? libs.map(l => {
+        const on = k.all || k.libs.includes(l.name);
         const n = l.pages.reduce((a, p) => a + p.n, 0), b = l.pages.reduce((a, p) => a + p.b, 0);
         const h = hereBy.get(l.name) || { n:0, b:0 };
         const some = !on && l.pages.some(p => k.pages.includes(p.dir));
         const st = on ? (h.n >= n ? `✓ on this ${where}` : `${h.n} of ${n} on this ${where}`) : some ? 'some videos kept' : h.n ? `${h.n} on this ${where}` : '';
         return `<details class="lv-col lv-keepcol" data-libcard="${esc(l.name)}">
           <summary><b>${esc(l.name)}</b><small>${plural(l.pages.length, 'video')} · ${plural(n, 'frame')} · ${mb(b)}${st ? ` · <span class="lv-kst ${on ? 'on' : ''}">${st}</span>` : ''}</small>
-            <label class="lv-switch" title="Keep on this ${where}" onclick="event.stopPropagation()"><input type="checkbox" data-klib="${esc(l.name)}" ${on ? 'checked' : ''}><i></i><span>Keep</span></label></summary>
+            <label class="lv-switch" title="Keep on this ${where}" onclick="event.stopPropagation()"><input type="checkbox" data-klib="${esc(l.name)}" ${on ? 'checked' : ''} ${k.all ? 'disabled' : ''}><i></i><span>Keep</span></label></summary>
           ${l.pages.map(p => `<label class="lv-row lv-page"><input type="checkbox" data-kdir="${esc(p.dir)}" ${on || k.pages.includes(p.dir) ? 'checked' : ''} ${on ? 'disabled' : ''}>
             <span class="lv-pt">${esc(p.name)}</span><small>${p.n} · ${mb(p.b)}</small></label>`).join('')}
-          <p class="hintline" style="margin:6px 0 0">${on ? 'The whole folder is kept. Switch Keep off to choose single videos.' : 'Tick single videos to keep just those.'}</p>
+          <p class="hintline" style="margin:6px 0 0">${k.all ? 'Kept with everything on nastime.' : on ? 'The whole folder is kept. Switch Keep off to choose single videos.' : 'Tick single videos to keep just those.'}</p>
         </details>`;
-      }).join('') : `<p class="hintline">${cat ? 'nastime’s Shot Library is empty — grab on the laptop into the Shot Library folder.' : `Nothing on this ${where} yet. At home on Wi-Fi with nastime on, come back here to pick folders.`}</p>`;
+      }).join('') : '') + (libs.length ? '' : `<p class="hintline">${cat ? 'nastime’s Shot Library is empty — grab on the laptop into the Shot Library folder.' : `Nothing on this ${where} yet. At home on Wi-Fi with nastime on, come back here to pick folders.`}</p>`);
       if(!cat) box.insertAdjacentHTML('beforeend', `<p class="hintline" style="margin-top:10px">${esc(why || '')}</p>
         <div class="lv-row"><button class="lv-btn sm" data-retry>Try again</button><button class="lv-btn sm ghost" data-nasset>nastime address…</button></div>`);
 
@@ -379,6 +384,23 @@
         if(body.isConnected) render();
       };
       body.addEventListener('change', async e => {
+        const ka = e.target.closest('[data-kall]');
+        if(ka){
+          if(ka.checked){
+            let room = '';
+            try { const est = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : null;
+              if(est && est.quota) room = ` This ${where} has room for about ${mb(Math.max(0, est.quota - (est.usage || 0)))}.`; } catch(err){}
+            if(!confirm(`Download everything on nastime — ${plural(allN, 'frame')}, about ${mb(allB)}?${room} It keeps going whenever the app is open at home, and stays in step after that.`)){ ka.checked = false; return; }
+            const kk = await PhoneLib.keepList();
+            await PhoneLib.setKeep({ all:true, libs:kk.libs, pages:kk.pages });
+            await PhoneLib.setAuto(true);
+            return get('', '');
+          }
+          if(!confirm(`Stop keeping everything? All ${hereCount} frames leave this ${where} (they stay on nastime). Then pick folders one by one.`)){ ka.checked = true; return; }
+          const n = await PhoneLib.drop({ all:true });
+          U.toast(`${plural(n, 'frame')} taken off this ${where}`);
+          return render();
+        }
         const c = e.target.closest('[data-klib]');
         if(c){
           const name = c.dataset.klib, kk = await PhoneLib.keepList();

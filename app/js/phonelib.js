@@ -20,8 +20,11 @@
   const listeners = new Set();
   const tell = st => listeners.forEach(f => { try { f(st); } catch(e){} });
 
-  async function keepList(){ const s = await MediaLib.settings(); const k = s[KEY] || {}; return { libs: k.libs || [], pages: k.pages || [] }; }
-  async function setKeep(k){ await MediaLib.setSettings({ [KEY]: { libs: [...new Set(k.libs)], pages: [...new Set(k.pages)] } }); }
+  /* { all, libs, pages } — all: everything on nastime, new folders too, kept in step */
+  async function keepList(){ const s = await MediaLib.settings(); const k = s[KEY] || {}; return { all: !!k.all, libs: k.libs || [], pages: k.pages || [] }; }
+  async function setKeep(k){ const was = await keepList();
+    await MediaLib.setSettings({ [KEY]: { all: k.all !== undefined ? !!k.all : was.all, libs: [...new Set(k.libs || [])], pages: [...new Set(k.pages || [])] } }); }
+  const keepsAny = k => k.all || k.libs.length || k.pages.length;
 
   /* ------------------------------------------------------------ nastime */
   /* outside the page on the phone (no CORS, no mixed-content worries) */
@@ -74,22 +77,29 @@
     running = (async () => {
       const opts = o || {};
       const k = await keepList();
-      if(!k.libs.length && !k.pages.length) return { got:0, failed:0, total:0 };
+      if(!keepsAny(k)) return { got:0, failed:0, total:0 };
       let cat;
       try { cat = await catalogue(); } catch(e){ if(!opts.quiet) U.toast('Can’t reach nastime — ' + e.message); return { offline:true, got:0, failed:0, total:0 }; }
       const have = await havePaths();
       const want = wanted(cat, k, have).filter(([, p]) => !opts.lib || p.library === opts.lib);
-      let got = 0, failed = 0;
-      for(let i = 0; i < want.length; i++){
-        const [it, p] = want[i];
-        if(opts.onProgress) opts.onProgress(i, want.length);
-        try {
-          const blob = await get(it.url, 'blob');
-          const name = it.path.split('/').pop();
-          if(await MediaLib.addBlob(blob, { name, kind:it.kind, label:it.label, caption:it.caption, link:it.link, tags:it.tags,
-              library:p.library, page:p.page, path:it.path, from:it.uid })) got++;
-        } catch(e){ failed++; }
-      }
+      let got = 0, failed = 0, next = 0, done = 0;
+      /* three at a time; what's already here was left out above */
+      const worker = async () => {
+        while(next < want.length){
+          const [it, p] = want[next++];
+          try {
+            const blob = await get(it.url, 'blob');
+            const name = it.path.split('/').pop();
+            if(await MediaLib.addBlob(blob, { name, kind:it.kind, label:it.label, caption:it.caption, link:it.link, tags:it.tags,
+                library:p.library, page:p.page, path:it.path, from:it.uid, fresh:true })) got++;
+          } catch(e){ failed++; }
+          done++;
+          if(opts.onProgress) opts.onProgress(done - 1, want.length);
+        }
+      };
+      await Promise.all([worker(), worker(), worker()]);
+      const gone = await prune(cat, k);
+      if(gone && !opts.quiet) U.toast(`${plural(gone, 'GIF')} gone from nastime — taken off this ${where()} too`);
       lastRun = Date.now();
       if(got){ MediaLib.invalidate && MediaLib.invalidate(); U.toast(`${plural(got, 'GIF')} now on this ${where()}${failed ? ` · ${failed} couldn’t be downloaded` : ''}`); }
       else if(!opts.quiet) U.toast(failed ? `${failed} couldn’t be downloaded` : `Everything you keep is already on this ${where()}`);
@@ -107,7 +117,7 @@
   function wanted(cat, k, have){
     const out = [];
     for(const l of cat) for(const p of l.pages)
-      if(k.libs.includes(l.name) || k.pages.includes(p.dir)) for(const it of p.items) if(!have.has(it.path)) out.push([it, p]);
+      if(k.all || k.libs.includes(l.name) || k.pages.includes(p.dir)) for(const it of p.items) if(!have.has(it.path)) out.push([it, p]);
     return out;
   }
 
@@ -117,7 +127,7 @@
   async function check(o){
     let cat = o && o.cat;
     const k = await keepList();
-    if(!k.libs.length && !k.pages.length){ newOnes = { total:0, libs:[] }; tell(newOnes); return newOnes; }
+    if(!keepsAny(k)){ newOnes = { total:0, libs:[] }; tell(newOnes); return newOnes; }
     if(!cat){ try { cat = await catalogue(); } catch(e){ return newOnes; } }
     const by = new Map();
     for(const [, p] of wanted(cat, k, await havePaths())) by.set(p.library, (by.get(p.library) || 0) + 1);
@@ -136,8 +146,12 @@
   /* the background round: look, then download (when told to) or ask */
   async function round(){
     if(!isPhone() || running) return;
-    const n = await check();
+    let cat = null;
+    try { cat = await catalogue(); } catch(e){ return; }
+    const n = await check({ cat });
     lastRun = Date.now();
+    const gone = await prune(cat, await keepList()).catch(() => 0);
+    if(gone){ MediaLib.invalidate && MediaLib.invalidate(); try { if(global.App && App.refreshTab) App.refreshTab(); } catch(e){} }
     if(!n.total) return;
     if(await auto()) return update({ quiet:true });
     if(n.total > snoozed()) prompt(n);
@@ -165,9 +179,34 @@
     : `${plural(n.total, 'new GIF')} in ${n.libs.slice(0, 2).map(l => `<b>${esc(l.name)}</b>`).join(' and ')}${n.libs.length > 2 ? ` and ${n.libs.length - 2} more` : ''}`;
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
 
+  /* in step with nastime: a kept copy whose file is gone from nastime goes
+     here too. Only when nastime's list is whole — never when it suddenly
+     holds less than half of what this device keeps (a folder not mounted,
+     a scan that failed) */
+  async function prune(cat, k){
+    if(!cat || !keepsAny(k)) return 0;
+    const there = new Set();
+    let n = 0;
+    for(const l of cat) for(const p of l.pages) for(const it of p.items){ there.add(it.path); n++; }
+    const recs = (await Store.all('lib-items').catch(() => ({ values:[] }))).values.filter(r => r.path);
+    const inScope = r => k.all || k.libs.includes(r.library) || k.pages.some(d => r.path.startsWith(d + '/'));
+    const kept = recs.filter(inScope);
+    if(!kept.length || n < kept.length / 2) return 0;
+    const gone = kept.filter(r => !there.has(r.path));
+    if(!gone.length) return 0;
+    await MediaLib.remove(gone.map(r => 'db:' + r.id));
+    return gone.length;
+  }
+
   /* stop keeping a library or video: its copies leave the phone */
   async function drop(sel){
     const recs = (await Store.all('lib-items').catch(() => ({ values:[] }))).values;
+    if(sel.all){
+      const gone = recs.filter(r => r.path);
+      await setKeep({ all:false, libs:[], pages:[] });
+      if(gone.length) await MediaLib.remove(gone.map(r => 'db:' + r.id));
+      return gone.length;
+    }
     const gone = recs.filter(r => r.path && (sel.lib ? r.library === sel.lib : r.path.startsWith(sel.dir + '/')));
     const k = await keepList();
     await setKeep({ libs: k.libs.filter(x => x !== sel.lib), pages: k.pages.filter(x => x !== sel.dir) });
@@ -200,6 +239,6 @@
   /* ask the device to keep this storage (not clear it when space runs low) */
   if(isPhone() && navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 
-  global.PhoneLib = { keepList, setKeep, catalogue, update, drop, onPhone, check, round, auto, setAuto, snooze,
+  global.PhoneLib = { prune, keepList, setKeep, catalogue, update, drop, onPhone, check, round, auto, setAuto, snooze,
     newOnes: () => newOnes, onNew: f => { listeners.add(f); return () => listeners.delete(f); }, where, promptText, isPhone };
 })(window);

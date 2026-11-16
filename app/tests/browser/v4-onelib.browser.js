@@ -118,6 +118,26 @@ const head = s => console.log(`\n— ${s} —`);
     await P.click('.lv-switch:has([data-klib="Life of Riza camera"])'); await P.waitForTimeout(1200);
     ok((await libCount(P, 'Life of Riza camera')) === 0 && (await P.evaluate(() => PhoneLib.keepList())).libs.length === 0, 'Keep off takes the folder off the phone');
 
+    head('phone: keep everything, in step with nastime');
+    P.on('dialog', d => d.accept().catch(() => {}));
+    await P.click('.lv-switch:has([data-kall])'); await P.waitForTimeout(3000);
+    const allN = await P.evaluate(async () => (await Store.all('lib-items')).values.filter(r => r.path).length);
+    ok(allN === 5 && (await P.evaluate(() => PhoneLib.keepList())).all && await P.evaluate(() => PhoneLib.auto()), 'Keep all downloads every frame on nastime and turns on new-GIF downloads', String(allN));
+    ok((await P.$$('[data-klib]:disabled')).length === 2, 'each folder shows as kept with it');
+    await P.screenshot({ path: path.join(out, 'onelib-phone-keepall.png'), fullPage: true });
+    fs.unlinkSync(path.join(lib, 'Life of Riza camera/Morning routine/gifs/riza-03.gif'));
+    await new Promise(r => setTimeout(r, 22000));
+    await P.evaluate(() => PhoneLib.round()); await P.waitForTimeout(800);
+    ok((await P.evaluate(async () => (await Store.all('lib-items')).values.filter(r => r.path).map(r => r.path))).every(x => !/riza-03/.test(x)) &&
+      (await P.evaluate(async () => (await Store.all('lib-items')).values.filter(r => r.path).length)) === 4, 'a GIF deleted from nastime leaves the phone too');
+    put('Life of Riza camera/Morning routine/gifs/riza-03.gif', 'opener.gif');
+    await new Promise(r => setTimeout(r, 22000));
+    await P.evaluate(() => PhoneLib.round()); await P.waitForTimeout(1500);
+    ok((await P.evaluate(async () => (await Store.all('lib-items')).values.filter(r => r.path).length)) === 5, 'and one added comes down by itself');
+    await P.tap('.lv-tabs [data-tab="deck"]'); await P.waitForTimeout(300); await P.tap('.lv-tabs [data-tab="folders"]'); await P.waitForTimeout(1500);
+    await P.click('.lv-switch:has([data-kall])'); await P.waitForTimeout(1200);
+    ok((await P.evaluate(async () => (await Store.all('lib-items')).values.filter(r => r.path).length)) === 0, 'Keep all off takes them off the phone');
+
     head('iPad (opened from nastime)');
     const ictx = await b.newContext({ viewport: { width: 1024, height: 1366 }, hasTouch: true,
       userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15' });
