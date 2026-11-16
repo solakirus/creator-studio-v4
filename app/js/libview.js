@@ -279,8 +279,10 @@
       const s = await MediaLib.settings();
       let kind = 'all', q = '', chosen = [];
       const boards = await MediaLib.allBoards();
+      const stars = (await MediaLib.allStars().catch(() => [])).filter(g => (g.items || []).length);
       const lib0 = await MediaLib.load();
       let src = pickSrc;
+      if(src.startsWith('star:') && !stars.some(g => 'star:' + g.id === src)) src = 'all';
       if(src.startsWith('page:') && !lib0.pageIdx.has(src.slice(5))) src = 'all';
       if(src.startsWith('col:') && !lib0.collections.some(c => c.key === src.slice(4))) src = 'all';
       if(src.startsWith('board:') && !boards.some(b => 'board:' + b.id === src)) src = 'all';
@@ -315,6 +317,7 @@
         const colSel = k => src === 'col:' + k || (pp.srcPage && pp.show && pp.colNow === k);
         srcBox.innerHTML = `<select class="lv-sel" data-src>
             <option value="all">Everything</option>
+            ${stars.length ? `<optgroup label="★ Starred">${stars.map(g => `<option value="star:${g.id}" ${src === 'star:' + g.id ? 'selected' : ''}>★ ${esc(g.name)}</option>`).join('')}</optgroup>` : ''}
             ${boards.length ? `<optgroup label="Boards">${boards.map(b => `<option value="board:${b.id}" ${src === 'board:' + b.id ? 'selected' : ''}>◈ ${esc(b.name)}</option>`).join('')}</optgroup>` : ''}
             ${lib0.collections.length ? `<optgroup label="Libraries">${lib0.collections.map(c => `<option value="col:${esc(c.key)}" ${colSel(c.key) ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</optgroup>` : ''}
           </select>`;

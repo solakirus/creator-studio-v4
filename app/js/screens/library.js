@@ -32,7 +32,7 @@
         <div class="pagehead"><h1 class="page-title">Library</h1><span class="count">${lib.items.length}</span>
           <div class="headacts"><button class="headbtn" data-go="add">＋ ADD</button></div></div>
         <div class="segrow lv-tabs" role="tablist">
-          ${[['deck','Deck'],['starred','★ Starred'],['boards','Boards'],['folders', MediaLib.phone() ? 'On this phone' : 'Folders'],['add', MediaLib.phone() ? 'Add' : 'Add & grab']].map(([k, l]) =>
+          ${[['deck','Deck'],['starred','★ Starred'],['boards','Boards'],['folders', 'Folders'],['add', MediaLib.disk() ? 'Add & grab' : 'Add']].map(([k, l]) =>
             `<button class="seg" role="tab" data-tab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}
         </div>
         ${t ? `<div class="lv-target"><span>＋ adds to <b>${esc(t.label || 'a template')}</b></span>
@@ -44,7 +44,7 @@
       const body = host.querySelector('#libBody');
       if(tab === 'boards') return boardsPage(body, lib);
       if(tab === 'starred') return starredPage(body, lib);
-      if(tab === 'folders') return MediaLib.phone() ? phonePage(body, lib) : foldersPage(body, lib, s);
+      if(tab === 'folders') return MediaLib.keeps() ? devicePage(body, lib) : foldersPage(body, lib, s);
       if(tab === 'add') return addPage(body, lib, s);
       return deckPage(body, lib, s, t);
     }
@@ -83,7 +83,6 @@
               `<option value="${v}" ${sort === v ? 'selected' : ''}>${l}</option>`).join('')}
           </select>
           <button class="pill" data-select aria-pressed="${selecting}">☐ Select</button>
-          ${MediaLib.phone() ? '' : `<button class="pill" data-forphone title="Makes a file of what's shown here, to import on the phone">⇩ For the phone</button>`}
         </div>
         <div class="lv-selbar" ${selecting ? '' : 'hidden'}>
           <b data-seln>${plural(sel.size, 'frame')}</b>
@@ -93,7 +92,6 @@
           ${t ? `<button class="lv-btn sm" data-sel="target">＋ Add to ${esc(t.label || 'template')}</button>` : ''}
           <button class="lv-btn sm ghost" data-sel="all">Select all shown</button>
           <button class="lv-btn sm ghost" data-sel="invert" title="Tick the ones you want to keep, then Invert and Delete">Invert</button>
-          ${MediaLib.phone() ? '' : `<button class="lv-btn sm ghost" data-sel="forphone" title="A file of the ticked frames, to import on the phone">⇩ For the phone</button>`}
           <button class="lv-btn sm ghost" data-sel="clear">Clear</button>
           <button class="lv-btn sm ghost danger" data-sel="delete">Delete</button>
         </div>
@@ -134,12 +132,6 @@
         if(k){ kind = k.dataset.k; body.querySelectorAll('[data-k]').forEach(x => x.setAttribute('aria-pressed', String(x === k))); return draw(); }
         if(e.target.closest('[data-play]')){ await MediaLib.setSettings({ play:!(s.play !== false) }); return render(); }
         if(e.target.closest('[data-select]')){ selecting = !selecting; sel.clear(); return render(); }
-        if(e.target.closest('[data-forphone]')){
-          const { list } = await MediaLib.deck({ kind, q, src, sort });
-          const pg = src.startsWith('page:') ? lib.pageIdx.get(src.slice(5)) : null;
-          const col = src.startsWith('col:') ? lib.collections.find(c => 'col:' + c.key === src) : null;
-          return forPhone(list, pg ? MediaLib.pageLabel(pg) : col ? col.name : 'Shot Library');
-        }
         const plus = e.target.closest('[data-plus]');
         if(plus){ e.stopPropagation(); return addToTarget([plus.dataset.plus]); }
         const a = e.target.closest('[data-sel]');
@@ -157,7 +149,6 @@
           if(act === 'unstar' && inStar){ const n = await MediaLib.unstar(inStar.id, [...sel]); sel.clear(); U.toast(`Took ${plural(n, 'frame')} out — they leave the phone`); return render(); }
           if(act === 'target'){ await addToTarget([...sel]); sel.clear(); return render(); }
           if(act === 'delete') return confirmDelete([...sel]);
-          if(act === 'forphone'){ const l = await MediaLib.load(); return forPhone([...sel].map(u => MediaLib.find(l, u)).filter(Boolean), plural(sel.size, 'frame')); }
         }
         if(e.target.closest('[data-more]')){ limit += 1500; return draw(); }
         if(e.target.closest('[data-moreall]')){ limit = 1e9; return draw(); }
@@ -293,110 +284,113 @@
       if(selecting) selbar();
     }
 
-    /* v4: a .cs4lib file of these frames, for "Import a file" on the phone */
-    async function forPhone(items, title){
-      if(!items.length) return U.toast('Nothing to put in the file');
-      const mb = items.reduce((a, it) => a + (it.bytes || 0), 0) / 1048576;
-      if(mb > 1500 && !confirm(`That's about ${Math.round(mb)} MB — big for one file. Make it anyway?`)) return;
-      U.toast(`Making the file — ${plural(items.length, 'frame')}…`);
-      try {
-        const r = await PhoneLib.exportFile(items, title, (i, n) => { if(i % 25 === 0) U.toast(`Making the file… ${i} of ${n}`); });
-        U.toast(`Saved “${r.name}” (${plural(r.count, 'frame')}, ${Math.max(1, Math.round(r.bytes / 1048576))} MB). Move it to the phone and Import it there.`);
-      } catch(err){ U.toast('Couldn’t make the file — ' + (err.message || err)); }
-    }
-
-    /* ---------------------------------------------------------- On this phone
-       What the phone keeps (phonelib.js): from nastime by itself, or from a
-       file the laptop makes. */
-    async function phonePage(body, lib){
-      const k = await PhoneLib.keepList();
-      const here = await PhoneLib.onPhone();
-      const mb = b => b >= 1048576 ? Math.round(b / 1048576) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
-      const total = here.reduce((a, l) => a + l.pages.reduce((x, p) => x + p.bytes, 0), 0);
-      const keptPages = k.pages.map(d => d.split('/').slice(1).join(' / ') || d);
+    /* ---------------------------------------------------------- Folders, on the phone and the iPad
+       The same screen on both: nastime's folders, each with "Keep on this
+       device" (phonelib.js). Kept folders work offline and get new GIFs —
+       asked about, or by themselves. */
+    async function devicePage(body, lib){
+      const mb = b => b >= 1073741824 ? (b / 1073741824).toFixed(1) + ' GB' : b >= 1048576 ? Math.round(b / 1048576) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+      const where = PhoneLib.where();
+      const [k, here, autoOn] = await Promise.all([PhoneLib.keepList(), PhoneLib.onPhone(), PhoneLib.auto()]);
+      const hereBytes = here.reduce((a, l) => a + l.pages.reduce((x, p) => x + p.bytes, 0), 0);
+      const hereCount = here.reduce((a, l) => a + l.pages.reduce((x, p) => x + p.count, 0), 0);
+      const hereBy = new Map(here.map(l => [l.library, l.pages.reduce((x, p) => ({ n:x.n + p.count, b:x.b + p.bytes }), { n:0, b:0 })]));
       body.innerHTML = `
-        <div class="lv-card">
-          <h3>On this phone <small style="color:var(--muted);font-weight:500">· ${mb(total)}</small></h3>
-          <p class="hintline" style="margin:0 0 10px">These GIFs are kept on the phone and work anywhere, offline. What you keep from nastime stays up to date by itself whenever the phone can reach nastime.</p>
-          ${k.libs.length || k.pages.length ? `<div class="lv-keeps">
-            ${k.libs.map(l => `<div class="lv-row"><span>📚 <b>${esc(l)}</b> <small>— the whole library</small></span><button class="lv-btn sm ghost" data-unkeep-lib="${esc(l)}">Stop keeping</button></div>`).join('')}
-            ${k.pages.map((d, i) => `<div class="lv-row"><span>🎞 <b>${esc(keptPages[i])}</b> <small>${esc(d.split('/')[0])}</small></span><button class="lv-btn sm ghost" data-unkeep-dir="${esc(d)}">Stop keeping</button></div>`).join('')}
-          </div>
-          <div class="lv-row" style="margin-top:8px"><button class="lv-btn sm" data-keepnow>⟳ Update now</button><small data-keepstate></small></div>`
-          : '<p class="hintline">Nothing kept from nastime yet — pick below.</p>'}
-          ${here.length ? `<details class="lv-opts" style="margin-top:10px"><summary>Everything on the phone (${here.reduce((a, l) => a + l.pages.reduce((x, p) => x + p.count, 0), 0)} frames)</summary>
-            ${here.map(l => `<p class="lv-group">${esc(l.library)}</p>${l.pages.map(p => `<div class="lv-row"><span class="lv-pt">${esc(p.page)}</span><small>${p.count} · ${mb(p.bytes)}</small></div>`).join('')}`).join('')}
-          </details>` : ''}
+        <div class="lv-card lv-dev">
+          <div class="lv-devhead"><span class="lv-dot" data-nasdot></span><b data-nasline>Looking for nastime…</b></div>
+          <p class="hintline" style="margin:4px 0 10px">The Shot Library lives on nastime. Browse all of it whenever this ${where} can reach nastime; switch on <b>Keep on this ${where}</b> for the folders you want with you anywhere, offline.</p>
+          <div data-newline></div>
+          <div class="lv-row lv-devstats"><span>📦 On this ${where}: <b>${hereCount}</b> frame${hereCount === 1 ? '' : 's'} · ${mb(hereBytes)}</span>
+            <button class="lv-btn sm" data-keepnow ${k.libs.length || k.pages.length ? '' : 'disabled'}>⟳ Update now</button><small data-keepstate></small></div>
+          <label class="lv-row lv-auto"><input type="checkbox" data-keepauto ${autoOn ? 'checked' : ''}>
+            <span>Download new GIFs by themselves <small>— otherwise this ${where} asks first</small></span></label>
         </div>
-        <div class="lv-card">
-          <h3>Keep more from nastime</h3>
-          <p class="hintline" style="margin:0 0 10px">Tick a whole library or single videos. They download now and stay up to date.</p>
-          <div data-cat><button class="lv-btn sm" data-showcat>Show what’s on nastime</button></div>
-        </div>
-        <div class="lv-card">
-          <h3>Import a file from the laptop</h3>
-          <p class="hintline" style="margin:0 0 10px">On the laptop or the Linux desktop: Library → Deck → <b>⇩ For the phone</b> makes a .cs4lib file of what's shown (a video, a library, or the frames you ticked). Move it to the phone — Syncthing, Drive or a cable — and pick it here. Works without nastime.</p>
-          <input type="file" data-importfile accept=".cs4lib,.zip,application/zip" hidden>
-          <div class="lv-row"><button class="lv-btn" data-import>Import a file…</button><small data-importstate></small></div>
-        </div>`;
+        <div class="sec"><h2>Folders</h2><div class="rule"></div><span class="alt" data-colcount></span></div>
+        <div data-cat><p class="hintline">Asking nastime…</p></div>`;
+      const dot = body.querySelector('[data-nasdot]'), line = body.querySelector('[data-nasline]');
       const state = body.querySelector('[data-keepstate]');
-      body.addEventListener('click', async e => {
-        const ul = e.target.closest('[data-unkeep-lib]'), ud = e.target.closest('[data-unkeep-dir]');
-        if(ul || ud){
-          const what = ul ? ul.dataset.unkeepLib : ud.dataset.unkeepDir.split('/').slice(1).join(' / ');
-          if(!confirm(`Stop keeping “${what}”? Its GIFs leave the phone (they stay on nastime and the laptop).`)) return;
-          const n = await PhoneLib.drop(ul ? { lib:ul.dataset.unkeepLib } : { dir:ud.dataset.unkeepDir });
-          U.toast(`${plural(n, 'GIF')} taken off the phone`); return render();
-        }
-        if(e.target.closest('[data-keepnow]')){
-          if(state) state.textContent = ' looking…';
-          const r = await PhoneLib.update({ onProgress:(i, n) => { if(state) state.textContent = ` downloading ${i + 1} of ${n}…`; } });
-          if(state) state.textContent = r.offline ? ' nastime can’t be reached' : ` ${r.got} new`;
-          return r.got ? render() : null;
-        }
-        if(e.target.closest('[data-import]')) return body.querySelector('[data-importfile]').click();
-        if(e.target.closest('[data-showcat]')) return showCatalogue();
-      });
-      body.querySelector('[data-importfile]').addEventListener('change', async e => {
-        const f = e.target.files && e.target.files[0];
-        if(!f) return;
-        const st = body.querySelector('[data-importstate]');
-        try {
-          const r = await PhoneLib.importFile(f, (i, n) => { st.textContent = ` ${i + 1} of ${n}…`; });
-          U.toast(`${plural(r.got, 'GIF')} added${r.same ? ` · ${r.same} were already here` : ''}${r.title ? ` from “${r.title}”` : ''}`);
-          render();
-        } catch(err){ st.textContent = ''; U.toast(err.message || 'Couldn’t read that file'); }
-      });
-      async function showCatalogue(){
-        const box = body.querySelector('[data-cat]');
-        box.innerHTML = '<p class="hintline">Asking nastime…</p>';
-        let cat;
-        try { cat = await PhoneLib.catalogue(); }
-        catch(err){ box.innerHTML = `<p class="hintline" style="color:var(--red)">Can’t reach nastime — ${esc(err.message)}. At home on Wi-Fi with nastime on, try again.</p>
-          <button class="lv-btn sm" data-showcat>Try again</button>`; return; }
-        const kk = await PhoneLib.keepList();
-        box.innerHTML = cat.map(l => {
-          const libOn = kk.libs.includes(l.name);
-          const n = l.pages.reduce((a, p) => a + p.items.length, 0), b = l.pages.reduce((a, p) => a + p.items.reduce((x, it) => x + (it.bytes || 0), 0), 0);
-          return `<details class="lv-col"><summary><input type="checkbox" data-klib="${esc(l.name)}" ${libOn ? 'checked' : ''}>
-              <b>${esc(l.name)}</b><small>${plural(l.pages.length, 'video')} · ${n} frames · ${mb(b)}</small></summary>
-            ${l.pages.map(p => `<label class="lv-row lv-page"><input type="checkbox" data-kdir="${esc(p.dir)}" ${libOn || kk.pages.includes(p.dir) ? 'checked' : ''} ${libOn ? 'disabled' : ''}>
-              <span class="lv-pt">${esc(p.name)}</span><small>${p.items.length} · ${mb(p.items.reduce((x, it) => x + (it.bytes || 0), 0))}</small></label>`).join('')}
-          </details>`;
-        }).join('') + `<div class="lv-row" style="margin-top:10px"><button class="lv-btn" data-keepsave>Keep the ticked ones on this phone</button></div>`;
-        box.addEventListener('change', e => {
-          const c = e.target.closest('[data-klib]');
-          if(c) c.closest('details').querySelectorAll('[data-kdir]').forEach(x => { x.checked = c.checked; x.disabled = c.checked; });
-        });
-        box.querySelector('[data-keepsave]').addEventListener('click', async () => {
-          const libs = [...box.querySelectorAll('[data-klib]:checked')].map(x => x.dataset.klib);
-          const pages = [...box.querySelectorAll('[data-kdir]:checked:not(:disabled)')].map(x => x.dataset.kdir);
-          await PhoneLib.setKeep({ libs, pages });
-          U.toast('Downloading to the phone…');
-          const r = await PhoneLib.update({ onProgress:(i, n) => { if(i % 10 === 0) U.toast(`Downloading ${i + 1} of ${n}…`); } });
-          if(!r.offline) render();
-        });
+      const showNew = n => {
+        const box = body.querySelector('[data-newline]');
+        if(!box) return;
+        box.innerHTML = n && n.total ? `<div class="lv-new"><span>${PhoneLib.promptText(n)}</span>
+          <button class="lv-btn sm" data-getnew>Download</button></div>` : '';
+      };
+      showNew(PhoneLib.newOnes());
+      const off = PhoneLib.onNew(n => { if(!body.isConnected) return off(); showNew(n); });
+
+      let cat = null;
+      try { cat = await PhoneLib.catalogue(); } catch(err){ cat = null; var why = err.message || String(err); }
+      if(!body.isConnected) return;
+      const nas = MediaLib.nastime();
+      if(cat){
+        dot.classList.add('on');
+        line.innerHTML = `nastime is connected <small>${esc(nas.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</small>`;
+        PhoneLib.check({ cat }).catch(() => {});
+      } else {
+        dot.classList.add('off');
+        line.innerHTML = `nastime can’t be reached <small>— showing what’s on this ${where}</small>`;
       }
+      const box = body.querySelector('[data-cat]');
+      /* nastime's folders, or (offline) the ones this device keeps */
+      const libs = cat ? cat.map(l => ({ name:l.name, pages:l.pages.map(p => ({ dir:p.dir, name:p.name, n:p.items.length,
+            b:p.items.reduce((x, it) => x + (it.bytes || 0), 0) })) }))
+        : here.map(l => ({ name:l.library, pages:l.pages.map(p => ({ dir:p.dir, name:p.page, n:p.count, b:p.bytes })), offline:true }));
+      body.querySelector('[data-colcount]').textContent = libs.length;
+      box.innerHTML = libs.length ? libs.map(l => {
+        const on = k.libs.includes(l.name);
+        const n = l.pages.reduce((a, p) => a + p.n, 0), b = l.pages.reduce((a, p) => a + p.b, 0);
+        const h = hereBy.get(l.name) || { n:0, b:0 };
+        const some = !on && l.pages.some(p => k.pages.includes(p.dir));
+        const st = on ? (h.n >= n ? `✓ on this ${where}` : `${h.n} of ${n} on this ${where}`) : some ? 'some videos kept' : h.n ? `${h.n} on this ${where}` : '';
+        return `<details class="lv-col lv-keepcol" data-libcard="${esc(l.name)}">
+          <summary><b>${esc(l.name)}</b><small>${plural(l.pages.length, 'video')} · ${plural(n, 'frame')} · ${mb(b)}${st ? ` · <span class="lv-kst ${on ? 'on' : ''}">${st}</span>` : ''}</small>
+            <label class="lv-switch" title="Keep on this ${where}" onclick="event.stopPropagation()"><input type="checkbox" data-klib="${esc(l.name)}" ${on ? 'checked' : ''}><i></i><span>Keep</span></label></summary>
+          ${l.pages.map(p => `<label class="lv-row lv-page"><input type="checkbox" data-kdir="${esc(p.dir)}" ${on || k.pages.includes(p.dir) ? 'checked' : ''} ${on ? 'disabled' : ''}>
+            <span class="lv-pt">${esc(p.name)}</span><small>${p.n} · ${mb(p.b)}</small></label>`).join('')}
+          <p class="hintline" style="margin:6px 0 0">${on ? 'The whole folder is kept. Switch Keep off to choose single videos.' : 'Tick single videos to keep just those.'}</p>
+        </details>`;
+      }).join('') : `<p class="hintline">${cat ? 'nastime’s Shot Library is empty — grab on the laptop into the Shot Library folder.' : `Nothing on this ${where} yet. At home on Wi-Fi with nastime on, come back here to pick folders.`}</p>`;
+      if(!cat) box.insertAdjacentHTML('beforeend', `<p class="hintline" style="margin-top:10px">${esc(why || '')}</p>
+        <div class="lv-row"><button class="lv-btn sm" data-retry>Try again</button><button class="lv-btn sm ghost" data-nasset>nastime address…</button></div>`);
+
+      const get = async (lib0, label) => {
+        if(state) state.textContent = ' looking…';
+        const r = await PhoneLib.update({ lib:lib0, onProgress:(i, n) => { if(state) state.textContent = ` downloading ${i + 1} of ${n}${label ? ' from ' + label : ''}…`; } });
+        if(state) state.textContent = r.offline ? ' nastime can’t be reached' : '';
+        if(body.isConnected) render();
+      };
+      body.addEventListener('change', async e => {
+        const c = e.target.closest('[data-klib]');
+        if(c){
+          const name = c.dataset.klib, kk = await PhoneLib.keepList();
+          if(c.checked){
+            await PhoneLib.setKeep({ libs:[...kk.libs, name], pages:kk.pages });
+            return get(name, name);
+          }
+          const h = hereBy.get(name);
+          if(h && h.n && !confirm(`Stop keeping “${name}” on this ${where}? Its ${h.n} frames (${mb(h.b)}) leave this ${where} — they stay on nastime.`)){ c.checked = true; return; }
+          const n = await PhoneLib.drop({ lib:name });
+          U.toast(n ? `${plural(n, 'frame')} taken off this ${where}` : `“${name}” isn’t kept any more`);
+          return render();
+        }
+        const d = e.target.closest('[data-kdir]');
+        if(d){
+          const kk = await PhoneLib.keepList();
+          if(d.checked){ await PhoneLib.setKeep({ libs:kk.libs, pages:[...kk.pages, d.dataset.kdir] }); return get('', ''); }
+          await PhoneLib.drop({ dir:d.dataset.kdir });
+          return render();
+        }
+        if(e.target.closest('[data-keepauto]')){
+          await PhoneLib.setAuto(e.target.checked);
+          U.toast(e.target.checked ? `New GIFs will download by themselves` : `This ${where} will ask before downloading new GIFs`);
+          if(e.target.checked && PhoneLib.newOnes().total) get('', '');
+        }
+      });
+      body.addEventListener('click', async e => {
+        if(e.target.closest('[data-keepnow]') || e.target.closest('[data-getnew]')) return get('', '');
+        if(e.target.closest('[data-retry]')){ await MediaLib.probeRemote().catch(() => {}); return render(); }
+        if(e.target.closest('[data-nasset]')) return window.NasAddr ? NasAddr.ask().then(ch => { if(ch) render(); }) : App.go && App.go('settings');
+      });
     }
 
     async function addToTarget(uids){
@@ -409,11 +403,12 @@
     const global_tpl = () => !!window.ShotTemplates;
 
     async function confirmDelete(uids){
-      /* the iPad reads nastime's Shot Library without changing it: those are deleted from the laptop */
-      if(MediaLib.remote()){
+      /* the phone and the iPad read nastime's Shot Library without changing it:
+         those are deleted from the laptop (a kept folder is taken off the device in Folders) */
+      if(MediaLib.keeps()){
         const l = await MediaLib.load();
-        const own = uids.filter(u => { const it = MediaLib.find(l, u); return it && it.src === 'db'; });
-        if(!own.length) return U.toast('These live in the Shot Library on nastime — delete them from the laptop');
+        const own = uids.filter(u => { const it = MediaLib.find(l, u); return it && it.src === 'db' && !it.path; });
+        if(!own.length) return U.toast('These live in the Shot Library on nastime — delete them on the laptop, or stop keeping the folder in Folders');
         uids = own;
       }
       const lib = MediaLib.disk() ? 'They’re moved into Shot Library/_Deleted when they live in a folder, so you can still get those back.' : 'They’re taken out of the app.';
@@ -751,8 +746,7 @@
         <div class="lv-card">
           <h3>Add GIFs, clips and stills</h3>
           <p class="hintline" style="margin:0 0 10px">${d ? 'From this computer. They’re kept inside the app, so they travel with your backup.'
-            : MediaLib.remote() ? 'From this iPad. They’re kept in the app on this iPad only — to add to the Shot Library on nastime, use the laptop.'
-            : 'From this phone. They’re kept inside the app, so they travel with your backup.'}</p>
+            : `From this ${PhoneLib.where()}. They’re kept in the app on this ${PhoneLib.where()} only — to add to the Shot Library on nastime, grab on the laptop.`}</p>
           <label class="lv-lab">Library name <small>(optional, e.g. “Cut-ins” or “Vlog looks”)</small>
             <input class="lv-in" data-libname value="${esc(s.libName || '')}" placeholder="My library"></label>
           ${names.length ? `<div class="lv-pills">${names.map(n => `<button class="pill" data-ln="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}

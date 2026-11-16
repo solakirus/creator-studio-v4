@@ -36,16 +36,12 @@
       d:'M5 3h10l4 4v14H5zM15 3v4h4M8 11h8M8 14.5h8M8 18h5' }
   ];
 
-  /* v4: the Library and Templates are where planning happens, on the laptop.
-     The phone gets what they put on tasks and videos (taskframes.js), not the
-     Library itself. window.CS3Lib is the laptop's disk bridge (electron/preload.js). */
-  /* the laptop, or the iPad reading nastime's Shot Library (medialib.js) */
-  const onLaptop = () => !!global.CS3Lib || !!(global.MediaLib && MediaLib.hasLibrary() && !MediaLib.phone());
-  /* v4: the phone keeps its own Library too (phonelib.js): Library and Starred, no Templates */
-  const onPhone = () => !!(global.MediaLib && MediaLib.phone && MediaLib.phone());
-  /* the Planner (app.js) keeps to planning: no Swipe file */
-  const shown = () => NAV.filter(n => onPhone() ? n.v !== 'templates'
-    : (!n.laptop || onLaptop()) && (!n.phone || !onLaptop()) && !(global.CS4_PLANNER && n.v === 'swipe'));
+  /* v4: one Library on every device — the laptop reads nastime's folder, the
+     phone and the iPad read nastime and keep the folders you pick (medialib.js,
+     phonelib.js) — so Library and Templates show everywhere. Starred lives
+     inside the Library (its ★ Starred tab). The Planner (app.js) keeps to
+     planning: no Swipe file. */
+  const shown = () => NAV.filter(n => !n.phone && !(global.CS4_PLANNER && n.v === 'swipe'));
 
   let view = 'clips';
 

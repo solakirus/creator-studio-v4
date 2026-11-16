@@ -33,6 +33,8 @@ const head = s => console.log(`\n— ${s} —`);
       pickFolder: async () => null, open: async () => {}, trash: async () => ({}), boardFolder: async () => ({}), shotline: async () => null,
       grabFind: async () => ({ root: 'built in', setUp: true, node: true, builtin: true, ytdlp: true, ffmpeg: true, out: '/x' }),
       grabRun: async () => ({}), grabStop: async () => {}, onGrab: () => () => {} }; });
+    /* the phone app (no nastime here: what it has is the starred frames kept for it) */
+    else await ctx.addInitScript(() => { window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: {} }; });
     const p = await ctx.newPage(); p.on('pageerror', e => errs.push(name + ': ' + e.message));
     await p.goto(url); await p.waitForFunction(() => window.App && window.MediaLib && window.Sync && window.StarPick, null, { timeout: 15000 });
     await p.waitForTimeout(1000); return p;
@@ -81,8 +83,8 @@ const head = s => console.log(`\n— ${s} —`);
   await ph.waitForTimeout(1500);   /* the app redraws after taking the server's data */
   await ph.evaluate(() => App.go('series')); await ph.waitForTimeout(800);
   const nav = await ph.evaluate(() => [...document.querySelectorAll('.ctnav [data-v]')].map(b => b.dataset.v));
-  ok(nav.includes('starred') && !nav.includes('library'), 'Content has Starred (and still no Library)', nav.join(' '));
-  await ph.click('.ctnav [data-v="starred"]'); await ph.waitForTimeout(1200);
+  ok(!nav.includes('starred') && nav.includes('library'), 'Content has the Library (Starred is inside it)', nav.join(' '));
+  await ph.evaluate(() => Screens.push('starred')); await ph.waitForTimeout(1200);
   const st = await ph.evaluate(() => ({ pills: [...document.querySelectorAll('.st-pills button')].map(b => b.textContent), cells: document.querySelectorAll('.st-cell').length,
     imgs: document.querySelectorAll('.st-cell img').length }));
   ok(st.pills.join('|') === 'All|★ Transitions|★ Walking', 'both groups are there', st.pills.join(' '));
@@ -101,7 +103,11 @@ const head = s => console.log(`\n— ${s} —`);
   await ph.evaluate(id => Screens.push('task', { id }), tid); await ph.waitForTimeout(1300);
   ok((await ph.evaluate(() => document.querySelectorAll('[data-starpick]').length)) === 9, 'each frameless shot has a ＋');
   await ph.click('[data-starpick="0"]'); await ph.waitForTimeout(900);
-  await ph.click('#sheet [data-pick]'); await ph.waitForTimeout(1200);
+  /* the one Library picker, with the starred groups as a source */
+  const srcs = await ph.$$eval('.lv-picker [data-src] option', x => x.map(o => o.value));
+  ok(srcs.some(v => v.startsWith('star:')), 'the ＋ opens the Library picker, starred groups included', srcs.join(' '));
+  await ph.selectOption('.lv-picker [data-src]', srcs.find(v => v.startsWith('star:'))); await ph.waitForTimeout(700);
+  await ph.click('.lv-pgrid .lv-tile'); await ph.waitForTimeout(1200);
   const got = await ph.evaluate(async id => { const t = await Store.get('tasks', id); return { item: t.page.slots[0].item, th: !!document.querySelector('.tk-th[data-shootat="0"] img') }; }, tid);
   ok(got.item && /^db:li_/.test(got.item) && got.th, 'picking one puts it on the shot, and it shows', got.item);
   await ph.evaluate(() => Screens.pop());

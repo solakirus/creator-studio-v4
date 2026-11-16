@@ -29,7 +29,7 @@
   const fmt = s => global.Notebook && Notebook.fmtTime ? Notebook.fmtTime(s) : Math.round(s) + ' s';
   const dash = v => v && v !== '—' ? v : '';
   /* the Library on the laptop (and the iPad reading nastime's); the phone picks from Starred */
-  const hasLib = () => !!(global.MediaLib && MediaLib.hasLibrary && MediaLib.hasLibrary() && !(MediaLib.phone && MediaLib.phone()));
+  const hasLib = () => !!(global.MediaLib && MediaLib.hasLibrary && MediaLib.hasLibrary());   /* every device has the Library now */
   const uid = () => 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
   async function mount(box, A, o){

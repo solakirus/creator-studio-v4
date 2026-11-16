@@ -1,7 +1,7 @@
 /* One task, opened up: its steps, its timing, and whatever it is attached to. */
 (function(){
   /* a Library on this device: the laptop's folders, or nastime's on the iPad */
-  const hasLib = () => !!(window.MediaLib && MediaLib.hasLibrary() && !(MediaLib.phone && MediaLib.phone()));   /* the phone keeps its taps and starred-frame picks */
+  const hasLib = () => !!(window.MediaLib && MediaLib.hasLibrary());   /* every device has the Library now */
   const { ICON } = U;
   const CADENCES = ['Daily','Weekly','Shoot day','One-off'];
   const PRI = [['low','Low'],['med','Medium'],['high','High']];
@@ -855,7 +855,7 @@
               <button class="bx" data-tick="${i}" aria-label="Tick shot ${i + 1}" aria-pressed="${dn}">${ICON.check}</button>
               <span class="sn">${i + 1}</span>
               ${sl.item ? `<button class="tk-th" data-shootat="${i}" data-item="${esc(sl.item)}" aria-label="Shoot shot ${i + 1} full screen" title="Tap: shoot it full screen · Hold: swap the frame"></button>`
-                : !hasLib() && isSteps ? `<button class="tk-th tk-thadd" data-starpick="${i}" aria-label="Give shot ${i + 1} a starred frame">＋</button>` : ''}
+                : isSteps && (!hasLib() || MediaLib.keeps()) ? `<button class="tk-th tk-thadd" data-starpick="${i}" aria-label="Give shot ${i + 1} a frame">＋</button>` : ''}
               <span class="tx">
                 <span class="tk-line">
                   ${isSteps ? `<select class="tk-rolesel${r ? '' : ' none'}" data-pf="role:${i}" aria-label="Shot ${i + 1} type">
@@ -1552,7 +1552,7 @@
         tab: { shoot:'shoot', edit:'edit', publish:'post' }[t.kind] });
       /* the page in the task works as in the page editor; only a shot's own box ticks it */
       const sp = e.target.closest('[data-starpick]');
-      if(sp) return starPick(+sp.dataset.starpick);
+      if(sp) return swapFrame(+sp.dataset.starpick);
       const th = e.target.closest('[data-shootat]');
       if(th) return openShoot(+th.dataset.shootat);
       const pc2 = e.target.closest('[data-pagecanvas]');

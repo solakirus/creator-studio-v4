@@ -510,7 +510,7 @@
           <button class="btn-primary" data-now>Sync now</button>
           <button class="btn-ghost" data-pause>${s.paused ? 'Resume sync' : 'Pause on this device'}</button>
         </div>
-        <button class="btn-ghost" data-move style="width:100%;margin-top:10px">Change server address</button>
+        <button class="btn-ghost" data-move style="width:100%;margin-top:10px">nastime’s address · <b>${esc(window.NasAddr ? NasAddr.clean(s.server) : s.server)}</b></button>
         <div id="sy-move" hidden style="margin-top:12px">
           <div class="field"><label for="sy-new">New server address</label>
             <input id="sy-new" type="url" inputmode="url" autocapitalize="off" spellcheck="false" value="${esc(s.server)}"></div>
@@ -536,6 +536,9 @@
             App.closeSheet(); U.toast(s.paused ? 'Sync resumed' : 'Sync paused'); after && after(); return;
           }
           if(e.target.closest('[data-conflicts]')) return openConflicts(after);
+          if(e.target.closest('[data-move]') && window.NasAddr){
+            return NasAddr.ask().then(() => { after && after(); });
+          }
           if(e.target.closest('[data-move]')){
             const box = sheetEl.querySelector('#sy-move');
             box.hidden = false; e.target.closest('[data-move]').hidden = true;

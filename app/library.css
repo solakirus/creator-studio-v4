@@ -418,3 +418,33 @@ html[data-mode="light"] .lv-btn:not(.ghost){color:#fff}
 /* ticked frames tinted, so a run reads at a glance */
 .lv-tile.is-sel::after{content:"";position:absolute;inset:0;background:rgba(255,106,0,.28);pointer-events:none;z-index:1}
 .lv-tile .lv-check{z-index:2}
+
+/* v4: Folders on the phone and the iPad — nastime + Keep on this device */
+.lv-dev .lv-devhead{display:flex;align-items:center;gap:9px;font-size:15px}
+.lv-dev .lv-devhead small{color:var(--dim);font-weight:500;margin-left:4px}
+.lv-dot{width:10px;height:10px;border-radius:50%;background:var(--muted);flex:0 0 auto}
+.lv-dot.on{background:var(--green);box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 25%,transparent)}
+.lv-dot.off{background:var(--amber)}
+.lv-devstats{flex-wrap:wrap;gap:8px}
+.lv-auto{display:flex;align-items:flex-start;gap:9px;cursor:pointer;margin-top:6px}
+.lv-auto input{margin-top:3px;flex:0 0 auto}
+.lv-auto small{color:var(--dim)}
+.lv-new{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;margin:0 0 10px;border-radius:var(--r);
+  background:color-mix(in srgb,var(--accent) 14%,var(--surface-1));border:1px solid color-mix(in srgb,var(--accent) 45%,transparent)}
+.lv-new span{flex:1 1 200px}
+.lv-keepcol summary b{flex:1 1 auto}
+.lv-keepcol summary small{flex:1 1 100%;order:3}
+.lv-kst{font-weight:600}
+.lv-kst.on{color:var(--green)}
+.lv-switch{display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;font-weight:700;margin-left:auto}
+.lv-switch input{position:absolute;opacity:0;pointer-events:none}
+.lv-switch i{width:40px;height:23px;border-radius:12px;background:var(--line);position:relative;transition:background .15s}
+.lv-switch i::after{content:'';position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:#fff;transition:transform .15s}
+.lv-switch input:checked + i{background:var(--green)}
+.lv-switch input:checked + i::after{transform:translateX(17px)}
+.lv-switch input:focus-visible + i{outline:2px solid var(--accent);outline-offset:2px}
+/* the "new GIFs" prompt, over any screen */
+.keep-prompt{position:fixed;left:12px;right:12px;bottom:calc(var(--h-tabbar, 64px) + var(--sab, 0px) + 74px);z-index:61;max-width:560px;margin:0 auto;
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:11px 12px;border-radius:14px;background:var(--surface-2, #1c1c1f);
+  border:1px solid color-mix(in srgb,var(--accent) 50%,transparent);box-shadow:0 8px 28px rgba(0,0,0,.35);font-size:14px}
+.keep-prompt span{flex:1 1 180px}

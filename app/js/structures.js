@@ -332,7 +332,7 @@
   const COLS_KEY = 'cs4-sx-cols';
   const colsOn = () => { try { return localStorage.getItem(COLS_KEY) !== 'rows'; } catch(e){ return true; } };
   const pic = sl => sl.item ? `<span class="sx-pic" data-slpic="${esc(sl.item)}"></span>` : '<span class="sx-pic none"></span>';
-  const hasLib = () => !!(global.MediaLib && MediaLib.hasLibrary && MediaLib.hasLibrary() && !(MediaLib.phone && MediaLib.phone()));
+  const hasLib = () => !!(global.MediaLib && MediaLib.hasLibrary && MediaLib.hasLibrary());   /* every device has the Library now */
   /* the script's frame: tap to pick a GIF or still for the shot; on a
      column card it is a full-width frame with ↻ / ✕ */
   const framePick = (i, sl) => sl.item

@@ -138,7 +138,7 @@ const head = s => console.log(`\n— ${s} —`);
   ok(JSON.stringify(ph.kinds) === JSON.stringify(['anim', 'still', 'video', 'anim']), 'every frame draws on the phone — GIFs move, the clip plays', ph.kinds.join(' '));
   ok(ph.gifFrames === 3, 'the GIF has all its frames', ph.gifFrames);
   ok(ph.libItems === 0 && ph.libVisible === 0, 'but the phone has no Library', `${ph.libItems} items`);
-  ok(!ph.nav.includes('library') && !ph.nav.includes('templates'), 'and no Library or Templates section', ph.nav.join(' '));
+  ok(ph.nav.includes('library') && ph.nav.includes('templates'), 'and the same Library and Templates as every device', ph.nav.join(' '));
 
   /* what it looks like: the shoot task on the phone, and the video sheet */
   await phone.evaluate(async id => { Screens.push('task', { id }); }, plan.shootId);

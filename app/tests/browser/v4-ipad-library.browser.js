@@ -56,8 +56,9 @@ const head = s => console.log(`\n— ${s} —`);
     const ipad = await b.newContext({ viewport: { width: 1024, height: 1366 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true,
       userAgent: 'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' });
     const p = await ipad.newPage(); p.on('pageerror', e => errs.push('ipad: ' + e.stack.split('\n').slice(0,3).join(' ')));
-    await p.goto(base); await p.waitForFunction(() => window.App && window.MediaLib, null, { timeout: 15000 });
-    await p.waitForFunction(() => window.MediaLib && MediaLib.hasLibrary(), null, { timeout: 10000 }).catch(() => {}); await p.waitForTimeout(800);
+    await p.goto(base); await p.waitForTimeout(5000);   /* the service worker settles in (a reload or two) */
+    await p.waitForFunction(() => window.App && window.MediaLib, null, { timeout: 15000 });
+    await p.waitForFunction(() => window.MediaLib && MediaLib.remote(), null, { timeout: 10000 }).catch(() => {}); await p.waitForTimeout(800);
 
     head('the iPad plans with it');
     ok(await p.evaluate(() => MediaLib.hasLibrary() && MediaLib.remote() && !MediaLib.disk()), 'the iPad finds nastime\'s Library (read only, no laptop disk)');
@@ -75,7 +76,8 @@ const head = s => console.log(`\n— ${s} —`);
     ok((await p.$$eval('.lv-deck .lv-tile', x => x.length)) === 2, 'just Riza\'s morning routine');
     await p.screenshot({ path: path.join(out, 'ipad-library.png') });
     await p.tap('.lv-tabs [data-tab="folders"]'); await p.waitForTimeout(700);
-    ok(/Shot Library on nastime/.test(await p.textContent('#libBody')) && !(await p.$('[data-addroot]')), 'Folders says where it reads from (no laptop folder tools)');
+    await p.waitForTimeout(800);
+    ok(/nastime is connected/.test(await p.textContent('#libBody')) && !(await p.$('[data-addroot]')), 'Folders says where it reads from (no laptop folder tools)');
 
     head('templates and stars on the iPad');
     const tid = await p.evaluate(async () => (await ShotTemplates.save({ name:'Morning routine', kind:'Vlog day', shots:[ShotTemplates.shot({ label:'Kettle on', role:'Action' })], tasks:[] })).id);
@@ -96,12 +98,12 @@ const head = s => console.log(`\n— ${s} —`);
     const kept = await p.evaluate(async u => { await TaskFrames.keep(); const r = await Store.get('task-frames', u); return r ? r.bytes : 0; }, item);
     ok(kept > 0, 'the iPad copies a task\'s frame for the phone, like the laptop does', String(kept));
 
-    head('the phone app never reads it');
+    head('the phone app reads it too (and keeps what you pick)');
     const phone = await b.newContext({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true });
     await phone.addInitScript(() => { window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: {} }; });
     const ph = await phone.newPage();
     await ph.goto(base); await ph.waitForFunction(() => window.App && window.MediaLib, null, { timeout: 15000 }); await ph.waitForTimeout(2000);
-    ok(await ph.evaluate(() => MediaLib.phone() && !MediaLib.remote()), 'the phone app keeps its own copies (phonelib.js) and never reads nastime\'s Library live');
+    ok(await ph.evaluate(() => MediaLib.phone() && MediaLib.keeps()), 'the phone app is a device that keeps its own copies (phonelib.js)');
   } catch(e){ ok(false, 'ran to the end', e.message); }
   ok(!errs.length, 'no page errors', errs.join(' | '));
   await b.close(); caddy.kill(); helper.kill(); fs.rmSync(T, { recursive: true, force: true });

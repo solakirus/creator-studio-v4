@@ -31,11 +31,12 @@ if not defined DEST (
   echo  Where is the creator-studio-v4 folder on the NAS?
   echo  In CasaOS Files, share /DATA/AppData/Projects/creator-studio-v4 over the
   echo  network, then type its address, for example:
-  echo      \\192.168.4.23\creator-studio-v4
+  echo      \\nastime\creator-studio-v4    or its IP: \\192.168.4.23\creator-studio-v4
   echo.
   set /p DEST=" Folder: "
 )
 if not defined DEST goto :done
+if not exist "%DEST%\" call :byname
 if not exist "%DEST%\" (
   echo.
   echo  Can't reach %DEST%
@@ -67,6 +68,20 @@ echo.
 echo  Done. Open Creator Studio on the iPad - it picks up the new version on
 echo  its own the next time it opens with the NAS in reach.
 goto :done
+
+rem --- nastime moved to a new IP: try the same share by its name
+:byname
+set "SHAREP="
+for /f "tokens=1* delims=\" %%a in ("%DEST%") do set "SHAREP=%%b"
+if not defined SHAREP goto :eof
+for %%h in (nastime nastime.local) do (
+  if exist "\\%%h\%SHAREP%\" (
+    echo  %DEST% didn't answer - found it as \\%%h\%SHAREP% and switched to that.
+    set "DEST=\\%%h\%SHAREP%"
+    goto :eof
+  )
+)
+goto :eof
 
 :failed
 echo.
