@@ -368,7 +368,7 @@
         const st = on ? (h.n >= n ? `✓ on this ${where}` : `${h.n} of ${n} on this ${where}`) : some ? 'some videos kept' : h.n ? `${h.n} on this ${where}` : '';
         return `<details class="lv-col lv-keepcol" data-libcard="${esc(l.name)}">
           <summary><b>${esc(l.name)}</b><small>${plural(l.pages.length, 'video')} · ${plural(n, 'frame')} · ${mb(b)}${st ? ` · <span class="lv-kst ${on ? 'on' : ''}">${st}</span>` : ''}</small>
-            <label class="lv-switch" title="Keep on this ${where}" onclick="event.stopPropagation()"><input type="checkbox" data-klib="${esc(l.name)}" ${on ? 'checked' : ''} ${k.all ? 'disabled' : ''}><i></i><span>Keep</span></label></summary>
+            <label class="lv-switch" title="Keep on this ${where}"><input type="checkbox" data-klib="${esc(l.name)}" ${on ? 'checked' : ''} ${k.all ? 'disabled' : ''}><i></i><span>Keep</span></label></summary>
           ${l.pages.map(p => `<label class="lv-row lv-page"><input type="checkbox" data-kdir="${esc(p.dir)}" ${on || k.pages.includes(p.dir) ? 'checked' : ''} ${on ? 'disabled' : ''}>
             <span class="lv-pt">${esc(p.name)}</span><small>${p.n} · ${mb(p.b)}</small></label>`).join('')}
           <p class="hintline" style="margin:6px 0 0">${k.all ? 'Kept with everything on nastime.' : on ? 'The whole folder is kept. Switch Keep off to choose single videos.' : 'Tick single videos to keep just those.'}</p>
@@ -383,6 +383,17 @@
         if(state) state.textContent = r.offline ? ' nastime can’t be reached' : '';
         if(body.isConnected) render();
       };
+      /* the Keep switches flip here, by hand: inside a folder's <summary>
+         Safari on the iPad opens the folder instead of ticking the switch */
+      body.addEventListener('click', e => {
+        const sw = e.target.closest('.lv-switch');
+        if(!sw || !body.contains(sw)) return;
+        e.preventDefault(); e.stopPropagation();
+        const inp = sw.querySelector('input');
+        if(!inp || inp.disabled) return;
+        inp.checked = !inp.checked;
+        inp.dispatchEvent(new Event('change', { bubbles:true }));
+      }, true);
       body.addEventListener('change', async e => {
         const ka = e.target.closest('[data-kall]');
         if(ka){
