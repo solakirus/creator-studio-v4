@@ -67,13 +67,18 @@
     const cur = await host();
     const tried = new Set();
     const tryOne = async h => { if(!h || tried.has(h)) return false; tried.add(h); return ping(h, 1500); };
-    for(const h of [cur, ...NAMES]) if(await tryOne(h)) return h;
+    if(opts.onProgress) opts.onProgress(0, 1, 'Trying ' + [cur, ...NAMES].filter(Boolean).join(', ') + '…');
+    const first = await Promise.all([cur, ...NAMES].map(h => tryOne(h).then(ok => ok ? h : '')));
+    if(first.find(Boolean)) return first.find(Boolean);
+    if(opts.noScan) return '';
+    /* the home network: the last one seen first, then the usual home ranges
+       (a new router can put nastime on another one) */
     const m = /^(\d+\.\d+\.\d+)\.(\d+)$/.exec(cur || '');
-    if(!m || opts.noScan) return '';
-    const base = m[1], all = [];
-    for(let i = 1; i < 255; i++) all.push(base + '.' + i);
+    const bases = [...new Set([m && m[1], '192.168.4', '192.168.1', '192.168.0', '10.0.0', '192.168.86', '192.168.68'].filter(Boolean))];
+    const all = [];
+    for(const base of bases) for(let i = 1; i < 255; i++) all.push(base + '.' + i);
     for(let i = 0; i < all.length; i += 48){
-      if(opts.onProgress) opts.onProgress(i, all.length);
+      if(opts.onProgress) opts.onProgress(i, all.length, `Looking around the home network (${all[i].split('.').slice(0, 3).join('.')}.x)…`);
       const batch = all.slice(i, i + 48).filter(h => !tried.has(h));
       batch.forEach(h => tried.add(h));
       const hits = await Promise.all(batch.map(h => ping(h, 1200).then(ok => ok ? h : '')));
@@ -139,16 +144,23 @@
           <input id="nasHost" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="nastime.local" value="${esc(cur)}"></div>
         <div class="sheetcta"><button class="btn-primary" data-nasgo>Use this address</button>
           <button class="btn-ghost" data-nasfind>🔎 Find nastime</button></div>
-        <p class="hintline" data-nasmsg style="margin:10px 0 0"></p>
+        <p class="hintline nas-msg" data-nasmsg style="margin:10px 0 0"></p>
         <p class="hintline" style="margin:10px 0 0">Tip: in the router, a <b>DHCP reservation</b> for nastime keeps its IP the same for good.</p>`, sh => {
         const msg = sh.querySelector('[data-nasmsg]'), inp = sh.querySelector('#nasHost');
         const say = (t, bad) => { msg.innerHTML = t; msg.style.color = bad ? 'var(--red)' : ''; };
         sh.addEventListener('click', async e => {
-          if(e.target.closest('[data-nasfind]')){
-            say('Looking…');
-            const h = await find({ onProgress:(i, n) => say(`Looking around the home network… ${Math.round(i / n * 100)}%`) });
-            if(h){ inp.value = h; say(`Found nastime at <b>${esc(h)}</b> — press Use this address.`); }
-            else say(native() || !/^https:/.test(location.protocol) ? 'Couldn’t find nastime. Is it on, and is this device on the home Wi-Fi?' : 'This page can’t look for nastime itself — type its address.', true);
+          const fb = e.target.closest('[data-nasfind]');
+          if(fb){
+            /* the GitHub copy (https) may not open plain-http addresses at all */
+            if(!native() && !global.CS3Lib && /^https:/.test(location.protocol)){
+              return say('This copy of the app opens from GitHub, so the browser won’t let it look for nastime. On the iPad, open <b>http://nastime.local:8795</b> (or nastime’s IP with :8795) in Safari and add that to the Home Screen — find the IP on the phone or laptop with this same button.', true);
+            }
+            if(fb.disabled) return;
+            fb.disabled = true; const was = fb.textContent; fb.textContent = 'Looking…';
+            const h = await find({ onProgress:(i, n, t) => { say(`${esc(t || 'Looking…')} ${n > 1 ? Math.round(i / n * 100) + '%' : ''}`); fb.textContent = n > 1 ? `Looking… ${Math.round(i / n * 100)}%` : 'Looking…'; } });
+            fb.disabled = false; fb.textContent = was;
+            if(h){ inp.value = h; say(`✓ Found nastime at <b>${esc(h)}</b> — press Use this address.`); }
+            else say('Couldn’t find nastime on the usual home networks. Is it on, and is this device on the home Wi-Fi (not cellular, and no VPN routing everything away)? Its IP is also on your router’s list of connected devices, or in CasaOS’s address bar.', true);
             return;
           }
           if(e.target.closest('[data-nasgo]')){
