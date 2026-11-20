@@ -322,6 +322,10 @@ async function fetchVideo(job, t, url, tmp, o, extra) {
       if (l.startsWith('@@T ')) title = l.slice(4).trim();
       else if (l.startsWith('@@F ')) file = l.slice(4).trim();
       else if (/\[download\]\s+[\d.]+%/.test(l)) { const now = Date.now(); if (now - last > 1500) { last = now; job.emit('  ' + l.replace(/^\[download\]\s*/, 'downloading ')); } }
+      else if (/cookies are no longer valid/i.test(l)) {
+        /* once per grab, in plain words: the saved sign-in expired; public posts still come down */
+        if (!job._cookieTip) { job._cookieTip = true; job.emit('  ⚠ Instagram signed this app out — public reels still download. If private ones fail, use Find links on the profile and sign in again in the window that opens.'); }
+      }
       else if (!quiet && /^ERROR|WARNING: .*(sign in|login|cookies|private)/i.test(l)) job.emit('  ' + l);
     });
   };
