@@ -128,6 +128,7 @@
           <span class="lbl">Recently deleted<small id="trLine">kept 30 days, on every device</small></span>${chev}</button>
         <button class="row" data-go="appupdate"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${D.down}"/></svg>
           <span class="lbl">App updates<small id="upLine">checking…</small></span>${chev}</button>
+        ${row(D.down,'Import from my other apps','To-dos from Punch, the car app, Homebase — duplicates are skipped','data-go="lifeimport"')}
         ${row(D.down,'Import from CSV','Meals, clips, tasks or pantry items','data-go="csv"')}
         ${row(D.down,'Restore from backup','A Creator Studio file — a backup, or one from the other device','data-go="restore"')}
         ${row(D.down,'Open a plan pack','A plan file from the Reference Library app — safe to open twice','data-go="planpack"')}
@@ -294,6 +295,7 @@
       if(go.dataset.go === 'avatars')   return Screens.push('avatars', { onChange:() => render() });
       if(go.dataset.go === 'data-hub')  return Screens.push('data-hub', { onChange:() => render() });
       if(go.dataset.go === 'samples')   return openSamples();
+      if(go.dataset.go === 'lifeimport') return LifeImport.open();
       if(go.dataset.go === 'csv')       return openCsvImport();
       if(go.dataset.go === 'restore')   return openRestore();
       if(go.dataset.go === 'devicefile') return exportForDevice();

@@ -8,6 +8,14 @@
   let tasks = [], urls = {}, focals = {};
   let day = 1, dayDate = Date.now(), derived = [], chips = { clips:0, open:0, streak:0, avatar:null };
   let filter = 'todo', mode = 'list', adjusting = null, pendingArt = null;
+
+  /* Focus: one part of life at a time. Tasks imported from Punch, the car app
+     or Homebase carry `life` (home, car, family…); 'creator' is everything
+     that didn't come from another app. Remembered on this device. */
+  let focus = 'all';
+  try { focus = localStorage.getItem('cs4:focus') || 'all'; } catch(e){}
+  const inFocus = t => focus === 'all' || (focus === 'creator' ? !t.life : t.life === focus);
+  const showDerived = () => focus === 'all' || focus === 'creator';
   const expanded = new Set();
   let root, drag = null;
 
@@ -134,8 +142,8 @@
   function chrome(){
     const counts = {};
     ['todo','done','skipped'].forEach(v =>
-      counts[v] = tasks.filter(t => t.day === day && t.view === v && !(v === 'todo' && t.habitId && global.HabitsUI)).length);
-    counts.prod = tasks.filter(t => t.day === day && t.kind && t.view === 'todo').length;
+      counts[v] = tasks.filter(t => t.day === day && t.view === v && inFocus(t) && !(v === 'todo' && t.habitId && global.HabitsUI)).length);
+    counts.prod = tasks.filter(t => t.day === day && t.kind && t.view === 'todo' && inFocus(t)).length;
 
     return `
     <div class="chiprow">
@@ -187,6 +195,7 @@
         </button>` : ''}
       <button class="addbtn" data-act="add" aria-label="Add task">+</button>
     </div>
+    ${focusRow()}
 
     <div class="list" id="todayList"></div>`;
   }
@@ -213,6 +222,38 @@
       t.kind === 'workout' && t.cad && t.cad !== 'Workout'
         ? `<span class="ch">${t.cad}</span>` : ''}</span>`;
   };
+
+  /* where an imported task came from: Home, Car, Family… */
+  const areaOf = id => global.LifeImport ? LifeImport.areaInfo(id)
+    : { id, label: String(id).replace(/^./, c => c.toUpperCase()), c:'#8A8F98' };
+  const focusLabel = id => id === 'creator' ? 'Creator' : areaOf(id).label;
+  const lifeTag = t => {
+    if(!t.life) return '';
+    const a = areaOf(t.life);
+    return `<span class="kindtag lifetag" style="--kind:${a.c}" title="From ${U.esc(t.lifeApp || a.label)}">${U.esc(a.label)}</span>`;
+  };
+
+  /* All · Creator · Home · Car · Family — only once something has been imported */
+  function focusRow(){
+    const ORDER = ['home', 'car', 'family'];
+    const rank = id => { const i = ORDER.indexOf(id); return i < 0 ? 99 : i; };
+    const areas = [...new Set(tasks.filter(t => t.life).map(t => t.life))]
+      .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+    if(!areas.length){
+      if(focus !== 'all'){ focus = 'all'; try { localStorage.setItem('cs4:focus', 'all'); } catch(e){} }
+      return '';
+    }
+    if(focus !== 'all' && focus !== 'creator' && !areas.includes(focus)) focus = 'all';
+    const open = id => tasks.filter(t => t.day === day && t.view === 'todo' &&
+      (id === 'all' || (id === 'creator' ? !t.life : t.life === id))).length;
+    const chip = (id, label, c) => `
+      <button class="focuschip" data-focus="${id}" aria-pressed="${focus === id}"${c ? ` style="--fc:${c}"` : ''}>
+        ${c ? '<i></i>' : ''}${U.esc(label)} <span class="n">${open(id)}</span></button>`;
+    return `<div class="focusrow" role="toolbar" aria-label="Show one part of life">
+      ${chip('all', 'All')}${chip('creator', 'Creator', 'var(--orange)')}
+      ${areas.map(id => { const a = areaOf(id); return chip(id, a.label, a.c); }).join('')}
+    </div>`;
+  }
 
   /* How often a repeating task actually runs, counted from the tasks themselves
      rather than stored, so a series made before this existed still reads right —
@@ -263,7 +304,7 @@
         </div>
         ${adjusting===k ? '<span class="hint">Drag to reposition</span>' : ''}
         <div class="body">
-          ${t.kind ? `<div style="margin:0 0 8px">${kindTag(t)}</div>` : ''}
+          ${t.kind || t.life ? `<div style="margin:0 0 8px">${kindTag(t)}${lifeTag(t)}</div>` : ''}
           <h2>${n ? `<span class="cardn">${n}</span>` : ''}${t.title}</h2>
           <div class="meta">
             <span class="cad">${ICON.repeat}${freqMap.get(t.id) || t.cad}</span>
@@ -319,14 +360,14 @@
 
   /* everything on this day, flattened for the timeline */
   function timelineItems(){
-    const out = tasks.filter(t => t.day === day && t.view !== 'skipped').map(t => ({
+    const out = tasks.filter(t => t.day === day && t.view !== 'skipped' && inFocus(t)).map(t => ({
       kind:'task', id:t.id, title:t.title, sub:t.cad, at:t.at, mins:t.mins || 0,
       /* the same colour the card uses, so the two views agree at a glance */
       tone: t.kind && KINDS[t.kind] ? KINDS[t.kind].c : null,
       toneLabel: t.kind && KINDS[t.kind] ? KINDS[t.kind].label : null,
       done:t.view === 'done', tickable:true
     }));
-    derived.forEach(d => out.push({
+    if(showDerived()) derived.forEach(d => out.push({
       kind:d.kind, id:d.id, vlogId:d.vlogId, title:d.title, sub:d.cad, at:d.at,
       done:!!d.done, tickable:d.kind === 'beat'
     }));
@@ -349,18 +390,20 @@
   function drawList(){
     freqMap = freqLabels();
     if(mode === 'time') return renderTimeline();
-    const rows = filter === 'prod'
+    const rows = (filter === 'prod'
       ? tasks.filter(t => t.day === day && t.kind && t.view === 'todo')
       : tasks.filter(t => t.day === day && t.view === filter
         /* v4: a habit's own daily task is ticked in the Habits strip, not a full card here */
-        && !(filter === 'todo' && t.habitId && global.HabitsUI));
+        && !(filter === 'todo' && t.habitId && global.HabitsUI))).filter(inFocus);
     const timed = rows.filter(t => t.at).sort(byTime);
     const untimed = rows.filter(t => !t.at);
-    const extra = filter === 'todo' ? derived.slice().sort(byTime) : [];
+    const extra = filter === 'todo' && showDerived() ? derived.slice().sort(byTime) : [];
     const el = root.querySelector('#todayList');
 
     if(!rows.length && !extra.length){
-      el.innerHTML = `<div class="empty"><b>Nothing in ${filter}</b>Add a task or swap days with the arrows above.</div>`;
+      el.innerHTML = focus !== 'all'
+        ? `<div class="empty"><b>Nothing for ${focusLabel(focus)} in ${filter}</b>Pick another area above, or swap days with the arrows.</div>`
+        : `<div class="empty"><b>Nothing in ${filter}</b>Add a task or swap days with the arrows above.</div>`;
       return;
     }
     /* Timed items, yours and the derived ones, in one run by clock time, with a
@@ -830,6 +873,16 @@
       }
       const seg = e.target.closest('[data-filter]');
       if(seg){ filter = seg.dataset.filter; render(); return; }
+
+      const fc = e.target.closest('[data-focus]');
+      if(fc){
+        focus = fc.dataset.focus;
+        try { localStorage.setItem('cs4:focus', focus); } catch(err){}
+        render();
+        const on = root.querySelector('.focuschip[aria-pressed="true"]');
+        if(on) on.scrollIntoView({ block:'nearest', inline:'nearest' });
+        return;
+      }
 
       const adj = e.target.closest('.adjbtn');
       if(adj){ adjusting = adjusting === adj.dataset.adj ? null : adj.dataset.adj; renderList(); return; }

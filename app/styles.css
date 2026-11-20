@@ -4346,3 +4346,16 @@ html.spl-open,html.spl-open body{overflow:hidden}
 .sbb-tags i{font-style:normal;font-size:11px;padding:2px 7px;border-radius:9px;background:var(--surface-2, #2a2622);color:var(--muted)}
 .sbc-item small{color:var(--dim)}
 .sbc-play{align-self:flex-start}
+
+/* Today: focus on one part of life — tasks imported from Punch, the car app, Homebase */
+.focusrow{display:flex;gap:7px;margin:-8px 0 18px;overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap}
+.focusrow::-webkit-scrollbar{display:none}
+.focuschip{flex:0 0 auto;height:32px;display:inline-flex;align-items:center;gap:7px;padding:0 12px;
+  border-radius:var(--r);background:transparent;border:1px solid var(--line);color:var(--muted);
+  font-size:13.5px;font-weight:500;cursor:pointer;white-space:nowrap}
+.focuschip i{width:8px;height:8px;border-radius:2px;background:var(--fc)}
+.focuschip .n{font-size:11.5px;color:var(--dim)}
+.focuschip[aria-pressed="true"]{border-color:var(--fc,var(--cream));color:var(--cream);
+  background:color-mix(in srgb,var(--fc,var(--cream)) 16%,transparent);box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.kindtag.lifetag{margin-left:6px}
+.kindtag.lifetag:first-child{margin-left:0}
