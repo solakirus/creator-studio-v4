@@ -164,15 +164,110 @@ async function cutTimes(job, ffmpeg, video, o) {
   if (+o.ytEvery > 0) {
     for (let t = +o.ytEvery; t < dur - 0.2; t += +o.ytEvery) starts.push(t);
   } else {
-    const th = SCENE[o.ytSens] || SCENE.normal;
+    /* every frame's scene score, and a 16×9 grey thumbnail of every frame
+       (to tell a cut from a one-frame flicker), in one read */
+    const tiny = path.join(os.tmpdir(), 'cs4-tiny-' + process.pid + '-' + Date.now() + '.gray');
     const r = await job.run(ffmpeg, ['-hide_banner', '-nostats', '-i', video, '-an', '-sn',
-      '-vf', `scale=320:-2,select='gt(scene,${th})',showinfo`, '-f', 'null', '-']);
-    for (const m of r.err.matchAll(/pts_time:([\d.]+)/g)) {
-      const t = +m[1];
-      if (t - starts[starts.length - 1] >= MIN_SHOT) starts.push(t);
+      '-filter_complex', `[0:v]split[a][b];[a]scale=320:-2,select='gte(scene,0)',metadata=print:key=lavfi.scene_score,nullsink;[b]scale=16:9:flags=area,format=gray[t]`,
+      '-map', '[t]', '-fps_mode', 'passthrough', '-f', 'rawvideo', '-y', tiny]);
+    let thumbs = null, scores = sceneScores(r.err);
+    try { thumbs = fs.readFileSync(tiny); } catch (e) { thumbs = null; }
+    try { fs.unlinkSync(tiny); } catch (e) {}
+    /* an older ffmpeg (no -fps_mode): the scores alone */
+    if (scores.length < 2) {
+      const r2 = await job.run(ffmpeg, ['-hide_banner', '-nostats', '-i', video, '-an', '-sn',
+        '-vf', `scale=320:-2,select='gte(scene,0)',metadata=print:key=lavfi.scene_score`, '-f', 'null', '-']);
+      scores = sceneScores(r2.err); thumbs = null;
     }
+    starts = cutsFrom(scores, o.ytSens, thumbs);
   }
   return starts.map((s, i) => ({ start: s, end: i + 1 < starts.length ? starts[i + 1] : Math.max(s + 0.1, dur) }));
+}
+/* a video's own id from its link: /reel/<id>, /p/<id>, /video/<id>, ?v=<id>, the last part */
+function videoId(u) {
+  try {
+    const x = new URL(u);
+    const v = x.searchParams.get('v');
+    if (v) return v;
+    const parts = x.pathname.split('/').filter(Boolean);
+    const k = parts.findIndex(p => /^(reel|reels|p|tv|video|videos|shorts|watch)$/i.test(p));
+    return (k >= 0 && parts[k + 1]) || parts.pop() || '';
+  } catch (e) { return ''; }
+}
+/* ffmpeg's metadata=print lines → [{ t, s }] */
+function sceneScores(text) {
+  const out = [];
+  let t = null;
+  for (const line of String(text || '').split(/\r?\n/)) {
+    const m = /pts_time:([\d.]+)/.exec(line);
+    if (m) { t = +m[1]; continue; }
+    const k = /lavfi\.scene_score=([\d.]+)/.exec(line);
+    if (k && t !== null) { out.push({ t, s: +k[1] }); t = null; }
+  }
+  return out;
+}
+/* Where the shots start. A cut is either a big jump in the picture (the
+   "Cut sensitivity" threshold — a hard cut between different scenes) or a
+   clear spike over what the frames around it are doing: the cut between two
+   shots in the same room, same light, same colours, which scores far below
+   the threshold but still stands out from the frames on either side
+   (camera moves and grain rise and fall smoothly; a cut is one frame). */
+const SPIKE = { high: 2.5, normal: 3, low: 4.5 };
+const SPIKE_FLOOR = { high: 0.025, normal: 0.035, low: 0.06 };
+const PERSIST = { high: 2, normal: 2.5, low: 3.5 };
+function cutsFrom(sc0, sens, thumbs) {
+  /* a repeated frame (24p in a 30p file, a frozen frame) scores ~0 and would
+     make the next real frame look like a spike: leave those out */
+  const sc = (sc0 || []).map((x, k) => ({ ...x, k })).filter((x, i) => i === 0 || x.s >= 0.00005);
+  /* how different the picture is a few frames after from a few frames before
+     (16×9 grey thumbnails, 0–255): a cut changes it for good; a compression
+     flicker or a one-frame glitch doesn't */
+  const N = 144, nThumbs = thumbs ? Math.floor(thumbs.length / N) : 0;
+  const okThumbs = nThumbs && nThumbs >= (sc0 || []).length - 2;
+  const jump = k => {                         /* 2 frames after vs 2 before, mean |Δ| */
+    if (k < 2 || k > nThumbs - 3) return 0;
+    let d = 0;
+    for (let p = 0; p < N; p++) {
+      const a = (thumbs[(k - 2) * N + p] + thumbs[(k - 1) * N + p]) / 2, b = (thumbs[(k + 1) * N + p] + thumbs[(k + 2) * N + p]) / 2;
+      d += Math.abs(a - b);
+    }
+    return d / N;
+  };
+  /* … and how that compares with the jumps around it (motion makes every
+     jump big; a cut's stands out) */
+  const lasting = k => {
+    if (!okThumbs) return Infinity;           /* no thumbnails: trust the score */
+    const here = jump(k), around = [];
+    for (let j = k - 15; j <= k + 15; j++) if (Math.abs(j - k) > 3 && j >= 2 && j <= nThumbs - 3) around.push(jump(j));
+    around.sort((a, b) => a - b);
+    const med = around.length ? around[around.length >> 1] : 0;
+    return here < 1.5 ? 0 : here / Math.max(med, 0.3);
+  };
+  const persist = PERSIST[sens] || PERSIST.normal;
+  const th = SCENE[sens] || SCENE.normal, ratio = SPIKE[sens] || SPIKE.normal, floor = SPIKE_FLOOR[sens] || SPIKE_FLOOR.normal;
+  const starts = [0];
+  /* the frames within a time window of frame i (not i itself) */
+  const within = (i, a, b) => { const v = [], t0 = sc[i].t; for (let j = i - 1; j >= 1 && sc[j].t >= t0 - a; j--) v.push(sc[j]); const w = [];
+    for (let j = i + 1; j < sc.length && sc[j].t <= t0 + b; j++) w.push(sc[j]); return { before:v, after:w }; };
+  const med = list => { const v = list.map(x => x.s).sort((a, b) => a - b); return v.length ? v[v.length >> 1] : 0; };
+  for (let i = 1; i < sc.length; i++) {
+    const { t, s } = sc[i];
+    let cut = s > th;
+    if (!cut && s >= floor) {
+      const near = within(i, 0.12, 0.12), wide = within(i, 0.45, 0.45), side = within(i, 0.22, 0.22);
+      /* a local peak (nothing higher within ~3 frames) … */
+      const peak = !near.before.concat(near.after).some(x => x.s > s);
+      /* … standing alone: a cut is one frame, a move spreads over its neighbours */
+      const nb = Math.max(near.before[0] ? near.before[0].s : 0, near.after[0] ? near.after[0].s : 0);
+      /* … calm on both sides: a jittery or stepping move keeps scoring near
+         its peaks; the frames either side of a cut are steady */
+      const calm = med(side.before) <= s * 0.35 && med(side.after) <= s * 0.35;
+      /* … and well over what the frames around it are doing */
+      cut = peak && nb <= s * 0.4 && calm && s >= ratio * Math.max(med(wide.before.concat(wide.after)), 0.004) && lasting(sc[i].k) >= persist;
+    }
+    if (cut && t - starts[starts.length - 1] >= MIN_SHOT) starts.push(t);
+  }
+  return starts;
 }
 async function duration(job, ffmpeg, video) {
   const r = await job.run(ffmpeg, ['-hide_banner', '-i', video]);
@@ -317,7 +412,13 @@ async function grabVideo(job, t, url, outRoot, o) {
     if (/sign in|login|cookies|rate.?limit|private/i.test(r.err)) job.emit('  Tip: this site wants you signed in. Scan the profile once with Find links and sign in in the window that opens — or pick a browser under settings.');
     return 0;
   }
-  const page = safeName(title) || safeName(new URL(url).pathname.split('/').filter(Boolean).pop()) || 'video';
+  /* one folder per video: Instagram calls every reel "Video by <name>", so
+     a generic title — or a folder already holding a different video — gets
+     the video's own id (its GIFs were overwriting each other's) */
+  const vid = videoId(url);
+  let page = safeName(title) || safeName(vid) || 'video';
+  const taken = d => { try { const m = JSON.parse(fs.readFileSync(path.join(d, 'manifest.json'), 'utf8')); return m && m.source && m.source !== url; } catch (e) { return false; } };
+  if (vid && (/^(video|reel|post|photo) by\b/i.test(title || '') || !title || taken(path.join(outRoot, safeName(site), page)))) page = safeName(`${title || 'Video'} · ${vid}`);
   const dir = path.join(outRoot, safeName(site), page);
   for (const k of ['gifs', 'images', 'videos']) fs.mkdirSync(path.join(dir, k), { recursive: true });
   job.emit(`  ✓ downloaded “${title || page}” — finding the cuts…`);
@@ -589,6 +690,6 @@ async function setup(job, t) {
   return code;
 }
 
-module.exports = { Browser, tools, grab, grabSection, scan, setup, makeJob, isVideoLink, isSocial, postLink, mediaOn, cutTimes, SCENE, GIF_FPS, GIF_W, MIN_SHOT };
+module.exports = { Browser, tools, grab, grabSection, scan, setup, makeJob, isVideoLink, isSocial, postLink, mediaOn, cutTimes, cutsFrom, sceneScores, videoId, SCENE, GIF_FPS, GIF_W, MIN_SHOT };
 /* tests: forget that yt-dlp was already updated this run */
 module.exports._resetFreshen = () => { freshened = null; };
