@@ -147,6 +147,8 @@
     quiet++;
     try { for(const r of grp.items) await Store.del(STORE, r.id); } finally { quiet--; }
     invalidate(grp.items.map(r => r.store));
+    /* the screen showing them can draw them again (the Vlog list does) */
+    try { global.dispatchEvent(new CustomEvent('cs-restored', { detail:{ stores:[...new Set(grp.items.map(r => r.store))] } })); } catch(e){}
     return n;
   }
   async function forget(g){

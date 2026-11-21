@@ -59,8 +59,15 @@
     if(!top) return false;
     const mount = registry[top.id];
     if(!mount) return false;
-    top.el.innerHTML = '';
-    mount(top.el, top.params || {});
+    /* A fresh element, not the old one emptied: a screen wires its clicks onto
+       its element when it mounts, so mounting twice on the same one doubled
+       every handler — one tap on Duplicate episode made two copies (21 Nov 2026). */
+    const fresh = document.createElement('section');
+    fresh.className = top.el.className;
+    fresh.dataset.screen = top.id;
+    top.el.replaceWith(fresh);
+    top.el = fresh;
+    mount(fresh, top.params || {});
     return true;
   }
 

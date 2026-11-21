@@ -89,6 +89,11 @@
     return cache;
   }
   const invalidate = () => { cache = null; };
+  /* Undo on the delete bar (trash.js) brings a month back behind this cache */
+  if(global.addEventListener) global.addEventListener('cs-restored', e => {
+    const st = (e.detail && e.detail.stores) || [];
+    if(!st.length || st.includes('months')) invalidate();
+  });
   async function get(id){ return id ? (await all()).find(m => m.id === id) || null : null; }
 
   async function save(rec){
@@ -99,16 +104,57 @@
     return m;
   }
 
-  /* Deleting a month never deletes an episode: the ones tagged to it just lose
-     the tag, and keep everything else. */
-  async function remove(id){
-    const eps = await episodes();
-    for(const v of eps.filter(x => x.monthId === id)){
-      const rec = await Store.get('vlogs', v.id);
-      if(rec){ rec.monthId = null; await Store.put('vlogs', rec); }
+  /* Deleting a month (21 Nov 2026: you choose what happens to its episodes):
+       'keep'   — they stay, without the month tag (as before; the default)
+       'delete' — they go too, into Recently deleted (30 days, Undo bar);
+                  research on them goes back to unassigned, as vlog.js does
+       'move'   — they join another month (opts.to): each takes the same week
+                  of it (week 2 → week 2), or the first free week if that one
+                  is taken. One that doesn't fit anywhere loses the tag.
+     Returns { kept, deleted, moved, unfit }. */
+  async function remove(id, how, opts){
+    how = how || 'keep';
+    const o = opts || {};
+    const src = await get(id);
+    const eps = (await episodes()).filter(x => x.monthId === id);
+    const out = { kept:0, deleted:0, moved:0, unfit:0 };
+    const to = how === 'move' ? await get(o.to) : null;
+    if(how === 'move' && (!to || to.id === id)) how = 'keep';
+
+    if(how === 'delete'){
+      const gone = new Set(eps.map(v => v.id));
+      try {
+        const { values } = await Store.all('sources');
+        for(const r of values.filter(x => gone.has(x.vlogId))) await Store.put('sources', { ...r, vlogId:null });
+      } catch(e){}
+      for(const v of eps){ await Store.del('vlogs', v.id); out.deleted++; }
+    } else if(how === 'move'){
+      const from = src ? await weeks(src) : [];
+      const slots = await weeks(to);
+      const used = new Set((await episodes()).filter(v => v.monthId === to.id && hasWeek(v)).map(v => +v.week));
+      /* in week order, so week 1 claims week 1 before an unscheduled one takes it */
+      const idxOf = v => { const f = hasWeek(v) ? from.find(sl => sl.week === +v.week) : null; return f ? f.index : 99; };
+      for(const v of eps.slice().sort((a, b) => idxOf(a) - idxOf(b))){
+        const rec = await Store.get('vlogs', v.id);
+        if(!rec) continue;
+        let slot = slots.find(sl => sl.index === idxOf(v) && sl.week !== null && !used.has(sl.week));
+        if(!slot) slot = slots.find(sl => sl.week !== null && !used.has(sl.week));
+        if(slot){
+          used.add(slot.week);
+          rec.monthId = to.id; rec.week = slot.week; rec.isVerdict = !!slot.last;
+          out.moved++;
+        } else { rec.monthId = null; out.unfit++; }
+        await Store.put('vlogs', rec);
+      }
+    } else {
+      for(const v of eps){
+        const rec = await Store.get('vlogs', v.id);
+        if(rec){ rec.monthId = null; await Store.put('vlogs', rec); out.kept++; }
+      }
     }
     await Store.del('months', id);
     invalidate();
+    return out;
   }
 
   /* The month whose weeks contain a date — for suggesting a tag. */

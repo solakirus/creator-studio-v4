@@ -1,4 +1,4 @@
-/* Browser test: picking vlogs to delete or duplicate, and Duplicate episode
+/* Browser test: swiping vlogs to duplicate or delete them, and Duplicate episode
    (21 Nov 2026).
 
    Content → Vlog has a Select button, in the Cards and the List view (holding
@@ -55,19 +55,29 @@ const top = '.screen:last-child';
     await p.waitForTimeout(600);
     await p.click('.ctnav [data-v="episodes"]'); await p.waitForTimeout(1000);
 
-    /* the Select button */
-    const sel = '[data-a="select"]';
-    ok(!!(await p.$(sel)), 'the Vlog list has a Select button');
+    /* swipe right: duplicate */
+    const swipe = async (id, dir) => {
+      await p.evaluate(async ([id, dir, touch]) => {
+        const c = document.querySelector(`.mediacard[data-id="${id}"] .card`), r = c.getBoundingClientRect();
+        const ev = (type, x, y, el) => (el || c).dispatchEvent(new PointerEvent(type, { bubbles:true, cancelable:true, pointerType: touch ? 'touch' : 'mouse', pointerId:9, clientX:x, clientY:y, button:0, isPrimary:true }));
+        const x0 = r.left + r.width / 2, y0 = r.top + r.height / 2, far = r.width * 0.5 * (dir === 'right' ? 1 : -1);
+        ev('pointerdown', x0, y0);
+        for(let i = 1; i <= 8; i++){ ev('pointermove', x0 + far * i / 8, y0 + 2); await new Promise(z => setTimeout(z, 20)); }
+        ev('pointerup', x0 + far, y0 + 2);
+      }, [id, dir, name === 'phone']);
+      await p.waitForTimeout(1300);
+    };
+    ok(!(await p.$('[data-a="select"]')), 'no Select button (swiping instead)');
     if(name === 'laptop') ok(!!(await p.$('[data-lay-host="vlog"].lay-list')), 'in the List view');
-    await p.click(sel); await p.waitForTimeout(300);
-    const bar0 = await p.evaluate(() => { const b = document.querySelector('.selbar'); return b && { n: b.querySelector('.sb-n').textContent,
-      btns: [...b.querySelectorAll('button')].map(x => x.textContent + (x.disabled ? '(off)' : '')) }; });
-    ok(bar0 && bar0.n === 'Tap vlogs to pick them' && bar0.btns.join() === 'Cancel,Duplicate(off),Delete(off)', 'it opens the bar with nothing picked yet', JSON.stringify(bar0));
-    await p.click('.mediacard [data-open="v1"]'); await p.waitForTimeout(300);
-    ok(await p.textContent('.selbar .sb-n') === '1 vlog selected' && !(await p.$('.screen [data-screen="vlog"]')), 'tapping a card picks it (it doesn\'t open)');
-    await p.screenshot({ path: path.join(out, `${name}-select.png`) });
-    await p.click('.selbar [data-extra="0"]'); await p.waitForTimeout(1200);
-
+    ok(await p.$$eval('.mediacard[data-id="v1"] .swipe-label', x => x.map(e => e.textContent).join()) === 'Duplicate,Delete', 'each vlog has Duplicate and Delete swipe labels');
+    ok(/Swipe a vlog right to duplicate it, left to delete it/.test(await p.textContent('.view .note')), 'the page says how');
+    /* half a swipe does nothing */
+    await p.evaluate(() => { const c = document.querySelector('.mediacard[data-id="v1"] .card'), r = c.getBoundingClientRect();
+      const ev = (t, x) => c.dispatchEvent(new PointerEvent(t, { bubbles:true, pointerType:'mouse', pointerId:8, clientX:x, clientY:r.top + 10, button:0 }));
+      ev('pointerdown', r.left + 100); ev('pointermove', r.left + 120); ev('pointermove', r.left + 150); ev('pointerup', r.left + 150); });
+    await p.waitForTimeout(700);
+    ok((await p.evaluate(async () => (await Store.all('vlogs')).values.length)) === 2 && !(await p.$(`${top} [data-screen="vlog"]`)), 'a short drag does nothing (and doesn\'t open it)');
+    await swipe('v1', 'right');
     const after = await p.evaluate(async () => {
       const all = (await Store.all('vlogs')).values;
       const c = all.find(x => x.id !== 'v1' && x.id !== 'v2');
@@ -91,17 +101,17 @@ const top = '.screen:last-child';
     ok(after.art, 'and the cover picture');
     const o = after.orig;
     ok(o.title === 'Backyard camp-out' && o.acts[0].beats[0].done && o.acts[0].beats[0].taskId === 40 && o.acts[0].beats[0].shots[0].vref.clip === 'rc:rc1:clip', 'the original is untouched');
-    ok(!after.bar, 'the bar closes after');
 
-    /* delete with the bar: the copy */
-    await p.click(sel); await p.waitForTimeout(300);
-    await p.click(`.mediacard [data-open="${c.id}"]`); await p.waitForTimeout(300);
-    await p.click('.selbar .sb-del'); await p.waitForTimeout(500);
-    const sheet = await p.evaluate(() => (document.querySelector('.sheet, #sheet') || {}).textContent || '');
-    ok(/Delete 1 vlog\?/.test(sheet) && /Recently deleted/.test(sheet), 'Delete asks first, and says where it can come back from');
-    await p.click('[data-yes]'); await p.waitForTimeout(1200);
-    const del = await p.evaluate(async id => ({ gone: !(await Store.get('vlogs', id)), trash: (await Store.all('trash')).values.some(t => t.store === 'vlogs' && t.key === id) }), c.id);
-    ok(del.gone && del.trash, 'it\'s deleted, into Recently deleted', JSON.stringify(del));
+    /* swipe left: delete, with Undo */
+    await swipe(c.id, 'left');
+    const del = await p.evaluate(async id => ({ gone: !(await Store.get('vlogs', id)), trash: (await Store.all('trash')).values.some(t => t.store === 'vlogs' && t.key === id),
+      card: !!document.querySelector(`.mediacard[data-id="${id}"]`), undo: (document.getElementById('undoBar') || {}).textContent || '' }), c.id);
+    ok(del.gone && del.trash && !del.card, 'swiping left deletes it, into Recently deleted', JSON.stringify(del));
+    ok(/Deleted “Backyard camp-out \(copy\)”/.test(del.undo) && /Undo/.test(del.undo), 'with an Undo bar', del.undo.trim());
+    await p.click('#undoBar [data-undo]'); await p.waitForTimeout(1200);
+    ok(await p.evaluate(async id => !!(await Store.get('vlogs', id)) && !!document.querySelector(`.mediacard[data-id="${id}"]`), c.id), 'Undo brings it back, on the list');
+    await swipe(c.id, 'left');
+    await p.screenshot({ path: path.join(out, `${name}-after-swipe.png`) });
 
     /* holding still works (right-click on a computer) */
     await p.click('.mediacard [data-open="v2"]', { button: 'right' }); await p.waitForTimeout(300);
@@ -116,9 +126,11 @@ const top = '.screen:last-child';
     await p.click(`${top} [data-a="duplicate"]`); await p.waitForTimeout(1800);
     const opened = await p.evaluate(() => (document.querySelector('.screen:last-child .topbar, .screen:last-child') || {}).textContent || '');
     ok(/Backyard camp-out \(copy\)/.test(opened), 'Duplicate episode opens the copy');
+    ok((await p.evaluate(async () => (await Store.all('vlogs')).values.filter(v => / \(copy\)$/.test(v.title)).length)) === 1, 'one tap makes one copy (a refreshed screen used to double its buttons)');
     const copyId = await p.evaluate(async () => (await Store.all('vlogs')).values.find(x => / \(copy\)$/.test(x.title)).id);
     await p.click(`${top} .epfoot [data-a="delete"]`); await p.waitForTimeout(1200);
-    ok(await p.evaluate(async id => !(await Store.get('vlogs', id)) && !!(await Store.get('vlogs', 'v1')), copyId), 'Delete episode deletes that one (the original stays)');
+    const dd = await p.evaluate(async id => ({ copy: !!(await Store.get('vlogs', id)), orig: !!(await Store.get('vlogs', 'v1')), all: (await Store.all('vlogs')).values.map(v => v.title) }), copyId);
+    ok(!dd.copy && dd.orig, 'Delete episode deletes that one (the original stays)', JSON.stringify(dd));
     await ctx.close();
   }
   ok(errs.length === 0, 'no page errors', errs.join(' | '));

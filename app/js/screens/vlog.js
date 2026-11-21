@@ -192,7 +192,6 @@
 
       const head = Screens.bar({ kicker:'Creator studio', title:'Vlog',
         actions:`${window.ViewAs ? ViewAs.picker('vlog') : ''}<button class="btn-sm" data-a="challenges">Challenges</button>
-                 ${rows.length ? '<button class="btn-sm" data-a="select" title="Pick vlogs to duplicate or delete (or hold one)">Select</button>' : ''}
                  <button class="btn-sm accent" data-a="new">+ New</button>` });
 
       el.innerHTML = (embedded ? '' : head) + `
@@ -201,7 +200,6 @@
           <span class="headacts" style="display:flex;gap:8px;align-items:center">
             ${window.ViewAs ? ViewAs.picker('vlog') : ''}
             <button class="headbtn" data-a="challenges">CHALLENGES</button>
-            ${rows.length ? '<button class="headbtn" data-a="select" title="Pick vlogs to duplicate or delete (or hold one)">SELECT</button>' : ''}
             <button class="headbtn" data-a="new">NEW</button>
           </span></div>` : ''}
         ${window.Research ? `<div class="epmonth" style="margin:0 0 16px">
@@ -223,7 +221,9 @@
               const state = !beats.length ? 'draft' : done === beats.length ? 'done' : 'live';
               const label = !beats.length ? 'Empty' : done === beats.length ? 'Wrapped' : 'In progress';
               /* the same card a series uses, so the three sections read alike */
-              return `<article class="mediacard"><div class="card" data-open="${v.id}">
+              return `<article class="mediacard vswipe" data-id="${v.id}">
+                <span class="swipe-label l">Duplicate</span><span class="swipe-label r">Delete</span>
+                <div class="card" data-open="${v.id}">
                 <div class="art" style="background-image:${window.Cover ? Cover.bg('vlog', v.id, U.generatedArt(v.id, v.title)) : U.generatedArt(v.id, v.title)}">${window.Cover ? Cover.btn('vlog', v.id) : ''}</div>
                 <span class="state ${state}">${label}</span>
                 <div class="body"><h3>${wk ? `Ep ${wk} · ` : ''}${v.title}</h3>
@@ -239,7 +239,7 @@
             }).join('')}
           </div>`).join('')
         : `<div class="empty"><b>No vlogs yet</b>One vlog per week, Sunday to Saturday. Plan its days, sequences and shots here, then shoot against it.</div>`}
-        <p class="note">Vlogs are numbered by week and run continuously. Scheduled sequences appear on Today.</p>
+        <p class="note">${rows.length ? 'Swipe a vlog right to duplicate it, left to delete it. ' : ''}Vlogs are numbered by week and run continuously. Scheduled sequences appear on Today.</p>
       </div>`;
     }
     /* The Content tab re-mounts a section every time you switch to it, so an
@@ -260,12 +260,37 @@
       onDone: render
     });
 
+    /* v4 (21 Nov 2026): swipe a vlog like a task — right duplicates it, left
+       deletes it. A delete shows the Undo bar (trash.js) and sits in Recently
+       deleted for 30 days, so it doesn't stop to ask. */
+    if(window.SwipeCards && !el.dataset.swipeEpisodes){
+      el.dataset.swipeEpisodes = '1';
+      const picking = () => !!(el.classList.contains('selecting') || el.querySelector('.selecting'));
+      SwipeCards.wire(el, {
+        selector: '.mediacard.vswipe',
+        onRight: async id => {
+          if(picking()) return render();
+          const copy = await duplicateEpisode(id);
+          U.toast(copy ? 'Duplicated — the copy is under “No week set”' : 'Could not duplicate it');
+          render();
+        },
+        onLeft: async id => {
+          if(picking()) return render();
+          await deleteEpisodes([id]);
+          render();
+        }
+      });
+      /* Undo on the bar brings it back: show it again */
+      const onBack = e => { if(!el.isConnected) return window.removeEventListener('cs-restored', onBack);
+        if(!e.detail || !e.detail.stores || e.detail.stores.includes('vlogs')) render(); };
+      window.addEventListener('cs-restored', onBack);
+    }
+
     if(!el.dataset.wiredEpisodes){
       el.dataset.wiredEpisodes = '1';
       el.addEventListener('click', e => {
         const a = e.target.closest('[data-a]');
         if(a && a.dataset.a === 'new') return Screens.push('vlog-new', { onDone:render });
-        if(a && a.dataset.a === 'select'){ if(window.Select) Select.start(el); return; }
         if(a && a.dataset.a === 'challenges') return Screens.push('challenges', {});
         if(a && a.dataset.a === 'research') return Screens.push('research', { onChange:render });
         if(a && a.dataset.a === 'rs-quick') return Research.quickAdd({ onSaved:render });

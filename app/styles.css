@@ -2297,6 +2297,16 @@ body.dragging .view{overflow:hidden}
 .mediacard.swipe-armed.swipe-r{box-shadow:inset 0 0 0 1px rgba(91,190,106,.5)}
 .mediacard.swipe-armed.swipe-l{box-shadow:inset 0 0 0 1px rgba(232,163,61,.5)}
 .mediacard.swiping .card{transition:none}
+/* the Vlog list: right duplicates (green), left deletes (red) */
+.mediacard.vswipe::after{background:linear-gradient(270deg,rgba(226,86,74,.4),rgba(226,86,74,0))}
+.mediacard.vswipe .swipe-label.r{color:var(--red)}
+.mediacard.vswipe.swipe-armed.swipe-l{box-shadow:inset 0 0 0 1px rgba(226,86,74,.6)}
+/* "Duplicate" is too long to stand sideways, and a List row too short: flat */
+.mediacard.vswipe .swipe-label{writing-mode:horizontal-tb;font-size:18px;letter-spacing:.04em}
+.mediacard.vswipe .swipe-label.l,.mediacard.vswipe.swipe-armed .swipe-label.l{transform:none}
+.lay-list .mediacard.vswipe .swipe-label{font-size:15px}
+/* only the label for the way it is going (the card is see-through here) */
+.mediacard.vswipe.swipe-r .swipe-label.r,.mediacard.vswipe.swipe-l .swipe-label.l{opacity:0!important}
 
 /* ============================================================
    Challenges and episodes

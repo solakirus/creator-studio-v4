@@ -782,15 +782,52 @@
       if(a.dataset.a === 'edit') return openForm(m, async () => {
         await render(); params && params.onChange && params.onChange();
       });
-      if(a.dataset.a === 'delete'){
-        const n = (await Months.linked(m)).length;
-        if(!confirm(`Delete ${m.name || 'this month'}?${n ? ` Its ${n} vlog${n === 1 ? '' : 's'} stay — they just lose the month tag.` : ''}`)) return;
-        await Months.remove(m.id);
-        params && params.onChange && params.onChange();
-        U.toast('Month deleted');
-        Screens.pop();
-      }
+      if(a.dataset.a === 'delete') return deleteSheet();
     });
+
+    /* Delete month: you choose what happens to its vlogs — move them to
+       another month, delete them too, or keep them without a month */
+    async function deleteSheet(){
+      const eps = await Months.linked(m);
+      const n = eps.length, name = esc(m.name || 'this month');
+      const vl = k => `${k} vlog${k === 1 ? '' : 's'}`;
+      const others = (await Months.all()).filter(x => x.id !== m.id);
+      const done = (msg) => { App.closeSheet(); params && params.onChange && params.onChange(); U.toast(msg); Screens.pop(); };
+      const row = (attr, title, sub, color) => `<button class="noterow" ${attr}><span class="dot" style="background:${color}"></span>
+        <span class="t"><b>${title}</b><small>${sub}</small></span></button>`;
+      if(!n){
+        App.sheet(`<h2 style="margin:0 0 14px">Delete ${name}?</h2>
+          <div class="sheetcta"><button class="btn-primary" data-mdel="keep" style="background:var(--red);border-color:var(--red)">Delete month</button>
+          <button class="btn-ghost" data-no>Cancel</button></div>`, wire);
+      } else {
+        App.sheet(`<h2 style="margin:0 0 3px">Delete ${name}?</h2>
+          <p class="hintline" style="margin:0 0 14px">It has ${vl(n)}. What should happen to ${n === 1 ? 'it' : 'them'}?</p>
+          ${others.length ? row('data-mmove', `Move ${n === 1 ? 'it' : 'them'} to another month`, 'Each keeps its place: week 2 goes to week 2', 'var(--green)')
+            : row('disabled', 'Move them to another month', 'No other month yet — make one first', '#4A443B')}
+          <div data-mlist hidden style="margin:4px 0 8px 18px">${others.map(x =>
+            `<button class="noterow" data-mto="${x.id}"><span class="t"><b>→ ${esc(x.name || 'Month')}</b><small>${x.startDate ? esc(Months.label(x.startDate) + ' – ' + Months.label(x.endDate || x.startDate)) : 'No dates yet'}</small></span></button>`).join('')}</div>
+          ${row('data-mdel="delete"', `Delete ${n === 1 ? 'it' : 'them'} too`, 'Recently deleted keeps them 30 days', 'var(--red)')}
+          ${row('data-mdel="keep"', `Keep ${n === 1 ? 'it' : 'them'}, without a month`, 'They stay in Vlog, just untagged', 'var(--muted)')}
+          <div class="sheetcta" style="margin-top:10px"><button class="btn-ghost" data-no style="flex:1">Cancel</button></div>`, wire);
+      }
+      function wire(sh){
+        sh.addEventListener('click', async ev => {
+          if(ev.target.closest('[data-no]')) return App.closeSheet();
+          if(ev.target.closest('[data-mmove]')){ const l = sh.querySelector('[data-mlist]'); l.hidden = !l.hidden; return; }
+          const mt = ev.target.closest('[data-mto]');
+          if(mt){
+            const to = others.find(x => x.id === mt.dataset.mto);
+            const r = await Months.remove(m.id, 'move', { to:mt.dataset.mto });
+            return done(`Month deleted · ${vl(r.moved)} moved to ${to ? to.name || 'the other month' : 'the other month'}` +
+              (r.unfit ? ` · ${vl(r.unfit)} didn’t fit (no free week) and ${r.unfit === 1 ? 'has' : 'have'} no month now` : ''));
+          }
+          const d = ev.target.closest('[data-mdel]');
+          if(!d) return;
+          const r = await Months.remove(m.id, d.dataset.mdel);
+          done(d.dataset.mdel === 'delete' ? `Month and ${vl(r.deleted)} deleted` : 'Month deleted');
+        });
+      }
+    }
 
     await render();
   }
