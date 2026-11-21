@@ -9,7 +9,11 @@
    inside it pages (a grabbed page, a video, or a batch you added).
 
    Boards are Shotline's boards: a name, a group (Activity, Location, Mood,
-   Subject, Other) and the frames on it. A frame can sit on many boards. */
+   Subject, Other) and the frames on it. A frame can sit on many boards.
+   Boards sync (since 20 Nov 2026). Each device names a folder frame by its
+   own root ("h:C:\\…\\Shot Library|a/b.gif" on the laptop, "h:nastime|a/b.gif"
+   on the iPad), so a board is matched by the frame, not the exact address:
+   onBoard() and takeOffBoard() below. */
 (function(global){
 
   const BOARD_GROUPS = ['Activity', 'Location', 'Mood', 'Subject', 'Other'];
@@ -510,12 +514,8 @@
       } else onDisk.push({ root:it.root, path:it.path });
     }
     if(onDisk.length && disk()) n += await disk().trash(onDisk);
-    // take them off every board too
-    const boards = await allBoards();
-    for(const b of boards){
-      const keep = b.items.filter(x => !uids.includes(x));
-      if(keep.length !== b.items.length) await saveBoard({ ...b, items:keep });
-    }
+    // take them off every board too (on every device: boards sync)
+    await takeOffBoard(null, uids);
     // and out of every starred group (the copies leave the phone with them)
     await unstar(null, uids);
     invalidate();
@@ -597,10 +597,33 @@
   }
   async function deleteBoard(id){ await Store.del('lib-boards', id); }
 
+  /* Is this board entry that frame? The same address, the same path inside
+     the Shot Library (another device's root), or the frame it resolves to. */
+  const plainOf = u => { u = String(u || ''); return u.startsWith('h:') && u.includes('|') ? u.slice(u.indexOf('|') + 1) : ''; };
+  function sameFrame(lib, entry, uid){
+    if(entry === uid) return true;
+    const a = plainOf(entry), b = plainOf(uid);
+    if(a && a === b) return true;
+    if(lib){ const it = find(lib, entry); if(it && (it.uid === uid || (it.from && it.from === uid))) return true; }
+    return false;
+  }
+  function onBoard(lib, board, uid){ return !!(board && (board.items || []).some(e => sameFrame(lib, e, uid))); }
+  /* take frames off one board (id) or off every board (no id) */
+  async function takeOffBoard(id, uids){
+    const lib = await load().catch(() => null);
+    let n = 0;
+    for(const b of await allBoards()){
+      if(id && b.id !== id) continue;
+      const keep = b.items.filter(e => !uids.some(u => sameFrame(lib, e, u)));
+      if(keep.length !== b.items.length){ n += b.items.length - keep.length; await saveBoard({ ...b, items:keep }); }
+    }
+    return n;
+  }
+
   /* ------------------------------------------------------------ starred groups
      The everyday frames, picked on the laptop, kept on every device. A group
-     is { id, name, items:[uid], created }; the 'star-groups' store syncs (the
-     boards don't), and taskframes.js copies every starred frame across and
+     is { id, name, items:[uid], created }; the 'star-groups' store syncs (so
+     do boards now, but a board keeps no copies), and taskframes.js copies every starred frame across and
      never sweeps it. Starring happens on the laptop; the phone reads. */
   async function allStars(){
     try { return (await Store.all('star-groups')).values.map(g => ({ items:[], ...g }))
@@ -644,7 +667,10 @@
     const b = (await allBoards()).find(x => x.id === id);
     if(!b) return 0;
     const before = b.items.length;
-    b.items = [...new Set([...b.items, ...uids])];
+    /* already there under another device's address: not added twice */
+    const lib = await load().catch(() => null);
+    const fresh = uids.filter(u => !onBoard(lib, b, u));
+    b.items = [...new Set([...b.items, ...fresh])];
     await saveBoard(b);
     return b.items.length - before;
   }
@@ -838,7 +864,7 @@
     kindOf, titleCase, title, pageLabel,
     settings, setSettings, load, invalidate, find, url, posterUrl, blobOf,
     addFiles, addFromLink, addBlob, update, remove, moveToLibrary, bringIn,
-    allBoards, saveBoard, deleteBoard, addToBoard, importShotline,
+    allBoards, saveBoard, deleteBoard, addToBoard, takeOffBoard, onBoard, importShotline,
     allStars, saveStar, deleteStar, starInto, unstar, starredSet,
     deck, search, target, setTarget, disk, videoPoster,
     hasLibrary, remote: () => remoteOn && !disk(), probeRemote, phone: phoneApp, keeps, readRemote,

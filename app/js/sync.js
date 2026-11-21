@@ -38,9 +38,13 @@
   /* settings keys that belong to one device ('library' is the laptop's folders
      and grabber paths) */
   const LOCAL_SETTINGS = /^(backup:|sync:|library$)/;
-  /* v4: the Library stays on the laptop. Its files would fill the phone and
-     the server; what a task or video uses travels as 'task-frames' instead. */
-  const LOCAL_STORES = new Set(['lib-items', 'lib-blob', 'lib-poster', 'lib-boards', 'nb-music', 'transition-stills']);
+  /* v4: the Library's files stay where they are (nastime and the laptop).
+     They would fill the phone and the server; what a task or video uses
+     travels as 'task-frames' instead.
+     Boards ('lib-boards') DO sync since 20 Nov 2026: a board is only a name, a
+     group and the frames' addresses, and every device now reads the same Shot
+     Library, so MediaLib.find puts the same frames on it everywhere. */
+  const LOCAL_STORES = new Set(['lib-items', 'lib-blob', 'lib-poster', 'nb-music', 'transition-stills']);
   const skip = (store, key) => LOCAL_STORES.has(store) ||
     (store === 'settings' && LOCAL_SETTINGS.test(String(key)));
 
@@ -136,19 +140,27 @@
      (13 Nov 2026: a whole Creator Studio 3 swipe file) was never offered to
      the server and never reached the phone. Once per device, offer what is
      in those stores again — gaps only, so nothing newer anywhere is undone. */
-  const OFFER = { key:'offer:restored-1', stores:['swipes', 'swipe-thumb', 'refs', 'ref-img', 'ref-poster'] };
+  /* 20 Nov 2026: boards were kept to one device until now, so the ones
+     already made were never noted as changed. Offer them once the same way. */
+  const OFFERS = [
+    { key:'offer:restored-1', stores:['swipes', 'swipe-thumb', 'refs', 'ref-img', 'ref-poster'] },
+    { key:'offer:boards-1',   stores:['lib-boards'] }
+  ];
   async function offerRestored(){
     const cfg = await config();
-    if(!cfg.server || !cfg.token || !cfg.ready || await meta(OFFER.key)) return 0;
+    if(!cfg.server || !cfg.token || !cfg.ready) return 0;
     const kp = await layout();
     let n = 0;
-    for(const st of OFFER.stores){
-      if(!(st in kp)) continue;
-      let keys = [];
-      try { keys = (await Store.all(st)).keys; } catch(e){}
-      n += await touchMany(st, keys, 1);
+    for(const o of OFFERS){
+      if(await meta(o.key)) continue;
+      for(const st of o.stores){
+        if(!(st in kp)) continue;
+        let keys = [];
+        try { keys = (await Store.all(st)).keys; } catch(e){}
+        n += await touchMany(st, keys, 1);
+      }
+      await setMeta(o.key, Date.now());
     }
-    await setMeta(OFFER.key, Date.now());
     return n;
   }
 

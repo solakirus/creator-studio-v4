@@ -84,7 +84,7 @@
     if(!it) return U.toast('That frame is not in your library');
     const pg = lib.pageIdx.get(it.page);
     const boards = await MediaLib.allBoards();
-    const on = boards.filter(b => b.items.includes(it.uid));
+    const on = boards.filter(b => MediaLib.onBoard(lib, b, it.uid));
     const box = document.createElement('div');
     box.className = 'lv-viewer';
     box.innerHTML = `<div class="lv-vbox">

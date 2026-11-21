@@ -1221,7 +1221,7 @@
     U.toast('Packing it up…');
     try {
       if(window.TaskFrames) await TaskFrames.run();
-      const local = (window.Sync && Sync.LOCAL_STORES) || new Set(['lib-items', 'lib-blob', 'lib-poster', 'lib-boards', 'nb-music']);
+      const local = (window.Sync && Sync.LOCAL_STORES) || new Set(['lib-items', 'lib-blob', 'lib-poster', 'nb-music']);
       const names = [...(await Store.db()).objectStoreNames].filter(n => !local.has(n));
       const data = await Transfer.exportAll({ photos:true, only:names });
       data.kind = 'for-other-device';

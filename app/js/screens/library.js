@@ -190,8 +190,7 @@
             if(act === 'target') return addToTarget([it.uid]);
             if(act === 'delete') return confirmDelete([it.uid]);
             if(act === 'unboard'){
-              const b = (await MediaLib.allBoards()).find(x => x.id === board);
-              if(b){ await MediaLib.saveBoard({ ...b, items:b.items.filter(u => u !== it.uid) }); draw(); }
+              await MediaLib.takeOffBoard(board, [it.uid]); draw();
             }
           }
         });
