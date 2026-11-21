@@ -36,33 +36,24 @@
 
     el.innerHTML = `
     <style>
-      .hero2{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface-1)}
-      .hero2 .art2{position:relative;height:190px;background-size:cover;background-position:center 34%}
-      .hero2 .art2::after{content:"";position:absolute;inset:0;
-        background:linear-gradient(180deg,rgba(10,8,6,.38) 0%,rgba(10,8,6,.10) 32%,rgba(10,8,6,.72) 76%,rgba(10,8,6,.94) 100%)}
-      .timer{position:absolute;left:12px;top:12px;z-index:2;background:rgba(10,8,6,.86);border-radius:var(--r);
-        padding:8px 13px;display:flex;align-items:center;gap:8px;font-family:var(--display);font-weight:900;
-        font-size:14px;letter-spacing:.09em;color:var(--amber)}
-      .timer i{width:8px;height:8px;border-radius:50%;background:var(--orange)}
-      .heroText{position:absolute;left:14px;right:14px;bottom:12px;z-index:2}
-      .heroText h2{font-family:var(--display);font-weight:900;font-size:30px;letter-spacing:-.025em;
-        line-height:1.04;margin:0;color:#fff;text-shadow:0 1px 4px rgba(10,8,6,.5)}
-      .statusrow{display:flex;align-items:center;gap:14px;padding:16px 14px}
-      .statusrow .badge{width:44px;height:44px;flex:0 0 44px;border-radius:var(--r);background:var(--surface-2);
-        border:1px solid #35302A;display:flex;align-items:center;justify-content:center;color:var(--amber)}
-      .statusrow .badge svg{width:22px;height:22px}
-      .statusrow .t{font-family:var(--display);font-weight:900;font-size:13px;letter-spacing:.13em;
-        text-transform:uppercase;color:var(--orange);margin:0 0 5px}
-      .statusrow .v{font-family:var(--display);font-weight:900;font-size:23px;letter-spacing:-.02em;margin:0}
-      .dash{border-top:1px dashed #3A352E}
-      .statgrid{display:grid;grid-template-columns:1fr 1fr}
-      .statcell{padding:18px 14px;text-align:center}
-      .statcell.v2{border-left:1px dashed #3A352E}
-      .statcell .k{font-family:var(--display);font-weight:900;font-size:12.5px;letter-spacing:.15em;
-        text-transform:uppercase;color:var(--muted);margin:0 0 10px}
-      .statcell .n{font-family:var(--display);font-weight:900;font-size:27px;letter-spacing:-.02em;margin:0}
-      .statcell .s{font-size:14px;color:var(--muted);margin:7px 0 0}
-      .heroCta{padding:14px}
+      /* 21 Nov 2026: the active series was a 600px card that pushed the list
+         below the fold; now one row — what it is, where you are, next drop */
+      .hero2{display:flex;align-items:center;gap:12px;padding:10px 12px 10px 10px;margin:0 0 14px;
+        border:1px solid var(--line);border-left:3px solid var(--orange);border-radius:var(--r);background:var(--surface-1)}
+      .hero2 .hs-main{display:flex;align-items:center;gap:12px;flex:1;min-width:0;background:none;border:0;padding:0;
+        color:inherit;text-align:left;cursor:pointer;font:inherit}
+      .hero2 .hs-art{flex:0 0 64px;height:44px;border-radius:calc(var(--r) - 2px);background-size:cover;background-position:center 34%}
+      .hero2 .hs-tx{min-width:0;display:flex;flex-direction:column;gap:3px}
+      .hero2 .hs-k{font-family:var(--display);font-weight:900;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--orange);
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .hero2 .hs-t{font-family:var(--display);font-weight:900;font-size:18px;letter-spacing:-.015em;line-height:1.1;
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--cream)}
+      .hero2 .hs-m{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .hero2 .hs-m b{color:var(--cream);font-weight:600}
+      .hero2 .hs-m .drop{color:var(--amber)}
+      .hero2 .hs-acts{display:flex;gap:8px;flex:0 0 auto}
+      .hero2 .hs-acts button{height:34px;padding:0 14px}
+      @media (max-width:560px){ .hero2{flex-wrap:wrap} .hero2 .hs-acts{width:100%} .hero2 .hs-acts button{flex:1} }
     </style>
 
     <div class="pagehead"><h1 class="page-title">Series</h1>
@@ -76,28 +67,19 @@
       </span></div>
 
     ${hero ? `
-    <div class="hero2">
-      <div class="art2" style="background-image:${global.Cover ? Cover.bg('series', hero.id, generatedArt(hero.id, hero.title, 360, 190)) : generatedArt(hero.id, hero.title, 360, 190)}">
-        <span class="timer"><i></i>${u.chip}</span>
-        <div class="heroText">
-          <p class="caps amber" style="font-size:13px;margin:0 0 6px">Active series · ${hero.total} episodes · ${
-            (hero.days && hero.days.length) ? U.daysLabel(hero.days).toLowerCase() : hero.cadence.toLowerCase()}</p>
-          <h2>${hero.title}</h2>
-        </div>
-      </div>
-      <div class="statusrow">
-        <span class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="14" height="12" rx="2"/><path d="M16.5 10.5L22 8v8l-5.5-2.5z"/></svg></span>
-        <div><p class="t">You're on</p><p class="v">Episode ${hero.done + 1} of ${hero.total}</p></div>
-      </div>
-      <div class="dash"></div>
-      <div class="statgrid">
-        <div class="statcell"><p class="k">Published</p><p class="n">${hero.done}</p><p class="s">of ${hero.total}</p></div>
-        <div class="statcell v2"><p class="k">Next drop</p><p class="n">${u.big}</p><p class="s">${u.sub}</p></div>
-      </div>
-      <div class="dash"></div>
-      <div class="heroCta" style="display:flex;gap:8px">
-        <button class="btn-primary" data-open="${hero.id}">Open series</button>
-        <button class="btn-ghost" data-edit="${hero.id}">Edit</button></div>
+    <div class="hero2" title="Your active series">
+      <button class="hs-main" data-open="${hero.id}">
+        <span class="hs-art" style="background-image:${global.Cover ? Cover.bg('series', hero.id, generatedArt(hero.id, hero.title, 128, 88)) : generatedArt(hero.id, hero.title, 128, 88)}"></span>
+        <span class="hs-tx">
+          <span class="hs-k">Active series · ${hero.total} episodes · ${(hero.days && hero.days.length) ? U.daysLabel(hero.days) : hero.cadence}</span>
+          <span class="hs-t">${hero.title}</span>
+          <span class="hs-m">You're on <b>episode ${Math.min(hero.done + 1, hero.total || 1)} of ${hero.total}</b> · ${hero.done} published · <span class="drop">${
+            hero.nextDrop ? `next drop ${u.big} (${u.sub})` : 'no drop scheduled'}</span></span>
+        </span>
+      </button>
+      <span class="hs-acts">
+        <button class="btn-primary" data-open="${hero.id}">Open</button>
+        <button class="btn-ghost" data-edit="${hero.id}">Edit</button></span>
     </div>` : ''}
 
     <!-- the same pair as Videos: which channel, then where the work stands -->
