@@ -55,8 +55,13 @@ const head = s => console.log(`\n— ${s} —`);
   ok(['What it’s for', 'Type', 'Who it’s for', 'The promise', 'Length'].every(x => ui.subs.includes(x)), 'Purpose holds what it’s for, type, who, promise and length', ui.subs.join(', '));
   ok(!ui.script.some(x => /^Hook/.test(x)) && !(await lap.$(`${top} [data-f="hook"]`)) && ui.mount, 'Script is the structure with its shots — no separate Hook box');
   ok(!ui.retain, 'Holding the middle is gone');
-  await lap.click(`${top} #s-purpose [data-v="trust"]`); await lap.waitForTimeout(500);
-  ok((await clipRec(cid)).plan.purpose === 'trust', 'a purpose chip sets it');
+  await lap.selectOption(`${top} #s-purpose select`, 'trust'); await lap.waitForTimeout(500);
+  ok((await clipRec(cid)).plan.purpose === 'trust', 'the purpose dropdown sets it');
+  await lap.selectOption(`${top} #s-type select`, { index: 1 }); await lap.selectOption(`${top} #s-length select`, { index: 1 }); await lap.waitForTimeout(600);
+  ui = await lap.evaluate(t => { const r = document.querySelector(t + ' #sec-purpose .cp-two'); const cs = getComputedStyle(r);
+    return { cols: cs.gridTemplateColumns.split(' ').length, chips: document.querySelectorAll(t + ' #sec-purpose .cp-chip, ' + t + ' #sec-purpose [data-len]').length }; }, top);
+  const rr = await clipRec(cid);
+  ok(rr.plan.type && rr.plan.length && ui.cols === 2 && ui.chips === 0, 'type and length are dropdowns too, in two columns (no chip rows)', JSON.stringify(ui));
 
   head('a structure on an empty clip');
   await lap.click(`${top} #clipScript [data-st="pick"]`); await lap.waitForTimeout(500);

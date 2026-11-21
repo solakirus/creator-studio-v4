@@ -179,6 +179,23 @@
   .sx-jump button{height:32px;padding:0 11px;border:1px solid var(--line);border-radius:16px;background:transparent;color:var(--cream);font:inherit;font-size:13px;cursor:pointer}
   .sx-jump button i{font-style:normal;color:var(--muted);margin-left:5px}
   .sx-jump button:hover{border-color:var(--orange)}
+  .sx-jump button[aria-pressed="true"]{background:var(--cream);border-color:var(--cream);color:#151515;font-weight:700}
+  .sx-jump button[aria-pressed="true"] i{color:#5A544B}
+  /* one beat at a time */
+  .sx-fbar{display:flex;align-items:center;gap:8px;margin:0 0 12px;padding:8px;border:1px solid var(--line);border-left:3px solid var(--orange);border-radius:var(--r);background:var(--surface-2)}
+  .sx-fwhere{flex:1;min-width:0;text-align:center;display:flex;flex-direction:column;gap:2px}
+  .sx-fwhere b{font-family:var(--display),sans-serif;font-weight:900;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sx-fwhere small{color:var(--muted);font-size:12px}
+  .sx-fstep{display:flex;align-items:center;gap:6px;height:36px;max-width:30%;padding:0 10px;border:1px solid var(--line);border-radius:var(--r);background:transparent;color:var(--cream);font:inherit;font-size:13px;cursor:pointer}
+  .sx-fstep span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sx-fstep svg{width:16px;height:16px;flex:0 0 16px}
+  .sx-fstep:disabled{opacity:.3;cursor:default}
+  .sx.focus .sx-beat{margin:0;border-color:#4A443B}
+  .sx.focus .sx-shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;align-items:start}
+  .sx.focus .sx-shots > .sx-adds{grid-column:1/-1}
+  .sx.focus .sx-bh .sx-bk{display:none}
+  .sx-fbtn{font-size:14px}
+  @media (max-width:560px){ .sx-fstep span{display:none} .sx.focus .sx-shots{grid-template-columns:1fr} }
   .sx-beat{border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);margin:0 0 10px;scroll-margin-top:60px}
   .sx-bh{display:flex;align-items:center;gap:8px;padding:9px 10px 6px}
   .sx-bh .n{width:24px;height:24px;flex:0 0 24px;border-radius:50%;background:var(--orange);color:#151515;font-family:var(--display),sans-serif;font-weight:900;font-size:12px;display:flex;align-items:center;justify-content:center}
@@ -330,6 +347,12 @@
   /* the script laid out as rows (beats down the page) or columns (beats side
      by side, like a day's sequences) — one choice, remembered */
   const COLS_KEY = 'cs4-sx-cols';
+  /* v4 (21 Nov 2026): one beat at a time. Tapping a beat's chip (or ⤢ on its
+     header) opens just that beat, full width, its shots as a grid of big
+     frames; ‹ › (or ← →) step through the beats, All beats (or Esc) goes
+     back. Kept per clip / video while the app is open, so adding a frame or
+     a shot (which redraws) doesn't throw you out of it. */
+  const FOCUS = new Map();
   const colsOn = () => { try { return localStorage.getItem(COLS_KEY) !== 'rows'; } catch(e){ return true; } };
   const pic = sl => sl.item ? `<span class="sx-pic" data-slpic="${esc(sl.item)}"></span>` : '<span class="sx-pic none"></span>';
   const hasLib = () => !!(global.MediaLib && MediaLib.hasLibrary && MediaLib.hasLibrary());   /* every device has the Library now */
@@ -346,6 +369,14 @@
     css(); if(global.ShotList) ShotList.css();
     let t = null;
     let uidp = 'st' + Math.random().toString(36).slice(2, 7);
+    let focusNow = null;
+    const setFocus = k => {
+      const key = (t && t.id) || uidp;
+      if(k === null || k === undefined) FOCUS.delete(key); else FOCUS.set(key, k);
+      draw();
+      const top = container.querySelector('.sx-jump') || container;
+      if(top.getBoundingClientRect().top < 0) top.scrollIntoView({ block:'start' });
+    };
     const P = () => opts.plan() || {};
     const beats = () => { const p = P(); if(!Array.isArray(p.beats)) p.beats = []; return p.beats; };
     const guides = () => { const p = P(); if(!Array.isArray(p.beatGuide)) p.beatGuide = []; return p.beatGuide; };
@@ -517,29 +548,41 @@
         if(global.ShotList) ShotList.fillPics(container);
         return stat();
       }
-      const cols = colsOn() && bn.length > 0;
-      const secs = bn.map((b, k) => `
-          <section class="sx-beat" id="${uidp}-${k}">
+      const fkey = (t && t.id) || uidp;
+      let fk = FOCUS.has(fkey) ? FOCUS.get(fkey) : null;
+      if(fk !== null && !(fk >= 0 && fk < bn.length)){ FOCUS.delete(fkey); fk = null; }
+      focusNow = fk;
+      const cols = (colsOn() || fk !== null) && bn.length > 0;
+      const sec = (b, k) => `
+          <section class="sx-beat${fk === k ? ' on' : ''}" id="${uidp}-${k}">
             <div class="sx-bh">${cols ? `<span class="sx-bk">Beat ${k + 1} of ${bn.length}</span>` : ''}<span class="n">${k + 1}</span>
               <input class="sx-bn" data-bn="${k}" value="${esc(b)}" placeholder="Name this beat" title="Tap to rename this beat" aria-label="Beat ${k + 1} name">
               <span class="cnt">${groups[k].length} shot${groups[k].length === 1 ? '' : 's'}</span>
+              ${fk === null ? `<button class="mini sx-fbtn" data-sxfocus="${k}" title="Work on just this beat" aria-label="Focus on ${esc(b || 'this beat')}">⤢</button>` : ''}
               <button class="mini" data-bmv="${k}:-1" ${k === 0 ? 'disabled' : ''} aria-label="Move this beat ${cols ? 'left' : 'up'}">${cols ? LEFT : UP}</button>
               <button class="mini" data-bmv="${k}:1" ${k === bn.length - 1 ? 'disabled' : ''} aria-label="Move this beat ${cols ? 'right' : 'down'}">${cols ? RIGHT : DOWN}</button>
               <button class="mini" data-brm="${k}" aria-label="Remove this beat">×</button></div>
             ${gd[k] ? `<p class="sx-guide">${esc(gd[k])}</p>` : ''}
             <div class="sx-shots">${groups[k].map(i => shotCard(i, k)).join('')}
               <span class="sx-adds"><button class="sx-add" data-sadd="${k}">+ Add a shot to ${esc(b || 'this beat')}</button>${hasLib() ? `<button class="sx-add" data-sxframes="${k}" title="Pick GIFs or stills — each one becomes a shot in this beat">+ Shots from frames</button>` : ''}${global.ShotBank ? `<button class="sx-add" data-sxtpl="${k}" title="A whole template, or some of My shots, into this beat">+ Template or My shots</button>` : ''}</span></div>
-          </section>`).join('');
-      container.innerHTML = `<div class="sx${cols ? ' cols' : ''}">
+          </section>`;
+      const secs = fk !== null ? sec(bn[fk], fk) : bn.map(sec).join('');
+      const fbar = fk === null ? '' : `<div class="sx-fbar">
+          <button class="sx-fstep" data-sxstep="-1" ${fk === 0 ? 'disabled' : ''} aria-label="The beat before">${LEFT}<span>${fk > 0 ? esc(bn[fk - 1] || 'Beat ' + fk) : ''}</span></button>
+          <span class="sx-fwhere"><b>${esc(bn[fk] || 'Beat ' + (fk + 1))}</b><small>Beat ${fk + 1} of ${bn.length} · ${groups[fk].length} shot${groups[fk].length === 1 ? '' : 's'}</small></span>
+          <button class="sx-fstep" data-sxstep="1" ${fk === bn.length - 1 ? 'disabled' : ''} aria-label="The beat after"><span>${fk < bn.length - 1 ? esc(bn[fk + 1] || 'Beat ' + (fk + 2)) : ''}</span>${RIGHT}</button>
+          <button class="btn-sm" data-sxall title="Back to every beat (Esc)">All beats</button></div>`;
+      container.innerHTML = `<div class="sx${cols ? ' cols' : ''}${fk !== null ? ' focus' : ''}">
         <div class="sx-head"><span class="k">Structure</span>
           <b>${p.structure && p.structure.name ? esc(p.structure.name) : bn.length ? 'Your own beats' : 'None yet'}</b>
           ${slots(t).some(x => x.item) && global.ShotList && ShotList.motionBtn ? ShotList.motionBtn() : ''}
-          ${bn.length ? `<span class="sx-view" role="group" aria-label="Lay the beats out as"><button data-sxv="rows" aria-pressed="${!cols}">Rows</button><button data-sxv="cols" aria-pressed="${cols}">Columns</button></span>` : ''}
+          ${bn.length && fk === null ? `<span class="sx-view" role="group" aria-label="Lay the beats out as"><button data-sxv="rows" aria-pressed="${!cols}">Rows</button><button data-sxv="cols" aria-pressed="${cols}">Columns</button></span>` : ''}
           <button class="btn-sm" data-st="pick">${bn.length ? 'Change' : 'Pick a structure'}</button></div>
-        ${bn.length ? `<div class="sx-jump">${bn.map((b, k) => `<button data-stjump="${k}">${esc(b || 'Beat ' + (k + 1))}<i>${groups[k].length}</i></button>`).join('')}</div>` : ''}
+        ${bn.length ? `<div class="sx-jump" title="Tap a beat to work on just that one">${bn.length > 1 ? `<button data-sxall aria-pressed="${fk === null}">All beats</button>` : ''}${bn.map((b, k) => `<button data-stjump="${k}" aria-pressed="${fk === k}">${esc(b || 'Beat ' + (k + 1))}<i>${groups[k].length}</i></button>`).join('')}</div>` : ''}
+        ${fbar}
         ${!bn.length ? `<div class="sx-start"><button class="btn-sm" data-st="bme">Start with Beginning · Middle · End</button>
             <span>or pick a structure — then every shot sits under a beat, with its lines</span></div>` : ''}
-        ${bn.length ? (cols ? `<div class="sx-cols">${secs}<button class="sx-addcol" data-st="addbeat">＋ Beat</button></div>` : secs)
+        ${bn.length ? (fk !== null ? secs : cols ? `<div class="sx-cols">${secs}<button class="sx-addcol" data-st="addbeat">＋ Beat</button></div>` : secs)
         : `<div class="sx-shots" style="padding:0">${slots(t).map((_, i) => shotCard(i, -1)).join('') || '<p class="sx-none">No shots yet.</p>'}
             <button class="sx-add" data-sadd="-1">+ Add a shot</button></div>`}
         <div class="sx-foot">
@@ -661,6 +704,15 @@
       }
       const sv = e.target.closest('[data-sxv]');
       if(sv){ try { localStorage.setItem(COLS_KEY, sv.dataset.sxv); } catch(e2){} return draw(); }
+      if(mode === 'script'){
+        if(e.target.closest('[data-sxall]')) return setFocus(null);
+        const fo = e.target.closest('[data-sxfocus]');
+        if(fo) return setFocus(+fo.dataset.sxfocus);
+        const fs = e.target.closest('[data-sxstep]');
+        if(fs && focusNow !== null) return setFocus(Math.max(0, Math.min(beats().length - 1, focusNow + +fs.dataset.sxstep)));
+        const jf = e.target.closest('[data-stjump]');
+        if(jf) return setFocus(focusNow === +jf.dataset.stjump ? null : +jf.dataset.stjump);
+      }
       const jp = e.target.closest('[data-stjump]');
       if(jp){
         const k = jp.dataset.stjump;
@@ -711,6 +763,7 @@
         if(j < 0 || j >= bn.length) return;
         remapBeats(b => b === k ? j : b === j ? k : b);
         [bn[k], bn[j]] = [bn[j], bn[k]];
+        if(focusNow === k) FOCUS.set((t && t.id) || uidp, j);
         while(gd.length < bn.length) gd.push('');
         [gd[k], gd[j]] = [gd[j], gd[k]];
         await opts.savePlan();
@@ -723,6 +776,8 @@
         if(n && !confirm(`Remove “${bn[k] || 'this beat'}”? Its ${n} shot${n === 1 ? '' : 's'} stay, in the beat before it.`)) return;
         remapBeats(b => b === k ? Math.max(0, k - 1) : b > k ? b - 1 : b);
         bn.splice(k, 1); gd.splice(k, 1);
+        if(focusNow !== null){ const key = (t && t.id) || uidp;
+          if(focusNow === k) FOCUS.delete(key); else if(focusNow > k) FOCUS.set(key, focusNow - 1); }
         if(!bn.length){ slots(t).forEach((_, i) => { const s2 = stepOf(t, i); if(s2) delete s2.beat; }); P().structure = null; P().noAutoBeats = true; }
         await opts.savePlan();
         return persist();
@@ -731,6 +786,20 @@
     container.addEventListener('input', e => {
       if(e.target.matches('.sx-lt,.sx-en')) grow(e.target);
     });
+    if(mode === 'script'){
+      const onKey = e => {
+        if(!container.isConnected) return document.removeEventListener('keydown', onKey, true);
+        if(focusNow === null || !container.offsetParent) return;
+        if(e.target.closest && e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+        if(document.querySelector('#sheet.open, .sheet.open, .lv-viewer, .lv-picker')) return;
+        /* first, and stopped: Esc here leaves the beat, not the clip (screens.js pops on Esc) */
+        const stop = () => { e.preventDefault(); e.stopImmediatePropagation(); };
+        if(e.key === 'Escape'){ stop(); return setFocus(null); }
+        if(e.key === 'ArrowLeft' && focusNow > 0){ stop(); return setFocus(focusNow - 1); }
+        if(e.key === 'ArrowRight' && focusNow < beats().length - 1){ stop(); return setFocus(focusNow + 1); }
+      };
+      document.addEventListener('keydown', onKey, true);
+    }
     container.addEventListener('keydown', e => {
       if(e.target.matches('.sx-sn,.sx-bn') && e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
     });

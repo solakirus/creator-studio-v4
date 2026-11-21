@@ -84,6 +84,15 @@
     .v-link:focus{border-color:var(--orange)}
     .cp-grp > summary{font-size:17px}
     .cp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px 22px}
+    /* Purpose: the picks on the left, the words on the right; one column on a phone */
+    .cp-two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:16px 28px;align-items:start}
+    .cp-picks,.cp-words{display:flex;flex-direction:column;gap:14px;min-width:0}
+    .cp-pick{display:grid;grid-template-columns:118px minmax(0,1fr);align-items:center;column-gap:12px}
+    .cp-pick .cp-subk{margin:0}
+    .cp-pick .cp-chipd{grid-column:2;margin:5px 0 0;font-size:12.5px}
+    .cp-sel{height:38px;width:100%;padding:0 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--cream);font:inherit;font-size:14px;cursor:pointer}
+    .cp-sel:focus{border-color:var(--orange);outline:none}
+    @media (max-width:760px){ .cp-two{grid-template-columns:1fr} }
     .cp-sub{min-width:0}
     .cp-subk{margin:0 0 8px;font-family:var(--display),sans-serif;font-weight:900;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
     .cp-chips{display:flex;flex-wrap:wrap;gap:6px}
@@ -225,6 +234,11 @@
     const chips = (set, field, cur) => `<div class="cp-chips">${ClipCraft.SETS[set].map(o =>
       `<button class="cp-chip" data-set="${field}" data-v="${o.v}" aria-pressed="${cur === o.v}" title="${escA(o.d || '')}">${o.n}</button>`).join('')}</div>${
       cur ? `<p class="cp-chipd">${esc((ClipCraft.SETS[set].find(o => o.v === cur) || {}).d || '')}</p>` : ''}`;
+    /* v4 (21 Nov 2026): Purpose's picks as inline dropdowns, not rows of chips */
+    const pickSel = (set, field, cur) => `<select class="cp-sel" data-setsel="${field}" aria-label="${field}">
+        <option value="">Pick one…</option>${ClipCraft.SETS[set].map(o =>
+        `<option value="${o.v}" ${cur === o.v ? 'selected' : ''}>${o.n}</option>`).join('')}</select>${
+      cur ? `<p class="cp-chipd">${esc((ClipCraft.SETS[set].find(o => o.v === cur) || {}).d || '')}</p>` : ''}`;
     const grpOpen = { purpose:true, script:true };
 
     /* the shots were saved by the Steps block, the script or the cut list:
@@ -319,9 +333,14 @@
         <details class="cp-sec cp-grp" id="sec-purpose"${grpOpen.purpose ? ' open' : ''} data-grp="purpose">
           <summary>Purpose<span class="n">${[ClipCraft.label('purpose', p.purpose), ClipCraft.label('type', p.type), lenName,
             p.audience ? 'for ' + esc(p.audience.split(/[.,;]/)[0].slice(0, 46)) : ''].filter(Boolean).join(' · ') || 'what this is for'}</span>${CHEV}</summary>
-          <div class="cp-body cp-grid">
-            <div class="cp-sub" id="s-purpose"><p class="cp-subk">What it’s for</p>${chips('purpose', 'purpose', p.purpose)}</div>
-            <div class="cp-sub" id="s-type"><p class="cp-subk">Type</p>${chips('type', 'type', p.type)}</div>
+          <div class="cp-body cp-two">
+            <div class="cp-picks">
+              <div class="cp-sub cp-pick" id="s-purpose"><p class="cp-subk">What it’s for</p>${pickSel('purpose', 'purpose', p.purpose)}</div>
+              <div class="cp-sub cp-pick" id="s-type"><p class="cp-subk">Type</p>${pickSel('type', 'type', p.type)}</div>
+              <div class="cp-sub cp-pick" id="s-length"><p class="cp-subk">Length</p>
+                <select class="cp-sel" data-lensel aria-label="Length">${LENGTHS.map(l => `<option value="${l.v}" ${p.length === l.v ? 'selected' : ''}>${l.n}</option>`).join('')}</select></div>
+            </div>
+            <div class="cp-words">
             <div class="cp-sub" id="s-audience"><p class="cp-subk">Who it’s for</p>
               <textarea class="cp-hook" data-f="audience" style="min-height:64px"
                 placeholder="One specific person. 'A sysadmin who has never set foot in a datacenter' beats 'tech people'.">${esc(p.audience || '')}</textarea></div>
@@ -330,8 +349,7 @@
                 placeholder="What they get for watching. Has to be clear within the first line.">${esc(p.promise || '')}</textarea>
               <textarea class="cp-hook" data-f="payoff" style="min-height:48px;margin-top:8px"
                 placeholder="Where you deliver it — which beat. If it is the last one, say so on purpose.">${esc(p.payoff || '')}</textarea></div>
-            <div class="cp-sub" id="s-length"><p class="cp-subk">Length</p>
-              <div class="cp-len">${LENGTHS.map(l => `<button data-len="${l.v}" aria-pressed="${p.length === l.v}">${l.n}</button>`).join('')}</div></div>
+            </div>
           </div>
         </details>`;
       S.scriptGrp = `
@@ -767,6 +785,8 @@
     /* the two dropdowns on a cut save the moment they change */
     el.addEventListener('change', async e => {
       if(e.target.closest && e.target.closest('.tk-host')) return;   /* the Steps block handles its own */
+      if(e.target.dataset && e.target.dataset.setsel){ clip.plan[e.target.dataset.setsel] = e.target.value; await Data.saveClip(clip); return render(); }
+      if(e.target.dataset && e.target.dataset.lensel != null){ clip.plan.length = e.target.value; await Data.saveClip(clip); return render(); }
       if(e.target.dataset && e.target.dataset.cpstick != null) return tickShot(+e.target.dataset.cpstick, e.target.checked);
       const pl = e.target.dataset.cutplat;
       if(pl){
