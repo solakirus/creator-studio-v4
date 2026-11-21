@@ -1070,7 +1070,7 @@
       return `<div class="lv-card">
         <h3>Grab media</h3>
         <p class="hintline" style="margin:0 0 10px">Pages, YouTube, Instagram, Vimeo, TikTok. Videos are cut at every shot change into stills and short GIFs, into Shot Library. Only grab from sites whose terms allow it, and keep the files for your own planning.</p>
-        ${grabberOld(gr) ? `<p class="lv-warn" data-grabold>⚠ This computer’s grabber is older than the app (${esc(gr.build || 'before Nov 20')}) — it misses fixes like one folder per reel and finding soft cuts. The grabber is part of the laptop app itself, so run <b>update.bat</b> (Linux: ./update.sh) and let it rebuild and install.</p>` : ''}
+        ${grabberOld(gr) ? `<p class="lv-warn" data-grabold>⚠ This computer’s grabber is older than the app (${esc(gr.build || 'before Nov 20')}) — it misses fixes like one folder per reel and finding soft cuts. The grabber is part of the laptop app itself, so close this app and run <b>update.bat rebuild</b> (Linux: <b>./update.sh rebuild</b>) — it rebuilds and reinstalls it. Then open Creator Studio from the Start menu, not an old pinned shortcut.${gr.exe ? `<br><small>This copy runs from ${esc(gr.exe)}</small>` : ''}</p>` : ''}
         <div class="lv-row"><b>Grabber</b>
           ${!gr.builtin ? `<small style="color:var(--green)">● Ready · Shot Library’s grabber · ${esc(gr.root)}</small>`
             : gr.setUp ? `<small style="color:var(--green)">● Ready · built in</small>${tool(true, 'yt-dlp')}${tool(true, 'ffmpeg')}`

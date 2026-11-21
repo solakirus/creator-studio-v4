@@ -10,6 +10,9 @@ if /i not "%~1"=="--run" (
   exit /b
 )
 cd /d "%~2"
+rem  "update.bat rebuild" always rebuilds and reinstalls the Windows app
+set "FORCE="
+if /i "%~3"=="rebuild" set "FORCE=1"
 
 rem  One click for every update. Double-click it, or drop an update zip on it.
 rem
@@ -19,8 +22,11 @@ rem       new on GitHub (what Claude pushed there).
 rem    2. Sends it to GitHub (your phone, laptop and nastime pick it up from
 rem       there) and copies it to nastime straight away if this PC can reach it.
 rem    3. Rebuilds and reinstalls the Windows app ONLY when the update changed
-rem       the app itself (electron\, android\, package.json). Most updates
-rem       don't - every device downloads them on its own and offers Restart now.
+rem       the app itself (electron\, android\, package.json), or when the
+rem       installed app says it is behind this folder. Most updates don't -
+rem       every device downloads them on its own and offers Restart now.
+rem
+rem    update.bat rebuild   always rebuilds and reinstalls the Windows app.
 
 echo.
 echo  ===== Creator Studio v4 - update =====
@@ -57,7 +63,8 @@ if errorlevel 1 (
   call :pulled
 )
 
-set "ZIP=%~3"
+set "ZIP="
+if not defined FORCE set "ZIP=%~3"
 if not defined ZIP (
   for /f "delims=" %%F in ('dir /b /o-d "%USERPROFILE%\Downloads\cs4-update-*.zip" 2^>nul') do (
     if not defined ZIP (
@@ -96,6 +103,16 @@ if not defined BUILT (
   git cat-file -e !BUILT! >nul 2>nul || set "SHELL=1"
   if not defined SHELL for /f %%F in ('git diff --name-only !BUILT! %NEW% -- electron android native package.json 2^>nul') do set "SHELL=1"
 )
+rem --- .built-from can say "built" while the installed app is still old (the
+rem     installer was cancelled, or it went somewhere else): ask the app itself
+if not defined SHELL (
+  for /f "delims=" %%L in ('node scripts\app-behind.js 2^>nul') do (
+    set "SHELL=1"
+    echo.
+    echo %%L
+  )
+)
+if defined FORCE set "SHELL=1"
 
 rem --- 2. out to GitHub and nastime
 echo.
@@ -119,7 +136,8 @@ rem --- 3. only when the app itself changed - before nastime, so a nastime
 rem     that can't be reached (away from home) never holds this up
 if defined SHELL (
   echo.
-  echo  This update changes the app itself, so the Windows app is being rebuilt.
+  echo  The Windows app is being rebuilt and reinstalled. Close Creator Studio
+  echo  if it's open; in the installer keep the folder it suggests.
   call npm install --no-audit --no-fund || goto :failed
   taskkill /im "Creator Studio v4.exe" /f >nul 2>nul
   call npm run dist:win || goto :failed
@@ -131,6 +149,9 @@ if defined SHELL (
     taskkill /im "Creator Studio v4.exe" /f >nul 2>nul
     echo  Installing !SETUP! ...
     start "" /wait "!SETUP!"
+    node scripts\app-behind.js --installed >nul 2>nul
+    echo  Open Creator Studio from the Start menu or the new desktop shortcut -
+    echo  an older pinned shortcut may still open an old copy.
   )
   echo.
   echo  The phone needs a new APK for this one too: run build.bat and answer Y

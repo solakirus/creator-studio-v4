@@ -290,7 +290,7 @@ function wire({ ipcMain, dialog, shell, net, getWin }) {
     const kit = kitReady(setting);
     const t = Builtin.tools();
     return { root: kit || (t.ytdlp && t.ffmpeg ? 'built in' : null), setUp: kit ? true : !!(t.ytdlp && t.ffmpeg), node: kit ? findNode() : true,
-      builtin: !kit, ytdlp: t.ytdlp, ffmpeg: t.ffmpeg, winget: !!t.winget, out: defaultRoot(), build: Builtin.BUILD || '' };
+      builtin: !kit, ytdlp: t.ytdlp, ffmpeg: t.ffmpeg, winget: !!t.winget, out: defaultRoot(), build: Builtin.BUILD || '', exe: process.execPath };
   });
 
   /* v4: a sign-in copied from another browser (Chrome's can't be read directly) */

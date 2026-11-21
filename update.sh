@@ -51,6 +51,8 @@ else
 fi
 
 ZIP="${1:-}"
+# ./update.sh rebuild   always rebuilds and reinstalls the Linux app
+FORCE=; [ "$ZIP" = rebuild ] && { FORCE=1; ZIP=; }
 if [ -z "$ZIP" ]; then
   for f in $(ls -t "$HOME"/Downloads/cs4-update-*.zip 2>/dev/null); do
     grep -qxF "$(basename "$f")" .applied-updates.txt 2>/dev/null || { ZIP="$f"; break; }
@@ -71,6 +73,9 @@ NEW="$(git rev-parse HEAD)"
 BUILT="$(cat .built-from 2>/dev/null || true)"
 if [ -z "$BUILT" ] || ! git cat-file -e "$BUILT" 2>/dev/null; then SHELLCHANGE=1
 else SHELLCHANGE="$(git diff --name-only "$BUILT" "$NEW" -- electron android native package.json)"; fi
+# .built-from can say "built" while the installed app is still old: ask the app itself
+if [ -z "$SHELLCHANGE" ]; then WHY="$(node scripts/app-behind.js 2>/dev/null)" && { SHELLCHANGE=1; echo; echo "$WHY"; }; fi
+[ "${FORCE:-}" = 1 ] && SHELLCHANGE=1
 
 # --- 2. out to GitHub and nastime
 echo
@@ -95,7 +100,7 @@ if [ -n "$SHELLCHANGE" ]; then
   echo "$NEW" > .built-from
   DEB="$(ls -t dist/*.deb | head -n1)"
   echo " Installing $DEB (asks for your password)..."
-  sudo apt install -y "./$DEB"
+  sudo apt install -y "./$DEB" && node scripts/app-behind.js --installed >/dev/null 2>&1
 else
   echo
   echo " Nothing to install. Every device downloads this on its own within 30"

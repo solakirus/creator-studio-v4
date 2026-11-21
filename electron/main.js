@@ -146,6 +146,14 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   app.setAppUserModelId('com.solakirus.creatorstudio4');   /* Windows needs this for notifications */
 
+  /* Say what this installed copy really is, so update.bat / update.sh can tell
+     an app that is behind (scripts/app-behind.js) instead of trusting .built-from. */
+  try {
+    fs.writeFileSync(path.join(app.getPath('userData'), 'installed.json'), JSON.stringify({
+      build: require('./grab-builtin').BUILD || '', version: app.getVersion(),
+      exe: process.execPath, at: new Date().toISOString() }, null, 1));
+  } catch (e) { console.warn('installed.json', e); }
+
   const root = WebUpdate.choose();
   protocol.handle('app', req => {
     let p = decodeURIComponent(new URL(req.url).pathname);
