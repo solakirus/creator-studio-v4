@@ -65,5 +65,5 @@ one part of life at a time.
 | App | Export |
 |---|---|
 | Homebase | Done — Settings → Send tasks to Creator Studio (your chores and to-dos, or everyone's, 7/14/30 days) |
-| Punch | To do — add a "Send to Creator Studio" button that writes this file (`area: home`) |
-| Car app | To do — same, `area: car`, `project` = the vehicle |
+| Punch | Done — 🎬 button (Up next on phones, side rail on laptop): pick projects/fixes + maintenance due in 30 days, film-on date |
+| Torque Book (car) | Done — Garage → Send to Creator Studio panel: open jobs and diagnoses + maintenance overdue or due soon, per vehicle |
