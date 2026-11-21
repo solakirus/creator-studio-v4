@@ -77,18 +77,52 @@
     }
   }
 
-  /* ------------------------------------------------------------ big viewer */
+  /* ------------------------------------------------------------ big viewer
+     ‹ › on the picture, the arrow keys or a swipe step through the frames in
+     the order they sit on screen behind it (else that video's frames), so a
+     whole video's shots can be looked through without closing the viewer. */
   async function view(uid, extra){
     const lib = await MediaLib.load();
-    const it = MediaLib.find(lib, uid);
-    if(!it) return U.toast('That frame is not in your library');
-    const pg = lib.pageIdx.get(it.page);
-    const boards = await MediaLib.allBoards();
-    const on = boards.filter(b => MediaLib.onBoard(lib, b, it.uid));
+    if(!MediaLib.find(lib, uid)) return U.toast('That frame is not in your library');
+
+    /* the frames to step through: what's on screen, in screen order */
+    let list = (extra && Array.isArray(extra.list) && extra.list.length) ? extra.list.slice() : [];
+    if(!list.length){
+      const seen = new Set();
+      document.querySelectorAll('.lv-tile[data-uid]').forEach(t => {
+        if(t.closest('.lv-viewer') || !t.offsetParent) return;
+        const u = t.dataset.uid;
+        if(!seen.has(u) && MediaLib.find(lib, u)){ seen.add(u); list.push(u); }
+      });
+    }
+    if(!list.includes(uid)){
+      const it0 = MediaLib.find(lib, uid);
+      list = lib.items.filter(x => x.page === it0.page).map(x => x.uid);
+      if(!list.includes(uid)) list = [uid];
+    }
+    let at = list.indexOf(uid);
+
     const box = document.createElement('div');
     box.className = 'lv-viewer';
-    box.innerHTML = `<div class="lv-vbox">
-        <div class="lv-vmedia"></div>
+    document.body.appendChild(box);
+    let it = null, shown = 0;
+
+    async function show(i){
+      at = Math.max(0, Math.min(list.length - 1, i));
+      const me = ++shown;
+      it = MediaLib.find(lib, list[at]);
+      if(!it) return;
+      const pg = lib.pageIdx.get(it.page);
+      const boards = await MediaLib.allBoards();
+      if(me !== shown) return;
+      const on = boards.filter(b => MediaLib.onBoard(lib, b, it.uid));
+      const many = list.length > 1;
+      box.innerHTML = `<div class="lv-vbox">
+        <div class="lv-vmedia">
+          ${many ? `<button type="button" class="lv-vnav prev" data-nav="-1" aria-label="Previous frame" ${at === 0 ? 'disabled' : ''}>‹</button>
+            <button type="button" class="lv-vnav next" data-nav="1" aria-label="Next frame" ${at === list.length - 1 ? 'disabled' : ''}>›</button>
+            <span class="lv-vcount">${at + 1} / ${list.length}</span>` : ''}
+        </div>
         <div class="lv-vside">
           <p class="lv-vkind">${MediaLib.KIND_LABEL[it.kind]} · ${esc(pg ? pg.collection : '')}</p>
           <h2>${esc(MediaLib.title(it))}</h2>
@@ -106,30 +140,54 @@
             ${MediaLib.hasLibrary() ? `<button class="lv-btn" data-star>★ Star</button>` : ''}
             <button class="lv-btn ghost" data-close>Close</button>
           </div>
+          ${many ? '<p class="lv-vmeta lv-vhint">← → to step through · Esc to close</p>' : ''}
         </div></div>`;
-    document.body.appendChild(box);
-    const media = box.querySelector('.lv-vmedia');
-    const src = await MediaLib.url(it);
-    if(it.kind === 'video'){
-      const v = document.createElement('video');
-      v.src = src; v.muted = true; v.loop = true; v.playsInline = true; v.autoplay = true; v.controls = true;
-      media.appendChild(v);
-      v.play().catch(() => {});
-    } else {
-      const img = new Image(); img.src = src; media.appendChild(img);
+      const media = box.querySelector('.lv-vmedia');
+      const src = await MediaLib.url(it);
+      if(me !== shown) return;
+      let el;
+      if(it.kind === 'video'){
+        el = document.createElement('video');
+        el.src = src; el.muted = true; el.loop = true; el.playsInline = true; el.autoplay = true; el.controls = true;
+        el.play().catch(() => {});
+      } else { el = new Image(); el.src = src; el.alt = ''; }
+      media.insertBefore(el, media.firstChild);
+      const lab = box.querySelector('[data-label]');
+      if(lab) lab.addEventListener('change', async () => { await MediaLib.update(it.uid, { label:lab.value.trim() }); U.toast('Label saved'); });
+      /* the next frame is ready before it's asked for */
+      const nx = MediaLib.find(lib, list[at + 1]);
+      if(nx && nx.kind !== 'video') MediaLib.url(nx).then(u => { const p = new Image(); p.src = u; }).catch(() => {});
     }
-    const close = () => box.remove();
+    const step = d => { if(at + d >= 0 && at + d < list.length) show(at + d); };
+
+    const key = e => {
+      if(e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+      if(e.key === 'Escape'){ close(); e.stopPropagation(); }
+      else if(e.key === 'ArrowRight'){ step(1); e.preventDefault(); e.stopPropagation(); }
+      else if(e.key === 'ArrowLeft'){ step(-1); e.preventDefault(); e.stopPropagation(); }
+    };
+    const close = () => { box.remove(); document.removeEventListener('keydown', key, true); };
+    document.addEventListener('keydown', key, true);
+
     box.addEventListener('click', async e => {
+      const nv = e.target.closest('[data-nav]');
+      if(nv){ e.stopPropagation(); return step(+nv.dataset.nav); }
       if(e.target === box || e.target.closest('[data-close]')) return close();
       if(e.target.closest('[data-board]')){ close(); return boardMenu([it.uid]); }
       if(e.target.closest('[data-star]')){ close(); return starMenu([it.uid]); }
       const a = e.target.closest('[data-act]');
       if(a && extra && extra.onAction){ close(); extra.onAction(a.dataset.act, it); }
     });
-    const lab = box.querySelector('[data-label]');
-    if(lab) lab.addEventListener('change', async () => { await MediaLib.update(it.uid, { label:lab.value.trim() }); U.toast('Label saved'); });
-    const key = e => { if(e.key === 'Escape'){ close(); document.removeEventListener('keydown', key, true); e.stopPropagation(); } };
-    document.addEventListener('keydown', key, true);
+    /* swipe left / right on a phone or tablet */
+    let sx = null, sy = 0;
+    box.addEventListener('touchstart', e => { if(e.touches.length === 1){ sx = e.touches[0].clientX; sy = e.touches[0].clientY; } }, { passive:true });
+    box.addEventListener('touchend', e => {
+      if(sx === null) return;
+      const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy; sx = null;
+      if(Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) step(dx < 0 ? 1 : -1);
+    }, { passive:true });
+
+    await show(at);
   }
 
   /* ------------------------------------------------------------ boards */
