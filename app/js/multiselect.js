@@ -8,13 +8,18 @@
    that stops a tap from navigating while you are selecting are the fiddly part,
    and three copies of them would drift.
 
-   A screen opts in with Select.enable(host, {...}) and gets all of it. */
+   A screen opts in with Select.enable(host, {...}) and gets all of it.
+   Holding is invisible, so a screen can also show a Select button that calls
+   Select.start(host): the bar opens with nothing picked yet ("Tap vlogs to
+   pick them") and stays open until Cancel, even with none ticked. */
 (function(global){
 
   const HOLD_MS = 450;     /* long enough not to fire on a scroll, short enough to feel deliberate */
   const MOVE_TOL = 10;     /* a finger that travels this far is scrolling, not holding */
 
   let active = null;       /* the one list currently in selection mode */
+  const optsByHost = new WeakMap();   /* what each enabled list asked for, for start() */
+  const plural = noun => /s$/.test(noun) ? noun : noun + 's';
 
   function clear(){
     if(!active) return;
@@ -33,8 +38,11 @@
     if(!active) return;
     const n = count();
     const { bar, noun } = active;
-    if(!n){ clear(); return; }        /* deselecting the last one leaves the mode */
-    bar.querySelector('.sb-n').textContent =
+    /* deselecting the last one leaves the mode — unless it was opened with
+       the Select button, where an empty pick is how it starts */
+    if(!n && !active.manual){ clear(); return; }
+    bar.querySelectorAll('.sb-del, .sb-extra').forEach(b => { b.disabled = !n; });
+    bar.querySelector('.sb-n').textContent = !n ? `Tap ${plural(noun)} to pick them` :
       `${n} ${noun}${n === 1 || /s$/.test(noun) ? '' : 's'} selected`;   /* "3 series", not "3 seriess" */
   }
 
@@ -108,10 +116,10 @@
         });
       });
 
-      active = { host, bar, noun:opts.noun, opts };
+      active = { host, bar, noun:opts.noun, opts, manual:!item };
     }
 
-    item.classList.add('sel-on');
+    if(item) item.classList.add('sel-on');
     paint();
   }
 
@@ -125,6 +133,7 @@
     if(!host || !opts || !opts.itemSelector || !opts.idOf || !opts.onDelete) return;
     opts.noun = opts.noun || 'item';
 
+    optsByHost.set(host, opts);
     if(host.dataset.selectable === '1') return;   /* listeners attach once */
     host.dataset.selectable = '1';
 
@@ -190,6 +199,15 @@
      swallows every tap — which looks exactly like the app has frozen. */
   function reset(){ clear(); }
 
+  /* the Select button: open the bar with nothing picked (again: leave it) */
+  function start(host){
+    const opts = host && optsByHost.get(host);
+    if(!opts) return false;
+    if(active && active.host === host){ clear(); return false; }
+    begin(host, null, opts);
+    return true;
+  }
+
   /* The list is gone from the page but the bar is still in the body: this is
      what happens when a screen re-renders or you switch section while picking. */
   function prune(){
@@ -209,5 +227,5 @@
     clear();
   }, true);
 
-  global.Select = { enable, reset, clear, count, prune, HOLD_MS };
+  global.Select = { enable, start, reset, clear, count, prune, HOLD_MS };
 })(window);

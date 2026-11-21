@@ -92,6 +92,69 @@
     if(window.Months) Months.invalidate();
   }
 
+  /* Duplicating an episode (21 Nov 2026): the plan comes across — its days,
+     sequences, scripts, shots, frames, reference videos and cover — as a new,
+     unfilmed episode with no week yet ("No week set"), so it never takes the
+     original's week or its month slot. Left behind: what belongs to the
+     original's run — done ticks, the tasks it sent to your days, the days it
+     was scheduled on, its edit walkthrough, a month's W/L, the clip a
+     sequence was linked to and the research tagged to it.
+     Every act, sequence and shot gets a new id (and anything inside that
+     pointed at them follows), so a task or a lookup by id can't land on the
+     copy. A grabbed reference clip is copied too: the original's goes 3 days
+     after it is posted, and the copy's shot would lose its clip with it. */
+  async function duplicateEpisode(id){
+    const src = await Store.get('vlogs', id);
+    if(!src) return null;
+    const orig = migrate(JSON.parse(JSON.stringify(src)));
+    const ids = new Map();
+    const fresh = (old, p) => { if(old && !ids.has(old)) ids.set(old, uid(p)); return ids.get(old); };
+    (orig.acts || []).forEach(a => { fresh(a.id, 'a'); (a.beats || []).forEach(b => { fresh(b.id, 'b');
+      (b.shots || []).forEach(sh => fresh(sh && sh.id, 's')); }); });
+    /* every exact use of an old id, wherever it sits in the plan */
+    const swap = x => {
+      if(typeof x === 'string') return ids.has(x) ? ids.get(x) : x;
+      if(Array.isArray(x)) return x.map(swap);
+      if(x && typeof x === 'object'){ const o = {}; for(const k of Object.keys(x)) o[k] = swap(x[k]); return o; }
+      return x;
+    };
+    const v = swap(orig);
+    v.id = uid('v');
+    v.title = (String(src.title || 'Vlog').replace(/\s*\(copy( \d+)?\)$/, '')) + ' (copy)';
+    v.week = null; v.monthId = null; v.createdAt = Date.now();
+    ['editSteps', 'result', 'isVerdict', 'posted', 'postedAt', 'updatedAt'].forEach(k => delete v[k]);
+    for(const a of v.acts || []){
+      a.day = null;
+      for(const b of a.beats || []){
+        b.done = false; b.day = null; b.at = null; b.clipId = null;
+        delete b.taskId; delete b.doneAt;
+        for(const sh of b.shots || []){
+          if(!sh || typeof sh !== 'object') continue;
+          delete sh.done; delete sh.doneAt;
+          const r = sh.vref, m = r && /^rc:(.+):(clip|gif)$/.exec(r.clip || r.gif || '');
+          if(m){
+            try {
+              const rc = await Store.get('ref-clips', m[1]);
+              if(rc){
+                const nid = uid('rc');
+                await Store.put('ref-clips', { ...rc, id:nid });
+                sh.vref = { ...r, ...(r.clip ? { clip:`rc:${nid}:clip` } : {}), ...(r.gif ? { gif:`rc:${nid}:gif` } : {}) };
+              }
+            } catch(e){}
+          }
+        }
+      }
+    }
+    await Store.put('vlogs', v);
+    /* its cover picture, if it has one */
+    try {
+      if(window.Cover){ const art = await Store.get('art', Cover.key('vlog', src.id)); if(art) await Store.put('art', art, Cover.key('vlog', v.id)); }
+    } catch(e){}
+    if(window.Months) Months.invalidate();
+    if(window.MediaLib && MediaLib.invalidate) MediaLib.invalidate();
+    return v;
+  }
+
   /* ---------- list: episodes, by month ---------- */
   async function mountList(el, params){
     /* Hosted inside the Content tab there is already a heading and a nav above
@@ -129,6 +192,7 @@
 
       const head = Screens.bar({ kicker:'Creator studio', title:'Vlog',
         actions:`${window.ViewAs ? ViewAs.picker('vlog') : ''}<button class="btn-sm" data-a="challenges">Challenges</button>
+                 ${rows.length ? '<button class="btn-sm" data-a="select" title="Pick vlogs to duplicate or delete (or hold one)">Select</button>' : ''}
                  <button class="btn-sm accent" data-a="new">+ New</button>` });
 
       el.innerHTML = (embedded ? '' : head) + `
@@ -137,6 +201,7 @@
           <span class="headacts" style="display:flex;gap:8px;align-items:center">
             ${window.ViewAs ? ViewAs.picker('vlog') : ''}
             <button class="headbtn" data-a="challenges">CHALLENGES</button>
+            ${rows.length ? '<button class="headbtn" data-a="select" title="Pick vlogs to duplicate or delete (or hold one)">SELECT</button>' : ''}
             <button class="headbtn" data-a="new">NEW</button>
           </span></div>` : ''}
         ${window.Research ? `<div class="epmonth" style="margin:0 0 16px">
@@ -184,7 +249,13 @@
       itemSelector: '.mediacard',
       noun: 'vlog',
       idOf: n => { const c = n.querySelector('[data-open]'); return c ? c.dataset.open : null; },
-      warning: 'The vlogs and their sequences go for good. Research on them goes back to unassigned; tasks already on your days stay.',
+      warning: 'Their sequences go with them. You can bring them back from Settings → Recently deleted for 30 days. Research on them goes back to unassigned; tasks already on your days stay.',
+      extra: [{ label:'Duplicate', run: async (ids, done) => {
+        let n = 0;
+        for(const id of ids) if(await duplicateEpisode(id)) n++;
+        U.toast(n === 1 ? 'Duplicated — the copy is under “No week set”' : `${n} vlogs duplicated — the copies are under “No week set”`);
+        done();
+      } }],
       onDelete: deleteEpisodes,
       onDone: render
     });
@@ -194,6 +265,7 @@
       el.addEventListener('click', e => {
         const a = e.target.closest('[data-a]');
         if(a && a.dataset.a === 'new') return Screens.push('vlog-new', { onDone:render });
+        if(a && a.dataset.a === 'select'){ if(window.Select) Select.start(el); return; }
         if(a && a.dataset.a === 'challenges') return Screens.push('challenges', {});
         if(a && a.dataset.a === 'research') return Screens.push('research', { onChange:render });
         if(a && a.dataset.a === 'rs-quick') return Research.quickAdd({ onSaved:render });
@@ -1275,6 +1347,12 @@
         </div>
         </div>
 
+        <!-- v4: the whole episode — a copy to start the next one from, or gone -->
+        <div class="epfoot" style="display:flex;gap:8px;margin:22px 0 4px">
+          <button class="btn-ghost" data-a="duplicate" style="flex:1" title="A new, unfilmed episode with the same days, sequences, scripts and shots">⧉ Duplicate episode</button>
+          <button class="btn-ghost" data-a="delete" style="flex:1;color:var(--red);border-color:rgba(226,86,74,.4)">Delete episode</button>
+        </div>
+
         <!-- v4: boards left for their own app again; the episode's board data is kept -->
       </div>`;
     }
@@ -1998,8 +2076,17 @@
         });
         return;
       }
+      if(a2.dataset.a === 'duplicate'){
+        const copy = await duplicateEpisode(v.id);
+        if(!copy) return U.toast('Could not duplicate it');
+        params.onChange && params.onChange();
+        U.toast('Duplicated — this is the copy. Give it a week when you’re ready.');
+        Screens.pop();
+        setTimeout(() => Screens.push('vlog', { id:copy.id, onChange:params.onChange }), 280);
+        return;
+      }
       if(a2.dataset.a === 'delete'){
-        if(!confirm(`Delete "${v.title || 'this vlog'}"? Its sequences go with it; research on it goes back to unassigned.`)) return;
+        if(!confirm(`Delete "${v.title || 'this vlog'}"? Its sequences go with it; research on it goes back to unassigned. You can bring it back from Settings → Recently deleted for 30 days.`)) return;
         await deleteEpisodes([v.id]);
         params.onChange && params.onChange();
         Screens.pop();

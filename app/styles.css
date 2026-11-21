@@ -98,7 +98,9 @@ button{font-family:inherit}
   font-size:16px;color:var(--dim)}
 @media (max-width:360px){ .dayhead .page-title{font-size:34px} }
 
-.pagehead{display:flex;align-items:center;gap:10px;margin:0 0 18px}
+.pagehead{display:flex;align-items:center;gap:10px;margin:0 0 18px;flex-wrap:wrap;row-gap:10px}
+/* a narrow phone: the buttons go under the title rather than off the edge */
+.pagehead .headacts{flex-wrap:wrap;justify-content:flex-end}
 .pagehead .count{font-size:15px;color:var(--dim);align-self:flex-end;margin-bottom:4px}
 .headacts{margin-left:auto;display:flex;gap:8px;align-items:center}
 
@@ -924,6 +926,15 @@ button.hrow{width:100%;background:none;border:0;text-align:left;cursor:pointer;
   top:17px;right:19px;width:5px;height:9px;
   border:solid #151515;border-width:0 2px 2px 0;transform:rotate(45deg)}
 .selecting .sel-on{outline:2px solid var(--orange);outline-offset:-2px;border-radius:var(--r)}
+/* a card's state label (In progress, Empty…) sits top right and covered the
+   tick, so on cards and list rows it goes top left, above the picture */
+/* a card's ::before/::after are also its swipe tints, kept at opacity 0 —
+   which hid the tick on every episode and series card until now */
+.selecting .mediacard::before{right:auto;left:10px;z-index:6;opacity:1;bottom:auto;transition:none}
+.selecting .mediacard.sel-on::after{right:auto;left:18px;z-index:7;opacity:1;bottom:auto;background:none;transition:none}
+.selecting .mediacard .cvbtn{display:none}   /* picking, not setting a cover */
+.selecting .lay-list .mediacard::before{top:50%;margin-top:-11px}
+.selecting .lay-list .mediacard.sel-on::after{top:50%;margin-top:-7px}
 
 /* the bar that says how many, and does the deleting */
 /* Above the section nav, not over it — the nav sits at the same bottom offset,
@@ -939,6 +950,8 @@ button.hrow{width:100%;background:none;border:0;text-align:left;cursor:pointer;
   font-family:var(--display),sans-serif;font-weight:900;font-size:12.5px;
   letter-spacing:.04em;border:1px solid #3B372F;background:transparent;color:var(--muted)}
 .selbar .sb-del{background:var(--red);border-color:var(--red);color:#fff}
+/* opened with a Select button: nothing picked yet, nothing to act on */
+.selbar button:disabled{opacity:.4;cursor:default}
 
 /* what kind of thing a sequence is, readable from the list */
 .noterow .setuptag{margin:5px 0 0}
