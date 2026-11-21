@@ -80,7 +80,7 @@ const VIDEO_HOSTS = /(^|\.)(youtube\.com|youtu\.be|instagram\.com|tiktok\.com|vi
 const SCENE = { high: 0.2, normal: 0.3, low: 0.45 };
 /* which grabber this is: the page compares it with the one it expects and,
    when this one is older, says update.bat is needed (it can't update itself) */
-const BUILD = '2026-11-20';
+const BUILD = '2026-11-20.2';
 const MIN_SHOT = 0.6;        /* s: shorter "shots" are flashes, not cuts */
 const GIF_FPS = 12, GIF_W = 480, GIF_COLOURS = 128;
 const STILL_W = 1280;
@@ -312,7 +312,9 @@ async function fetchVideo(job, t, url, tmp, o, extra) {
     '--print', 'before_dl:@@T %(title)s', '--print', 'after_move:@@F %(filepath)s', '--no-simulate'];
   /* v4: the app's own sign-in (made in its window, borrowed or pasted) comes
      first — Chrome's own often can't be read — then the browser picked */
-  const jar = isSocial(url) && await Browser.isSignedIn(url).catch(() => false) ? await Browser.cookieFile(url, tmp).catch(() => null) : null;
+  /* once this grab has found the app's sign-in expired, it isn't tried again
+     for every link — each try is a wasted request Instagram counts against us */
+  const jar = !job._jarDead && isSocial(url) && await Browser.isSignedIn(url).catch(() => false) ? await Browser.cookieFile(url, tmp).catch(() => null) : null;
   const browser = o.cookies && o.cookies !== 'none' ? o.cookies : '';
   const bname = browser ? (BROWSERS[browser] || browser) : '';
   let title = '', file = '', last = 0;
@@ -341,15 +343,23 @@ async function fetchVideo(job, t, url, tmp, o, extra) {
      the browser's cookies can't be read, it goes again without them. */
   const lockedJar = e => /could not copy .*cookie database|failed to decrypt|cookies? database|unable to (?:read|open) .*cookie|permission denied.*cookies|could not find .*cookies/i.test(e || '');
   const wantsSignIn = e => /sign in|log ?in|not a bot|confirm your age|private|members-only/i.test(e || '');
+  /* a quiet try that failed still says why, so a link never just goes silent */
+  const why = rr => (rr && rr.code !== 0 ? (rr.err || '').match(/^ERROR.*$/gm) || [] : []).slice(0, 2).forEach(x => job.emit('  ' + x));
   let r;
-  if (jar) {
-    r = await attempt('jar');
+  if (job._jarDead && isSocial(url)) {
+    job.emit('  downloading without the sign-in…');
+    r = await attempt('none', true); why(r);
+  }
+  else if (jar) {
+    r = await attempt('jar', true);
     /* the app's saved sign-in expired (Instagram answers 401, or yt-dlp says
        the cookies are no longer valid): a public post comes without it */
     if (r.code !== 0 && /HTTP Error 401|cookies are no longer valid|login required|unauthorized/i.test(r.err || '')) {
-      if (!job._jarTip) { job._jarTip = true; job.emit('  ⚠ The app’s Instagram sign-in has expired — trying without it. To sign in again: Find links on the profile, sign in in the window that opens.'); }
-      r = await attempt('none', true);
-    }
+      job._jarDead = true;
+      if (!job._jarTip) { job._jarTip = true; job.emit('  ⚠ The app’s Instagram sign-in has expired, so this grab carries on without it (public reels still come down). To sign in again: Find links on the profile, sign in in the window that opens.'); }
+      job.emit('  downloading without the sign-in…');
+      r = await attempt('none', true); why(r);
+    } else why(r);
   }
   else if (browser && isSocial(url)) {
     r = await attempt('browser', true);
