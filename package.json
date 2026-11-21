@@ -53,7 +53,7 @@
       "shortcutName": "Creator Studio v4"
     },
     "portable": {
-      "artifactName": "CreatorStudio3-portable-${version}.exe"
+      "artifactName": "CreatorStudio4-portable-${version}.exe"
     },
     "linux": {
       "icon": "build/icon.png",

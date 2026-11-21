@@ -139,19 +139,26 @@ if defined SHELL (
   echo  The Windows app is being rebuilt and reinstalled. Close Creator Studio
   echo  if it's open; in the installer keep the folder it suggests.
   call npm install --no-audit --no-fund || goto :failed
-  taskkill /im "Creator Studio v4.exe" /f >nul 2>nul
+  call :closeapp
   call npm run dist:win || goto :failed
   > .built-from echo %NEW%
   set "SETUP="
   for /f "delims=" %%F in ('dir /b /o-d "dist\*Setup*.exe" 2^>nul') do if not defined SETUP set "SETUP=dist\%%F"
   if defined SETUP (
-    rem the app may still be running in the background: the installer can't replace it then
-    taskkill /im "Creator Studio v4.exe" /f >nul 2>nul
+    rem the app, or a grabber helper it started, may still hold its files:
+    rem the old copy can't be removed then
+    call :closeapp
     echo  Installing !SETUP! ...
     start "" /wait "!SETUP!"
-    node scripts\app-behind.js --installed >nul 2>nul
-    echo  Open Creator Studio from the Start menu or the new desktop shortcut -
-    echo  an older pinned shortcut may still open an old copy.
+    if errorlevel 1 (
+      echo.
+      echo  The installer didn't finish, so the old app is still installed.
+      echo  Close Creator Studio, then run:  update.bat rebuild
+    ) else (
+      node scripts\app-behind.js --installed >nul 2>nul
+      echo  Open Creator Studio from the Start menu or the new desktop shortcut -
+      echo  an older pinned shortcut may still open an old copy.
+    )
   )
   echo.
   echo  The phone needs a new APK for this one too: run build.bat and answer Y
@@ -182,6 +189,15 @@ git branch -f laptop-backup-!STAMP! HEAD >nul 2>nul
 git reset -q --hard origin/main || exit /b 1
 echo  This folder and GitHub had gone different ways. Took GitHub's copy;
 echo  this folder's own version is saved as the branch laptop-backup-!STAMP!.
+exit /b 0
+
+rem --- close Creator Studio and everything it started (the grabber's yt-dlp,
+rem     ffmpeg and browser), then give Windows a moment to let go of its files
+:closeapp
+taskkill /im "Creator Studio v4.exe" /t /f >nul 2>nul
+taskkill /im "CreatorStudio3-portable-4.0.0.exe" /t /f >nul 2>nul
+taskkill /im "CreatorStudio4-portable-4.0.0.exe" /t /f >nul 2>nul
+timeout /t 2 /nobreak >nul
 exit /b 0
 
 :failed
