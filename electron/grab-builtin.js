@@ -78,6 +78,9 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 const VIDEO_HOSTS = /(^|\.)(youtube\.com|youtu\.be|instagram\.com|tiktok\.com|vimeo\.com|twitter\.com|x\.com|facebook\.com|fb\.watch|dailymotion\.com|twitch\.tv|reddit\.com|v\.redd\.it|pinterest\.[a-z.]+|streamable\.com|bilibili\.com)$/i;
 /* ffmpeg scene score a cut must pass, by the "Cut sensitivity" setting */
 const SCENE = { high: 0.2, normal: 0.3, low: 0.45 };
+/* which grabber this is: the page compares it with the one it expects and,
+   when this one is older, says update.bat is needed (it can't update itself) */
+const BUILD = '2026-11-20';
 const MIN_SHOT = 0.6;        /* s: shorter "shots" are flashes, not cuts */
 const GIF_FPS = 12, GIF_W = 480, GIF_COLOURS = 128;
 const STILL_W = 1280;
@@ -313,10 +316,11 @@ async function fetchVideo(job, t, url, tmp, o, extra) {
   const browser = o.cookies && o.cookies !== 'none' ? o.cookies : '';
   const bname = browser ? (BROWSERS[browser] || browser) : '';
   let title = '', file = '', last = 0;
-  const attempt = (how, quiet, which) => {
+  const attempt = (how, quiet, which, more) => {
     const args = base.slice();
     if (how === 'jar') args.push('--cookies', jar);
     else if (how === 'browser') args.push('--cookies-from-browser', which || browser);
+    if (more) args.push(...more);
     args.push(url);
     return job.run(t.ytdlp, args, l => {
       if (l.startsWith('@@T ')) title = l.slice(4).trim();
@@ -338,7 +342,15 @@ async function fetchVideo(job, t, url, tmp, o, extra) {
   const lockedJar = e => /could not copy .*cookie database|failed to decrypt|cookies? database|unable to (?:read|open) .*cookie|permission denied.*cookies|could not find .*cookies/i.test(e || '');
   const wantsSignIn = e => /sign in|log ?in|not a bot|confirm your age|private|members-only/i.test(e || '');
   let r;
-  if (jar) r = await attempt('jar');
+  if (jar) {
+    r = await attempt('jar');
+    /* the app's saved sign-in expired (Instagram answers 401, or yt-dlp says
+       the cookies are no longer valid): a public post comes without it */
+    if (r.code !== 0 && /HTTP Error 401|cookies are no longer valid|login required|unauthorized/i.test(r.err || '')) {
+      if (!job._jarTip) { job._jarTip = true; job.emit('  ⚠ The app’s Instagram sign-in has expired — trying without it. To sign in again: Find links on the profile, sign in in the window that opens.'); }
+      r = await attempt('none', true);
+    }
+  }
   else if (browser && isSocial(url)) {
     r = await attempt('browser', true);
     if (r.code !== 0 && lockedJar(r.err)) { job.emit(`  ${bname}'s sign-in can't be read while it's open — trying without it`); r = await attempt('none'); }
@@ -364,6 +376,15 @@ async function fetchVideo(job, t, url, tmp, o, extra) {
         : '  YouTube wants you signed in for this one. Chrome and Edge lock their sign-in on Windows, so install Firefox, sign in to YouTube there once, then grab it again.');
       else if (r.code !== 0 && locked) job.emit(`  close ${locked} and try again, or sign in in the app's own window (Find links)`);
     }
+  }
+  /* Instagram sometimes refuses the pieces yt-dlp asks for ("HTTP Error 416:
+     Requested Range Not Satisfiable"), more so with an expired sign-in:
+     once more, signed out, one whole file, starting fresh */
+  if (r && r.code !== 0 && /HTTP Error 416/i.test(r.err || '')) {
+    job.emit('  Instagram refused part of it — trying once more as one whole file');
+    try { for (const f of fs.readdirSync(tmp)) fs.rmSync(path.join(tmp, f), { force: true }); } catch (e) {}
+    const r2 = await attempt('none', true, '', ['--no-continue', '-f', 'b/bv*+ba']);
+    if (r2.code === 0) r = r2;
   }
   if (!file || !fs.existsSync(file)) {
     const any = fs.readdirSync(tmp).find(f => /\.(mp4|webm|mkv|mov)$/i.test(f));
@@ -694,6 +715,6 @@ async function setup(job, t) {
   return code;
 }
 
-module.exports = { Browser, tools, grab, grabSection, scan, setup, makeJob, isVideoLink, isSocial, postLink, mediaOn, cutTimes, cutsFrom, sceneScores, videoId, SCENE, GIF_FPS, GIF_W, MIN_SHOT };
+module.exports = { Browser, tools, grab, grabSection, scan, setup, makeJob, isVideoLink, isSocial, postLink, mediaOn, cutTimes, cutsFrom, sceneScores, videoId, BUILD, SCENE, GIF_FPS, GIF_W, MIN_SHOT };
 /* tests: forget that yt-dlp was already updated this run */
 module.exports._resetFreshen = () => { freshened = null; };

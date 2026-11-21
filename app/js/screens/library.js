@@ -1059,6 +1059,10 @@
     /* v4: no "Phone ⇄ laptop" file any more — the phone gets the frames its
        tasks and videos use through sync (taskframes.js), not the Library. */
 
+    /* the newest grabber (electron/grab-builtin.js BUILD): it ships with the
+       laptop app itself, so it only changes when update.bat rebuilds it */
+    const GRABBER_WANT = '2026-11-20';
+    const grabberOld = gr => !!(gr && gr.builtin && String(gr.build || '') < GRABBER_WANT);
     function grabCard(gr, s){
       /* pages grab with nothing installed; videos need yt-dlp and ffmpeg */
       const ready = gr && (gr.builtin || (gr.root && gr.setUp && gr.node));
@@ -1066,6 +1070,7 @@
       return `<div class="lv-card">
         <h3>Grab media</h3>
         <p class="hintline" style="margin:0 0 10px">Pages, YouTube, Instagram, Vimeo, TikTok. Videos are cut at every shot change into stills and short GIFs, into Shot Library. Only grab from sites whose terms allow it, and keep the files for your own planning.</p>
+        ${grabberOld(gr) ? `<p class="lv-warn" data-grabold>⚠ This computer’s grabber is older than the app (${esc(gr.build || 'before Nov 20')}) — it misses fixes like one folder per reel and finding soft cuts. The grabber is part of the laptop app itself, so run <b>update.bat</b> (Linux: ./update.sh) and let it rebuild and install.</p>` : ''}
         <div class="lv-row"><b>Grabber</b>
           ${!gr.builtin ? `<small style="color:var(--green)">● Ready · Shot Library’s grabber · ${esc(gr.root)}</small>`
             : gr.setUp ? `<small style="color:var(--green)">● Ready · built in</small>${tool(true, 'yt-dlp')}${tool(true, 'ffmpeg')}`
@@ -1176,7 +1181,7 @@
         const r = await d.grabRun({ mode:'grab', links, opts, setting:s.grabber });
         if(!r.ok) return U.toast(r.why);
         setBusy(body, true);
-        say(`Grabbing ${plural(links.length, 'link')}…${r.builtin ? '' : ' a Chrome window works through them'}`);
+        say(`Grabbing ${plural(links.length, 'link')}…${r.builtin ? (r.build ? ` (grabber ${r.build})` : ' (an older grabber — run update.bat for its fixes)') : ' a Chrome window works through them'}`);
       }
     }
 

@@ -115,11 +115,8 @@ if not defined AHEAD (
     echo  GitHub has it. Phone, laptop and nastime update from there in a few minutes.
   )
 )
-echo.
-echo  Copying to nastime...
-call publish-nas.bat /quiet
-
-rem --- 3. only when the app itself changed
+rem --- 3. only when the app itself changed - before nastime, so a nastime
+rem     that can't be reached (away from home) never holds this up
 if defined SHELL (
   echo.
   echo  This update changes the app itself, so the Windows app is being rebuilt.
@@ -130,6 +127,8 @@ if defined SHELL (
   set "SETUP="
   for /f "delims=" %%F in ('dir /b /o-d "dist\*Setup*.exe" 2^>nul') do if not defined SETUP set "SETUP=dist\%%F"
   if defined SETUP (
+    rem the app may still be running in the background: the installer can't replace it then
+    taskkill /im "Creator Studio v4.exe" /f >nul 2>nul
     echo  Installing !SETUP! ...
     start "" /wait "!SETUP!"
   )
@@ -141,6 +140,10 @@ if defined SHELL (
   echo  Nothing to install. Every device downloads this on its own within 30
   echo  minutes and offers Restart now - or Settings, App updates, Check now.
 )
+
+echo.
+echo  Copying to nastime...
+call publish-nas.bat /quiet
 goto :done
 
 :pulled

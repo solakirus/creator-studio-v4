@@ -290,7 +290,7 @@ function wire({ ipcMain, dialog, shell, net, getWin }) {
     const kit = kitReady(setting);
     const t = Builtin.tools();
     return { root: kit || (t.ytdlp && t.ffmpeg ? 'built in' : null), setUp: kit ? true : !!(t.ytdlp && t.ffmpeg), node: kit ? findNode() : true,
-      builtin: !kit, ytdlp: t.ytdlp, ffmpeg: t.ffmpeg, winget: !!t.winget, out: defaultRoot() };
+      builtin: !kit, ytdlp: t.ytdlp, ffmpeg: t.ffmpeg, winget: !!t.winget, out: defaultRoot(), build: Builtin.BUILD || '' };
   });
 
   /* v4: a sign-in copied from another browser (Chrome's can't be read directly) */
@@ -347,7 +347,7 @@ function wire({ ipcMain, dialog, shell, net, getWin }) {
       }
       Promise.resolve(work).catch(err => { gsend('cs3:grab-line', '✗ ' + err.message); return 1; })
         .then(code => { job = null; gdone(b.stopped ? 1 : (code | 0)); });
-      return { ok: true, builtin: true };
+      return { ok: true, builtin: true, build: Builtin.BUILD || '' };
     }
     const root = findGrabber(o.setting);
     const node = findNode();
