@@ -1061,7 +1061,7 @@
 
     /* the newest grabber (electron/grab-builtin.js BUILD): it ships with the
        laptop app itself, so it only changes when update.bat rebuilds it */
-    const GRABBER_WANT = '2026-11-20.2';
+    const GRABBER_WANT = '2026-11-20.3';
     const grabberOld = gr => !!(gr && gr.builtin && String(gr.build || '') < GRABBER_WANT);
     function grabCard(gr, s){
       /* pages grab with nothing installed; videos need yt-dlp and ffmpeg */
@@ -1109,7 +1109,8 @@
             `<option value="${v}" ${(s.cookies || 'none') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
             ${(MediaLib.disk() || {}).grabSignIn ? '<button class="lv-btn sm ghost" data-pastesignin>Paste a sign-in…</button>' : ''}</div>
           <div class="lv-row"><label><input type="checkbox" data-o="keepVideo" ${s.keepVideo ? 'checked' : ''}> keep the downloaded video</label>
-            <label><input type="checkbox" data-o="follow" ${s.follow ? 'checked' : ''}> also grab the pages each link points to</label></div>
+            <label><input type="checkbox" data-o="follow" ${s.follow ? 'checked' : ''}> also grab the pages each link points to</label>
+            <label title="Off: a video already in this library is skipped"><input type="checkbox" data-o="regrab"> grab again even if it's already in the Library</label></div>
         </details>
         <div class="lv-row"><input class="lv-in" data-grablib value="${esc(s.libName || '')}" placeholder="Library name (optional; empty = sort by site)" style="flex:1">
           <button class="lv-btn" data-grab ${ready ? '' : 'disabled'}>Grab now</button>

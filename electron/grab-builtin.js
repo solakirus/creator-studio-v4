@@ -80,7 +80,7 @@ const VIDEO_HOSTS = /(^|\.)(youtube\.com|youtu\.be|instagram\.com|tiktok\.com|vi
 const SCENE = { high: 0.2, normal: 0.3, low: 0.45 };
 /* which grabber this is: the page compares it with the one it expects and,
    when this one is older, says update.bat is needed (it can't update itself) */
-const BUILD = '2026-11-20.2';
+const BUILD = '2026-11-20.3';
 const MIN_SHOT = 0.6;        /* s: shorter "shots" are flashes, not cuts */
 const GIF_FPS = 12, GIF_W = 480, GIF_COLOURS = 128;
 const STILL_W = 1280;
@@ -429,10 +429,28 @@ async function grabSection(job, t, url, start, end, o) {
   return { ok: true, title, clip: file, gif: g.code === 0 && fs.existsSync(gif) ? gif : null, tmp };
 }
 
+/* a video already grabbed into this library (its manifest names this link and
+   holds files) — grabbing a list again skips it rather than fetching it twice */
+const sameLink = (a, b) => String(a || '').replace(/[?#].*$/, '').replace(/\/+$/, '').toLowerCase() === String(b || '').replace(/[?#].*$/, '').replace(/\/+$/, '').toLowerCase();
+function grabbedBefore(outRoot, site, url) {
+  const base = path.join(outRoot, safeName(site));
+  let names = [];
+  try { names = fs.readdirSync(base); } catch (e) { return null; }
+  for (const n of names) {
+    try {
+      const m = JSON.parse(fs.readFileSync(path.join(base, n, 'manifest.json'), 'utf8'));
+      if (m && sameLink(m.source, url) && Array.isArray(m.items) && m.items.length) return { dir: path.join(base, n), n: m.items.length };
+    } catch (e) { /* not a grab folder */ }
+  }
+  return null;
+}
+
 async function grabVideo(job, t, url, outRoot, o) {
   const site = siteOf(url);
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cs3-grab-'));
   job.emit(`▶ ${url}`);
+  const had = o.regrab ? null : grabbedBefore(outRoot, site, url);
+  if (had) { job.emit(`  already in the Library (${had.n} file${had.n === 1 ? '' : 's'}) — skipped`); return 0; }
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cs3-grab-'));
   const { r, title, file } = await fetchVideo(job, t, url, tmp, o);
   if (job.stopped) return 0;
   if (r.code !== 0 || !file) {
@@ -725,6 +743,6 @@ async function setup(job, t) {
   return code;
 }
 
-module.exports = { Browser, tools, grab, grabSection, scan, setup, makeJob, isVideoLink, isSocial, postLink, mediaOn, cutTimes, cutsFrom, sceneScores, videoId, BUILD, SCENE, GIF_FPS, GIF_W, MIN_SHOT };
+module.exports = { grabbedBefore, Browser, tools, grab, grabSection, scan, setup, makeJob, isVideoLink, isSocial, postLink, mediaOn, cutTimes, cutsFrom, sceneScores, videoId, BUILD, SCENE, GIF_FPS, GIF_W, MIN_SHOT };
 /* tests: forget that yt-dlp was already updated this run */
 module.exports._resetFreshen = () => { freshened = null; };
