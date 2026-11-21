@@ -80,7 +80,7 @@ const VIDEO_HOSTS = /(^|\.)(youtube\.com|youtu\.be|instagram\.com|tiktok\.com|vi
 const SCENE = { high: 0.2, normal: 0.3, low: 0.45 };
 /* which grabber this is: the page compares it with the one it expects and,
    when this one is older, says update.bat is needed (it can't update itself) */
-const BUILD = '2026-11-20.3';
+const BUILD = '2026-11-20.4';
 const MIN_SHOT = 0.6;        /* s: shorter "shots" are flashes, not cuts */
 const GIF_FPS = 12, GIF_W = 480, GIF_COLOURS = 128;
 const STILL_W = 1280;
@@ -309,7 +309,8 @@ async function fetchVideo(job, t, url, tmp, o, extra) {
   const base = ['--no-playlist', '--no-part', '--no-mtime', '--newline', '--restrict-filenames',
     '-f', (extra && extra.format) || VIDEO_FORMAT, ...((extra && extra.args) || []), '--merge-output-format', 'mp4', '--ffmpeg-location', path.dirname(t.ffmpeg),
     '-o', path.join(tmp, 'video.%(ext)s'),
-    '--print', 'before_dl:@@T %(title)s', '--print', 'after_move:@@F %(filepath)s', '--no-simulate'];
+    '--print', 'before_dl:@@T %(title)s', '--print', 'before_dl:@@C %(description)j', '--print', 'before_dl:@@U %(upload_date)s',
+    '--print', 'after_move:@@F %(filepath)s', '--no-simulate'];
   /* v4: the app's own sign-in (made in its window, borrowed or pasted) comes
      first — Chrome's own often can't be read — then the browser picked */
   /* once this grab has found the app's sign-in expired, it isn't tried again
@@ -317,7 +318,7 @@ async function fetchVideo(job, t, url, tmp, o, extra) {
   const jar = !job._jarDead && isSocial(url) && await Browser.isSignedIn(url).catch(() => false) ? await Browser.cookieFile(url, tmp).catch(() => null) : null;
   const browser = o.cookies && o.cookies !== 'none' ? o.cookies : '';
   const bname = browser ? (BROWSERS[browser] || browser) : '';
-  let title = '', file = '', last = 0;
+  let title = '', file = '', last = 0, caption = '', posted = '';
   const attempt = (how, quiet, which, more) => {
     const args = base.slice();
     if (how === 'jar') args.push('--cookies', jar);
@@ -326,6 +327,8 @@ async function fetchVideo(job, t, url, tmp, o, extra) {
     args.push(url);
     return job.run(t.ytdlp, args, l => {
       if (l.startsWith('@@T ')) title = l.slice(4).trim();
+      else if (l.startsWith('@@C ')) { try { caption = String(JSON.parse(l.slice(4)) || ''); } catch (e) {} }
+      else if (l.startsWith('@@U ')) posted = /^\d{8}$/.test(l.slice(4).trim()) ? l.slice(4).trim() : '';
       else if (l.startsWith('@@F ')) file = l.slice(4).trim();
       else if (/\[download\]\s+[\d.]+%/.test(l)) { const now = Date.now(); if (now - last > 1500) { last = now; job.emit('  ' + l.replace(/^\[download\]\s*/, 'downloading ')); } }
       else if (/cookies are no longer valid/i.test(l)) {
@@ -404,7 +407,26 @@ async function fetchVideo(job, t, url, tmp, o, extra) {
     const any = fs.readdirSync(tmp).find(f => /\.(mp4|webm|mkv|mov)$/i.test(f));
     if (any) file = path.join(tmp, any);
   }
-  return { r, title, file };
+  return { r, title, file, caption, posted };
+}
+
+/* Instagram (and TikTok) call every post "Video by <name>". A name you can
+   tell apart: the caption's opening words, else who posted it and when. */
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const genericTitle = t => !t || /^(video|reel|post|photo|tiktok) by\b/i.test(t);
+function niceName(title, caption, posted) {
+  if (!genericTitle(title)) return title;
+  const words = String(caption || '').split(/\n/)[0]
+    .replace(/https?:\/\/\S+/g, ' ').replace(/[#@][\w.]+/g, ' ')
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, ' ')
+    .split(/\s+/).filter(Boolean);
+  let nm = '';
+  for (const w of words) { if ((nm + ' ' + w).trim().length > 48) break; nm = (nm + ' ' + w).trim(); }
+  nm = nm.replace(/[\s,.;:!-]+$/, '');
+  const who = (String(title || '').match(/\bby\s+(\S+)/i) || [])[1] || '';
+  const when = posted ? `${MON[+posted.slice(4, 6) - 1]} ${+posted.slice(6)}${posted.slice(0, 4) !== String(new Date().getFullYear()) ? ', ' + posted.slice(0, 4) : ''}` : '';
+  if (nm.length >= 4) return nm;
+  return [who, when].filter(Boolean).join(' · ') || title || '';
 }
 
 /* v4: a reference on a shot (refclip.js) — just start→end of a video, kept
@@ -448,10 +470,11 @@ function grabbedBefore(outRoot, site, url) {
 async function grabVideo(job, t, url, outRoot, o) {
   const site = siteOf(url);
   job.emit(`▶ ${url}`);
-  const had = o.regrab ? null : grabbedBefore(outRoot, site, url);
-  if (had) { job.emit(`  already in the Library (${had.n} file${had.n === 1 ? '' : 's'}) — skipped`); return 0; }
+  const had = grabbedBefore(outRoot, site, url);
+  if (had && !o.regrab) { job.emit(`  already in the Library (${had.n} file${had.n === 1 ? '' : 's'}) — skipped`); return 0; }
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cs3-grab-'));
-  const { r, title, file } = await fetchVideo(job, t, url, tmp, o);
+  const { r, title: rawTitle, file, caption, posted } = await fetchVideo(job, t, url, tmp, o);
+  const title = niceName(rawTitle, caption, posted);
   if (job.stopped) return 0;
   if (r.code !== 0 || !file) {
     const why = (r.err.match(/ERROR:.*$/m) || [''])[0];
@@ -471,7 +494,7 @@ async function grabVideo(job, t, url, outRoot, o) {
   const vid = videoId(url);
   let page = safeName(title) || safeName(vid) || 'video';
   const taken = d => { try { const m = JSON.parse(fs.readFileSync(path.join(d, 'manifest.json'), 'utf8')); return m && m.source && m.source !== url; } catch (e) { return false; } };
-  if (vid && (/^(video|reel|post|photo) by\b/i.test(title || '') || !title || taken(path.join(outRoot, safeName(site), page)))) page = safeName(`${title || 'Video'} · ${vid}`);
+  if (vid && (genericTitle(rawTitle) || !title || taken(path.join(outRoot, safeName(site), page)))) page = safeName(`${title || 'Video'} · ${vid}`);
   const dir = path.join(outRoot, safeName(site), page);
   for (const k of ['gifs', 'images', 'videos']) fs.mkdirSync(path.join(dir, k), { recursive: true });
   job.emit(`  ✓ downloaded “${title || page}” — finding the cuts…`);
@@ -510,7 +533,9 @@ async function grabVideo(job, t, url, outRoot, o) {
   }
   for (const k of ['gifs', 'images', 'videos']) { try { if (!fs.readdirSync(path.join(dir, k)).length) fs.rmdirSync(path.join(dir, k)); } catch (e) {} }
   try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) {}
-  writeManifest(dir, { site: safeName(site), page, title, source: url, grabbedAt: new Date().toISOString(), items });
+  writeManifest(dir, { site: safeName(site), page, title, caption: String(caption || '').slice(0, 2000), posted, source: url, grabbedAt: new Date().toISOString(), items });
+  /* grabbed again under a new name (a caption instead of "Video by …"): the old folder goes, so it isn't there twice */
+  if (had && had.dir !== dir && items.length && !job.stopped) { try { fs.rmSync(had.dir, { recursive: true, force: true }); job.emit('  replaced the earlier copy'); } catch (e) {} }
   job.emit(`  ✓ ${stills} still${stills === 1 ? '' : 's'}, ${gifs} GIF${gifs === 1 ? '' : 's'}${o.keepVideo ? ', the video' : ''} → ${dir}`);
   return items.length;
 }
@@ -743,6 +768,6 @@ async function setup(job, t) {
   return code;
 }
 
-module.exports = { grabbedBefore, Browser, tools, grab, grabSection, scan, setup, makeJob, isVideoLink, isSocial, postLink, mediaOn, cutTimes, cutsFrom, sceneScores, videoId, BUILD, SCENE, GIF_FPS, GIF_W, MIN_SHOT };
+module.exports = { grabbedBefore, niceName, Browser, tools, grab, grabSection, scan, setup, makeJob, isVideoLink, isSocial, postLink, mediaOn, cutTimes, cutsFrom, sceneScores, videoId, BUILD, SCENE, GIF_FPS, GIF_W, MIN_SHOT };
 /* tests: forget that yt-dlp was already updated this run */
 module.exports._resetFreshen = () => { freshened = null; };

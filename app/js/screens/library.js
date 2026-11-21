@@ -1061,7 +1061,7 @@
 
     /* the newest grabber (electron/grab-builtin.js BUILD): it ships with the
        laptop app itself, so it only changes when update.bat rebuilds it */
-    const GRABBER_WANT = '2026-11-20.3';
+    const GRABBER_WANT = '2026-11-20.4';
     const grabberOld = gr => !!(gr && gr.builtin && String(gr.build || '') < GRABBER_WANT);
     function grabCard(gr, s){
       /* pages grab with nothing installed; videos need yt-dlp and ffmpeg */
