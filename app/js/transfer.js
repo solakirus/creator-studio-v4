@@ -145,7 +145,7 @@
     { k:'content',  label:'Series, clips and videos', stores:['series', 'clips', 'videos'] },
     { k:'vlog',     label:'Vlogs, months, quarters',  stores:['vlogs', 'months', 'quarters', 'challenges', 'sources', 'seq-template'] },
     { k:'notes',    label:'Inbox, notes and journal', stores:['inbox', 'inbox-media', 'journal'] },
-    { k:'library',  label:'Library and templates',    stores:['lib-items', 'lib-blob', 'lib-poster', 'lib-boards', 'shot-templates', 'star-groups', 'nb-music'] },
+    { k:'library',  label:'Library and templates',    stores:['lib-items', 'lib-blob', 'lib-poster', 'lib-boards', 'shot-templates', 'star-groups', 'nb-music', 'frame-tags'] },
     { k:'fitness',  label:'Workouts and body',        stores:['sessions', 'exercises', 'exercise-art', 'runs', 'physique', 'physique-photo', 'plans', 'loads', 'courses'] },
     { k:'food',     label:'Food',                     stores:['meals', 'meal-photo', 'grocery', 'pantry', 'prep', 'planner'] },
     { k:'settings', label:'Settings and channels',    stores:['settings'] }

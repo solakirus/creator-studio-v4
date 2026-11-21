@@ -583,15 +583,26 @@
   }
 
   /* ------------------------------------------------------------ boards */
-  async function allBoards(){
-    try { return (await Store.all('lib-boards')).values.map(b => ({ group:'Other', items:[], ...b })); }
+  /* v4 (21 Nov 2026): a smart board is a saved tag filter (b.smart: [tag ids],
+     tags.js) — its frames are whichever carry those tags now, worked out here,
+     so everything that reads a board's items (counts, the Deck, the picker,
+     Make folder) just works. { raw:true } gives the stored records. */
+  async function allBoards(opts){
+    let list = [];
+    try { list = (await Store.all('lib-boards')).values.map(b => ({ group:'Other', items:[], ...b })); }
     catch(e){ return []; }
+    if((opts && opts.raw) || !global.Tags || !list.some(b => Array.isArray(b.smart))) return list;
+    const lib = await load(), m = await Tags.map(), cs = await Tags.cats();
+    return list.map(b => Array.isArray(b.smart)
+      ? { ...b, items: b.smart.length ? lib.items.filter(it => Tags.match(m, cs, it, b.smart)).map(it => it.uid) : [] } : b);
   }
   async function saveBoard(b){
+    const smart = Array.isArray(b.smart) ? [...new Set(b.smart)] : null;
     const rec = { id:b.id || ('bd_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)),
                   name:String(b.name || '').trim() || 'Board',
                   group:(String(b.group || '').trim() || 'Other').slice(0, 30),
-                  items:[...new Set(b.items || [])], created:b.created || Date.now() };
+                  items:smart ? [] : [...new Set(b.items || [])], created:b.created || Date.now(),
+                  ...(smart ? { smart } : {}) };
     await Store.put('lib-boards', rec);
     return rec;
   }
@@ -612,8 +623,9 @@
   async function takeOffBoard(id, uids){
     const lib = await load().catch(() => null);
     let n = 0;
-    for(const b of await allBoards()){
+    for(const b of await allBoards({ raw:true })){
       if(id && b.id !== id) continue;
+      if(Array.isArray(b.smart)) continue;     /* a smart board follows its tags */
       const keep = b.items.filter(e => !uids.some(u => sameFrame(lib, e, u)));
       if(keep.length !== b.items.length){ n += b.items.length - keep.length; await saveBoard({ ...b, items:keep }); }
     }
@@ -664,8 +676,8 @@
   }
   async function starredSet(){ return new Set((await allStars()).flatMap(g => g.items)); }
   async function addToBoard(id, uids){
-    const b = (await allBoards()).find(x => x.id === id);
-    if(!b) return 0;
+    const b = (await allBoards({ raw:true })).find(x => x.id === id);
+    if(!b || Array.isArray(b.smart)) return 0;
     const before = b.items.length;
     /* already there under another device's address: not added twice */
     const lib = await load().catch(() => null);
@@ -734,7 +746,14 @@
       if(src.startsWith('page:')) list = list.filter(it => it.page === src.slice(5));
     }
     if(o.kind && o.kind !== 'all') list = list.filter(it => it.kind === o.kind);
-    if(o.q) list = list.filter(it => search(lib, it, o.q));
+    /* v4: tags (tags.js) — narrow by them, and a search finds them too */
+    if(global.Tags && ((o.tags && o.tags.length) || o.untagged || o.q)){
+      const m = await Tags.map(), cs = await Tags.cats();
+      if((o.tags && o.tags.length) || o.untagged) list = list.filter(it => Tags.match(m, cs, it, o.tags || [], !!o.untagged));
+      if(o.q){ const ql = o.q.toLowerCase().trim();
+        list = list.filter(it => search(lib, it, o.q) || Tags.names(m, cs, it).some(n => n.toLowerCase().includes(ql))); }
+    }
+    else if(o.q) list = list.filter(it => search(lib, it, o.q));
     /* v4: sorting a big library */
     const by = {
       oldest: (a, b) => (a.createdAt || 0) - (b.createdAt || 0) || String(a.name).localeCompare(String(b.name)),

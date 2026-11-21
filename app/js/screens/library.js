@@ -13,6 +13,9 @@
   let tab = 'deck';
   let kind = 'all', q = '', src = 'all', selecting = false, sel = new Set();
   let sort = '', limit = 1500, lastTick = null, deckKeys = null;   /* v4: big-library tools */
+  /* v4 (21 Nov 2026): tags (tags.js) — what's picked, and Group by a category */
+  const tagState = { tags:[], untagged:false };
+  let groupBy = '';
 
   async function mount(el, params){
     const embedded = !!(params && params.embedded);
@@ -59,6 +62,11 @@
       /* v4: the second picker — one grabbed video or page at a time (LibView.pagePicker) */
       const pp = LibView.pagePicker(lib, src, s.hidden);
       const colNow = pp.colNow, usePgSel = pp.show;
+      const TG = window.Tags;
+      if(TG) TG.css();
+      const tcs = TG ? await TG.cats() : [];
+      if(groupBy && !tcs.some(c => c.id === groupBy)) groupBy = '';
+      tagState.tags = (tagState.tags || []).filter(id => tcs.some(c => c.tags.some(t => t.id === id)));
       body.innerHTML = `
         <div class="lv-bar">
           ${['all','gif','video','image'].map(k => `<button class="pill" data-k="${k}" aria-pressed="${kind === k}">${
@@ -78,16 +86,25 @@
           </select>
           <input class="lv-in" type="search" data-q placeholder="Search names, labels, pages…" value="${esc(q)}">
           <button class="pill" data-play aria-pressed="${s.play !== false}">▶ Play GIFs</button>
+          <span class="lv-viewtog" role="group" aria-label="View as"><button data-dv="grid" aria-pressed="${s.deckView !== 'gallery'}" title="Small tiles, names showing">▦ Grid</button><button data-dv="gallery" aria-pressed="${s.deckView === 'gallery'}" title="Big tiles, edge to edge — names on hover">⬚ Gallery</button></span>
           <select class="lv-sel" data-sort aria-label="Sort">
             ${[['', 'Library order'], ['newest', 'Newest first'], ['oldest', 'Oldest first'], ['name', 'Name A→Z'], ['size', 'Biggest first'], ['kind', 'GIFs, clips, stills']].map(([v, l]) =>
               `<option value="${v}" ${sort === v ? 'selected' : ''}>${l}</option>`).join('')}
           </select>
           <button class="pill" data-select aria-pressed="${selecting}">☐ Select</button>
         </div>
+        ${TG ? `<div class="tg-bar">
+          <button class="pill" data-tgtoggle aria-pressed="${s.tagsOpen === true}">🏷 Tags</button>
+          <span class="tg-on" data-tgon></span>
+          <select class="lv-sel" data-groupby aria-label="Group by"><option value="">No grouping</option>${tcs.map(c =>
+            `<option value="${esc(c.id)}" ${groupBy === c.id ? 'selected' : ''}>Group by ${esc(c.name)}</option>`).join('')}</select>
+          <button class="lv-btn sm" data-tgall title="Tag every frame showing now — a whole video, a search, a filter">🏷 Tag all shown</button>
+        </div><div data-tgrows></div>` : ''}
         <div class="lv-selbar" ${selecting ? '' : 'hidden'}>
           <b data-seln>${plural(sel.size, 'frame')}</b>
           <button class="lv-btn sm" data-sel="star">★ Star into…</button>
           ${inStar ? `<button class="lv-btn sm ghost" data-sel="unstar">Take out of ★ ${esc(inStar.name)}</button>` : ''}
+          ${TG ? '<button class="lv-btn sm" data-sel="tag">🏷 Tag</button>' : ''}
           <button class="lv-btn sm" data-sel="board">◈ Add to board</button>
           ${window.ShotTemplates ? '<button class="lv-btn sm" data-sel="mktpl" title="A shot list from these — Gym 1, Car 2 — to drop into any video">▦ Make a template</button>' : ''}
           ${t ? `<button class="lv-btn sm" data-sel="target">＋ Add to ${esc(t.label || 'template')}</button>` : ''}
@@ -97,22 +114,50 @@
           <button class="lv-btn sm ghost danger" data-sel="delete">Delete</button>
         </div>
         ${pp.html}
-        <div class="lv-grid lv-deck${selecting ? ' lv-selecting' : ''}" data-drop></div>
+        <div class="lv-grid lv-deck${selecting ? ' lv-selecting' : ''}${s.deckView === 'gallery' ? ' lv-gallery' : ''}" data-drop></div>
         <p class="hintline lv-foot">${selecting
           ? 'Drag across frames to tick (or untick) a whole run at once · Shift-click ticks everything between two · Delete key deletes the ticked ones · Esc clears.'
           : `Click a frame to see it big${t ? ', ＋ adds it to ' + esc(t.label) : ''}. Ctrl-click (⌘ on a Mac) starts ticking frames. Drop files here to add them.`}</p>`;
       const grid = body.querySelector('.lv-deck');
 
+      /* the tag rows (open or shut) and the picked ones, with counts over the whole Library */
+      async function tagArea(){
+        if(!TG) return;
+        const open = (await MediaLib.settings()).tagsOpen === true;
+        const cs = await TG.cats(), m = await TG.map();
+        const rows = body.querySelector('[data-tgrows]'), on = body.querySelector('[data-tgon]');
+        if(rows) rows.innerHTML = open ? TG.filterHTML(cs, tagState, TG.counts(m, cs, lib.items)) : '';
+        if(on) on.innerHTML = open ? '' : TG.activeHTML(cs, tagState);
+        const tg = body.querySelector('[data-tgtoggle]');
+        if(tg){ const n = tagState.tags.length + (tagState.untagged ? 1 : 0); tg.setAttribute('aria-pressed', String(open)); tg.innerHTML = `🏷 Tags${n ? ` <small>${n} on</small>` : ''}`; }
+        const gb = body.querySelector('[data-groupby]');
+        if(gb) gb.innerHTML = `<option value="">No grouping</option>${cs.map(c => `<option value="${esc(c.id)}" ${groupBy === c.id ? 'selected' : ''}>Group by ${esc(c.name)}</option>`).join('')}`;
+      }
+      const tileOf = it => tile(it, { check:selecting, sel:sel.has(it.uid), caption:true,
+            extra: t && !selecting ? `<button class="lv-plus" data-plus="${esc(it.uid)}" title="Add to ${esc(t.label)}">＋</button>` : '' });
       async function draw(){
-        const { lib: l, list, board } = await MediaLib.deck({ kind, q, src, sort });
+        const { lib: l, list, board } = await MediaLib.deck({ kind, q, src, sort, tags:tagState.tags, untagged:tagState.untagged });
         const shown = list.slice(0, limit);
-        grid.innerHTML = shown.length ? shown.map(it =>
-          tile(it, { check:selecting, sel:sel.has(it.uid), caption:true,
-            extra: t && !selecting ? `<button class="lv-plus" data-plus="${esc(it.uid)}" title="Add to ${esc(t.label)}">＋</button>` : '' })
-        ).join('') : !l.items.length && MediaLib.keeps() && !MediaLib.remote()
+        /* Group by a category: a section per tag (a frame with two shows in both), then the rest */
+        let groupedHTML = '', order = shown.map(x => x.uid);
+        if(TG && groupBy && shown.length){
+          const cs = await TG.cats(), m = await TG.map(), c = cs.find(x => x.id === groupBy);
+          if(c){
+            const secs = c.tags.map(tg => ({ name:tg.name, items:shown.filter(it => TG.of(m, it).includes(tg.id)) })).filter(x => x.items.length);
+            const rest = shown.filter(it => !TG.of(m, it).some(id => c.tags.some(tg => tg.id === id)));
+            if(rest.length) secs.push({ name:'No ' + c.name.toLowerCase() + ' tag', items:rest, rest:true });
+            groupedHTML = secs.map(x => `<h3 class="tg-sec">${esc(x.name)}<small>${plural(x.items.length, 'frame')}</small></h3>${x.items.map(tileOf).join('')}`).join('');
+            order = [...new Set(secs.flatMap(x => x.items.map(i => i.uid)))];
+          }
+        }
+        grid.innerHTML = shown.length ? (groupedHTML || shown.map(tileOf).join('')) : (tagState.tags.length || tagState.untagged) && l.items.length
+          ? `<div class="empty" style="grid-column:1/-1"><b>No frames with ${tagState.untagged ? 'no tags' : 'those tags'}${src !== 'all' ? ' here' : ''}</b>Take a tag off above, or tag some frames: ☐ Select, tick, 🏷 Tag.</div>`
+          : !l.items.length && MediaLib.keeps() && !MediaLib.remote()
           /* the phone or the iPad, nastime out of reach and nothing kept yet */
-          ? `<div class="empty" style="grid-column:1/-1"><b>nastime can’t be reached</b>The Shot Library lives on nastime. ${
-              MediaLib.phone() ? 'At home on Wi-Fi, check nastime’s address in Settings → Sync.'
+          ? `<div class="empty" style="grid-column:1/-1"><b>${MediaLib.phone() ? 'Nothing on this phone yet — and nastime can’t be reached' : 'nastime can’t be reached'}</b>The Shot Library lives on nastime. ${
+              MediaLib.phone() ? 'This phone shows nastime’s GIFs while it can reach it, and the folders you keep on it anywhere. '
+                + 'At home: check nastime’s address in Settings → Sync (Find nastime), then Folders → <b>Keep all</b> — every GIF comes onto the phone and works offline, in the field. '
+                + 'Away from home: put Tailscale on nastime and the phone, and use nastime’s Tailscale address (100.x…) as its address — the whole Library, from anywhere.'
               : /github\.io$/i.test(location.hostname) ? 'This copy of the app opens from GitHub, and Safari won’t let it read nastime — open the app from nastime’s address (http://nastime.local:8795) and add that to the Home Screen.'
               : 'At home on Wi-Fi, check nastime is on.'}
               <br><button class="lv-btn" data-tab="folders" style="margin-top:14px">Folders</button></div>`
@@ -123,9 +168,9 @@
           `<p class="hintline" style="grid-column:1/-1">Showing ${shown.length} of ${list.length}.
             <button class="lv-btn sm" data-more>Show ${Math.min(1500, list.length - shown.length)} more</button>
             <button class="lv-btn sm ghost" data-moreall>Show all ${list.length}</button></p>`);
-        grid.dataset.board = board ? board.id : '';
+        grid.dataset.board = board && !Array.isArray(board.smart) ? board.id : '';   /* a smart board isn't taken off by hand */
         hydrate(grid, l);
-        grid._shown = shown.map(x => x.uid);
+        grid._shown = order;
       }
       function selbar(){
         const bar = body.querySelector('.lv-selbar');
@@ -136,9 +181,21 @@
       }
 
       body.addEventListener('click', async e => {
+        if(TG && e.target.closest('.tg-rows, .tg-on') && TG.onFilterClick(e, tagState, async () => { limit = 1500; await tagArea(); draw(); })) return;
+        if(TG && e.target.closest('[data-tgtoggle]')){ await MediaLib.setSettings({ tagsOpen:(await MediaLib.settings()).tagsOpen !== true }); return tagArea(); }
+        if(TG && e.target.closest('[data-tgall]')){
+          const all = [...new Set(grid._shown || [])];
+          if(!all.length) return U.toast('Nothing showing to tag');
+          return TG.sheet(all, async () => { await tagArea(); draw(); });
+        }
         const k = e.target.closest('[data-k]');
         if(k){ kind = k.dataset.k; body.querySelectorAll('[data-k]').forEach(x => x.setAttribute('aria-pressed', String(x === k))); return draw(); }
         if(e.target.closest('[data-play]')){ await MediaLib.setSettings({ play:!(s.play !== false) }); return render(); }
+        /* v4: Gallery — big tiles, kept per device */
+        const dv = e.target.closest('[data-dv]');
+        if(dv){ s.deckView = dv.dataset.dv; await MediaLib.setSettings({ deckView:dv.dataset.dv });
+          grid.classList.toggle('lv-gallery', dv.dataset.dv === 'gallery');
+          body.querySelectorAll('[data-dv]').forEach(x => x.setAttribute('aria-pressed', String(x === dv))); return; }
         if(e.target.closest('[data-select]')){ selecting = !selecting; sel.clear(); return render(); }
         const plus = e.target.closest('[data-plus]');
         if(plus){ e.stopPropagation(); return addToTarget([plus.dataset.plus]); }
@@ -152,6 +209,7 @@
             grid.querySelectorAll('.lv-tile[data-uid]').forEach(x => x.classList.toggle('is-sel', sel.has(x.dataset.uid)));
             return selbar();
           }
+          if(act === 'tag' && TG) return TG.sheet([...sel], async () => { await tagArea(); draw(); });
           if(act === 'board') return LibView.boardMenu([...sel], () => { sel.clear(); render(); });
           if(act === 'star') return LibView.starMenu([...sel], () => { sel.clear(); render(); });
           if(act === 'unstar' && inStar){ const n = await MediaLib.unstar(inStar.id, [...sel]); sel.clear(); U.toast(`Took ${plural(n, 'frame')} out — they leave the phone`); return render(); }
@@ -285,9 +343,12 @@
         src = c.dataset.pgcard || pp.back(); limit = 1500; sel.clear(); render();
       }, true);
       body.querySelector('[data-sort]').addEventListener('change', e => { sort = e.target.value; draw(); });
+      const gbSel = body.querySelector('[data-groupby]');
+      if(gbSel) gbSel.addEventListener('change', e => { groupBy = e.target.value; draw(); });
       let timer;
       body.querySelector('[data-q]').addEventListener('input', e => { clearTimeout(timer); timer = setTimeout(() => { q = e.target.value; draw(); }, 200); });
       wireDrop(grid);
+      await tagArea();
       await draw();
       if(selecting) selbar();
     }
@@ -602,9 +663,11 @@
 
     async function boardsPage(body, lib){
       const boards = await MediaLib.allBoards();
+      const smartNames = new Map(window.Tags ? Tags.allTags(await Tags.cats()).map(t => [t.id, t.name]) : []);
       const groups = [...new Set([...MediaLib.BOARD_GROUPS, ...boards.map(b => b.group)])].filter(g => boards.some(b => b.group === g));
       body.innerHTML = `
         <div class="lv-bar"><button class="lv-btn" data-newboard>＋ New board</button>
+          ${window.Tags ? '<button class="lv-btn" data-newsmart title="A board that fills itself from tags">＋ Smart board</button>' : ''}
           <span class="hintline" style="margin:0">A frame can sit on many boards; nothing is moved.</span></div>
         ${boards.length ? groups.map(g => `
           <div class="sec"><h2>${esc(g)}</h2><div class="rule"></div></div>
@@ -612,10 +675,10 @@
             <article class="lv-board" data-board="${b.id}">
               <div class="lv-quad" data-show="${b.id}">${[0,1,2,3].map(k => b.items[k]
                 ? tile(MediaLib.find(lib, b.items[k]), { badge:false }) : '<div class="lv-tile lv-blank"></div>').join('')}</div>
-              <div class="lv-bname"><b>${esc(b.name)}</b><small>${plural(b.items.length, 'frame')}</small></div>
+              <div class="lv-bname"><b>${esc(b.name)}</b><small>${Array.isArray(b.smart) ? `Smart · ${esc(b.smart.map(id => window.Tags ? smartNames.get(id) || '' : '').filter(Boolean).join(' + ') || 'no tags')} · ` : ''}${plural(b.items.length, 'frame')}</small></div>
               <div class="lv-bacts">
                 <button class="lv-btn sm" data-show="${b.id}">Show in Deck</button>
-                <button class="lv-btn sm ghost" data-rename="${b.id}">Rename</button>
+                <button class="lv-btn sm ghost" data-rename="${b.id}">${Array.isArray(b.smart) ? 'Edit' : 'Rename'}</button>
                 ${MediaLib.disk() ? `<button class="lv-btn sm ghost" data-folder="${b.id}" title="Copies the files into Shot Library/_Boards/&lt;group&gt;/&lt;board&gt;">Make folder</button>` : ''}
                 <button class="lv-btn sm ghost danger" data-delboard="${b.id}">Delete</button>
               </div>
@@ -624,10 +687,12 @@
       hydrate(body, lib, { play:false });
       body.addEventListener('click', async e => {
         if(e.target.closest('[data-newboard]')) return LibView.boardDialog(null, [], () => render());
+        if(e.target.closest('[data-newsmart]')) return Tags.smartBoard(null, () => render());
         const sh = e.target.closest('[data-show]');
         if(sh){ src = 'board:' + sh.dataset.show; tab = 'deck'; return render(); }
         const rn = e.target.closest('[data-rename]');
-        if(rn) return LibView.boardDialog(boards.find(b => b.id === rn.dataset.rename), [], () => render());
+        if(rn){ const bd = boards.find(b => b.id === rn.dataset.rename);
+          return Array.isArray(bd.smart) && window.Tags ? Tags.smartBoard(bd, () => render()) : LibView.boardDialog(bd, [], () => render()); }
         const fo = e.target.closest('[data-folder]');
         if(fo){
           const b = boards.find(x => x.id === fo.dataset.folder);
@@ -1207,6 +1272,13 @@
     gone.observe(document.body, { childList:true, subtree:true });
 
     await render();
+    /* v4: once (across every device), your boards become tags too — a board
+       "Gym" in Activity tags its frames Activity: Gym (tags.js) */
+    if(window.Tags) Tags.fromBoards().then(n => {
+      if(!n) return;
+      U.toast(`Your boards are tags now too — ${plural(n, 'frame')} tagged`);
+      if(host.isConnected && tab === 'deck') render();
+    }).catch(() => {});
   }
 
   Screens.register('library', mount);

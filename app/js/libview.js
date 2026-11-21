@@ -134,6 +134,7 @@
           ${(it.tags || []).length ? `<p class="lv-vmeta">${it.tags.map(x => '#' + esc(x)).join(' ')}</p>` : ''}
           ${on.length ? `<p class="lv-vmeta">On ${on.map(b => '◈ ' + esc(b.name)).join(', ')}</p>` : ''}
           ${it.src === 'db' ? `<label class="lv-lab">Label<input class="lv-in" data-label value="${esc(it.label)}" placeholder="What is in it"></label>` : ''}
+          ${global.Tags ? '<div class="lv-vtags" data-vtags></div>' : ''}
           <div class="lv-vacts">
             ${(extra && extra.actions) || ''}
             <button class="lv-btn" data-board>◈ Add to a board</button>
@@ -142,6 +143,9 @@
           </div>
           ${many ? '<p class="lv-vmeta lv-vhint">← → to step through · Esc to close</p>' : ''}
         </div></div>`;
+      /* v4: its tags, tap to put on or take off — while stepping ‹ › through */
+      const vt = box.querySelector('[data-vtags]');
+      if(vt) Tags.viewerHTML(it).then(h => { if(me === shown) vt.innerHTML = h; }).catch(() => {});
       const media = box.querySelector('.lv-vmedia');
       const src = await MediaLib.url(it);
       if(me !== shown) return;
@@ -170,6 +174,14 @@
     document.addEventListener('keydown', key, true);
 
     box.addEventListener('click', async e => {
+      const tg = e.target.closest('[data-vtag]');
+      if(tg && it){
+        e.stopPropagation();
+        const on = tg.getAttribute('aria-pressed') !== 'true';
+        tg.setAttribute('aria-pressed', String(on));
+        await Tags.set([it], tg.dataset.vtag, on);
+        return;
+      }
       const nv = e.target.closest('[data-nav]');
       if(nv){ e.stopPropagation(); return step(+nv.dataset.nav); }
       if(e.target === box || e.target.closest('[data-close]')) return close();
@@ -192,7 +204,8 @@
 
   /* ------------------------------------------------------------ boards */
   async function boardMenu(uids, after){
-    const boards = await MediaLib.allBoards();
+    /* a smart board fills itself from its tags, so it isn't offered here */
+    const boards = (await MediaLib.allBoards({ raw:true })).filter(b => !Array.isArray(b.smart));
     const groups = [...new Set([...MediaLib.BOARD_GROUPS, ...boards.map(b => b.group)])]
       .filter(g => boards.some(b => b.group === g));
     App.sheet(`<h2 style="margin:0 0 6px">Add ${plural(uids.length, 'frame')} to a board</h2>
@@ -331,6 +344,7 @@
   }
 
   let pickSrc = 'all';   /* the picker opens where you last picked from */
+  const pickTags = { tags:[], untagged:false };   /* and with the tags you last narrowed by */
   function pick(opts){
     const o = opts || {};
     return new Promise(async resolve => {
@@ -340,6 +354,7 @@
       const stars = (await MediaLib.allStars().catch(() => [])).filter(g => (g.items || []).length);
       const lib0 = await MediaLib.load();
       let src = pickSrc;
+      const ptags = pickTags;
       if(src.startsWith('star:') && !stars.some(g => 'star:' + g.id === src)) src = 'all';
       if(src.startsWith('page:') && !lib0.pageIdx.has(src.slice(5))) src = 'all';
       if(src.startsWith('col:') && !lib0.collections.some(c => c.key === src.slice(4))) src = 'all';
@@ -355,8 +370,10 @@
           ${['all','gif','video','image'].map(k => `<button class="pill" data-k="${k}" aria-pressed="${k === kind}">${
             k === 'all' ? 'All' : k === 'gif' ? 'GIFs' : k === 'video' ? 'Clips' : 'Stills'}</button>`).join('')}
           <span class="lv-psrc"></span>
-          <input class="lv-in" data-q placeholder="Search…" type="search">
+          <input class="lv-in" data-q placeholder="Search names, tags…" type="search">
+          ${global.Tags ? '<button class="pill" data-ptg aria-pressed="false">🏷 Tags</button>' : ''}
         </div>
+        <div class="lv-ptags" hidden></div>
         <div class="lv-pstripbox"></div>
         <div class="lv-pscroll"><div class="lv-grid lv-pgrid"></div></div>
         ${o.multi ? `<div class="lv-pfoot"><span data-n>Nothing ticked</span>
@@ -391,10 +408,25 @@
         const c = e.target.closest('[data-pgcard]');
         if(c) setSrc(c.dataset.pgcard || stripBox._back());
       });
+      /* v4: the same tag rows as the Deck, to narrow what you pick from */
+      const tagBox = box.querySelector('.lv-ptags'), tagBtn = box.querySelector('[data-ptg]');
+      let tagsOpen = !!(ptags.tags.length || ptags.untagged);
+      async function drawTags(){
+        if(!tagBox || !global.Tags) return;
+        Tags.css();
+        const cs = await Tags.cats(), m = await Tags.map();
+        ptags.tags = ptags.tags.filter(id => cs.some(c => c.tags.some(t => t.id === id)));
+        tagBox.hidden = !tagsOpen;
+        tagBox.innerHTML = tagsOpen ? Tags.filterHTML(cs, ptags, Tags.counts(m, cs, lib0.items), { manage:false }) : '';
+        const n = ptags.tags.length + (ptags.untagged ? 1 : 0);
+        tagBtn.setAttribute('aria-pressed', String(tagsOpen || !!n));
+        tagBtn.innerHTML = `🏷 Tags${n ? ` <small>${n} on</small>` : ''}`;
+      }
       drawSrc();
+      drawTags();
 
       async function draw(){
-        const { lib, list } = await MediaLib.deck({ kind, q, src });
+        const { lib, list } = await MediaLib.deck({ kind, q, src, tags:ptags.tags, untagged:ptags.untagged });
         grid.parentNode.scrollTop = 0;
         grid.innerHTML = list.length ? list.slice(0, 600).map(it => tile(it, { check:o.multi, sel:chosen.includes(it.uid) })).join('')
           : `<div class="empty" style="grid-column:1/-1"><b>Nothing here</b>${lib.items.length
@@ -403,6 +435,8 @@
       }
       box.addEventListener('click', e => {
         if(e.target === box || e.target.closest('[data-close]')) return done(o.multi ? [] : null);
+        if(e.target.closest('[data-ptg]')){ tagsOpen = !tagsOpen; return drawTags(); }
+        if(tagBox && e.target.closest('.lv-ptags') && Tags.onFilterClick(e, ptags, () => { drawTags(); draw(); })) return;
         const k = e.target.closest('[data-k]');
         if(k){ kind = k.dataset.k; box.querySelectorAll('[data-k]').forEach(x => x.setAttribute('aria-pressed', String(x === k))); return draw(); }
         if(e.target.closest('[data-add]')) return done(chosen);

@@ -74,6 +74,7 @@ const FILES = [
   "./js/linkmeta.js",
   "./js/loads.js",
   "./js/medialib.js",
+  "./js/tags.js",
   "./js/merge.js",
   "./js/metrics.js",
   "./js/months.js",

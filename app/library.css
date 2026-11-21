@@ -462,3 +462,17 @@ html[data-mode="light"] .lv-btn:not(.ghost){color:#fff}
 .lv-keepall{padding:11px 12px;border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
 .lv-kahead{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .lv-kahead small{color:var(--dim);font-size:12.5px;flex:1 1 100%;order:3}
+
+/* v4 (21 Nov 2026): Gallery — the Deck as big tiles, edge to edge; names and
+   the kind badge come up on hover (always shown while ticking) */
+.lv-viewtog{display:inline-flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;flex:none}
+.lv-viewtog button{height:34px;padding:0 11px;border:0;background:transparent;color:var(--muted);font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+.lv-viewtog button[aria-pressed="true"]{background:var(--cream);color:#151515;font-weight:700}
+.lv-deck.lv-gallery{grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
+.lv-deck.lv-gallery .lv-tile{aspect-ratio:16/9;border-radius:10px}
+.lv-deck.lv-gallery .lv-cap{font-size:13.5px;padding:28px 12px 10px;opacity:0;transition:opacity .15s}
+.lv-deck.lv-gallery .lv-kind{opacity:0;transition:opacity .15s}
+.lv-deck.lv-gallery .lv-tile:hover .lv-cap,.lv-deck.lv-gallery .lv-tile:hover .lv-kind,
+.lv-deck.lv-gallery.lv-selecting .lv-cap{opacity:1}
+@media (min-width:1700px){ .lv-deck.lv-gallery{grid-template-columns:repeat(auto-fill,minmax(420px,1fr))} }
+@media (max-width:560px){ .lv-deck.lv-gallery{grid-template-columns:1fr;gap:8px} .lv-deck.lv-gallery .lv-cap{opacity:1} }
