@@ -12,4 +12,20 @@
 	<string name="sc_shoot_long">Today\'s filming</string>
 	<string name="sc_workout_short">Workout</string>
 	<string name="sc_workout_long">Start a workout</string>
+	<string name="sc_add_short">Add a task</string>
+	<string name="sc_add_long">Add a task</string>
+	<string name="cw_name_today">Today</string>
+	<string name="cw_desc_today">The whole day in time order, with check boxes</string>
+	<string name="cw_name_upnext">Up next</string>
+	<string name="cw_desc_upnext">The next thing with a time, with Start and Done</string>
+	<string name="cw_name_filming">Filming today</string>
+	<string name="cw_desc_filming">What you\'re filming today, with shots got</string>
+	<string name="cw_name_meals">Meals</string>
+	<string name="cw_desc_meals">What\'s planned to eat today</string>
+	<string name="cw_name_workout">Workout</string>
+	<string name="cw_desc_workout">Today\'s workout, with Start and Done</string>
+	<string name="cw_name_day">Day</string>
+	<string name="cw_desc_day">Day count, streak and today\'s tally</string>
+	<string name="cw_name_capture">Capture</string>
+	<string name="cw_desc_capture">Opens Quick capture</string>
 </resources>

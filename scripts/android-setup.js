@@ -160,18 +160,21 @@ if (!activity) fail('MainActivity.java not found under android\\app\\src\\main\\
 const javaDir = path.dirname(activity);
 
 /* Widgets and shortcuts: copy the cs3 versions from native\ over v2's */
-const RES = {
-  'cs_widget.xml': 'layout', 'cs_widget_small.xml': 'layout', 'cs_widget_shoot.xml': 'layout',
-  'cs_widget_bg.xml': 'drawable',
-  'cs_widget_info.xml': 'xml', 'cs_widget_small_info.xml': 'xml', 'cs_widget_shoot_info.xml': 'xml',
-  'shortcuts.xml': 'xml'
-};
+/* Where each resource goes, by its name (2026-11-22: seven widgets now):
+     cs_widget*_info.xml and shortcuts.xml → xml/
+     cs_widget.xml and cs_widget_<kind>.xml → layout/
+     the shapes and icons (cs_widget_bg/_grad/_cream, cs_pill_*, cs_check_*,
+     cs_ic_*, cs_div, cs_progress, cs_streak_pill) → drawable/ */
+const DRAWABLE = /^cs_(widget_(bg|grad|cream)|pill_\w+|check_\w+|ic_\w+|div|progress|streak_pill)\.xml$/;
+const resDir = f => f === 'shortcuts.xml' || /^cs_widget\w*_info\.xml$/.test(f) ? 'xml'
+  : DRAWABLE.test(f) ? 'drawable'
+  : /^cs_widget(_\w+)?\.xml$/.test(f) ? 'layout' : null;
 let copied = 0;
 for (const f of fs.readdirSync(NATIVE)) {
   const from = path.join(NATIVE, f);
   if (f.endsWith('.java')) { fs.copyFileSync(from, path.join(javaDir, f)); copied++; }
-  else if (RES[f]) {
-    const dir = path.join(MAIN, 'res', RES[f]);
+  else if (resDir(f)) {
+    const dir = path.join(MAIN, 'res', resDir(f));
     fs.mkdirSync(dir, { recursive: true });
     fs.copyFileSync(from, path.join(dir, f)); copied++;
   }

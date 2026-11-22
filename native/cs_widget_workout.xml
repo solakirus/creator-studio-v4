@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Workout. Goes in: android/app/src/main/res/layout/cs_widget_workout.xml -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/w_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@drawable/cs_widget_bg" android:padding="14dp">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+        <ImageView android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/cs_ic_lift"/>
+        <TextView android:id="@+id/w_wlabel" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="WORKOUT · 6:30A" android:textColor="#FFA9A395" android:textSize="11sp" android:textStyle="bold" android:letterSpacing="0.06" android:layout_marginStart="6dp" android:maxLines="1"/>
+    </LinearLayout>
+    <TextView android:id="@+id/w_wtitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Push day" android:textColor="#FFEDE5D2" android:textSize="18sp" android:textStyle="bold" android:fontFamily="sans-serif-black" android:maxLines="2" android:ellipsize="end" android:layout_marginTop="4dp"/>
+    <TextView android:id="@+id/w_wsub" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="6 exercises · 45 min" android:textColor="#FFA9A395" android:textSize="12.5sp" android:maxLines="1" android:ellipsize="end"/>
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"/>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="6dp">
+        <TextView android:id="@+id/w_wstart" android:layout_width="0dp" android:layout_weight="1" android:layout_height="40dp" android:background="@drawable/cs_pill_orange" android:gravity="center" android:text="Start" android:textColor="#FFFFFFFF" android:textSize="14sp" android:textStyle="bold"/>
+        <TextView android:id="@+id/w_wdone" android:layout_width="0dp" android:layout_weight="1" android:layout_height="40dp" android:background="@drawable/cs_pill_line" android:gravity="center" android:text="Done" android:textColor="#FFEDE5D2" android:textSize="14sp" android:textStyle="bold" android:layout_marginStart="8dp"/>
+    </LinearLayout>
+</LinearLayout>

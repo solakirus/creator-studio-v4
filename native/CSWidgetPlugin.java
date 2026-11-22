@@ -1,89 +1,85 @@
 package com.creatorstudio.v2;
 
-import android.appwidget.AppWidgetManager;
-import android.content.ComponentName;
 import android.content.Context;
-import android.content.SharedPreferences;
-
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import java.lang.ref.WeakReference;
+import org.json.JSONArray;
 
-/* The bridge between the app and the home screen widget.
+/* The bridge between the app and the home-screen widgets.
  *
- * A widget runs in the launcher's process, not the app's, so it cannot read
- * IndexedDB or call into the WebView. SharedPreferences is the simplest thing
- * both sides can see: the app writes, the widget reads.
+ * A widget runs in the launcher's process, so it can't read IndexedDB or call
+ * into the WebView. The app hands it a snapshot (js/widget.js) and the widgets
+ * draw from that; taps that change something (a check box, Done) wait in
+ * CSWidgetStore until the app takes them with takeQueue().
  *
- * Everything stored here is already formatted for display. The widget draws
- * strings; it does not calculate.
+ * App → widgets: update({ snapshot }) after anything that could move the numbers.
+ *   An older web build sends only { day, progress, next, nextAt, shoot }; that
+ *   still draws, as a snapshot with just those lines.
+ * Widgets → app: takeQueue() [{ type: "done", key, date, at }], and the
+ *   "widgetQueue" event while the app is open. Buttons that open a screen use
+ *   cs4://go/... links, which js/shortcuts.js already handles.
  */
 @CapacitorPlugin(name = "CSWidget")
 public class CSWidgetPlugin extends Plugin {
 
-    /* Must match the name CSWidgetProvider reads. */
-    public static final String PREFS = "cs_widget";
+    private static WeakReference<CSWidgetPlugin> current = new WeakReference<>(null);
+
+    @Override
+    public void load() {
+        current = new WeakReference<>(this);
+        CSWidgetRender.updateAll(getContext());
+    }
 
     @PluginMethod
     public void update(PluginCall call) {
         Context ctx = getContext();
-        SharedPreferences.Editor e = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit();
-
-        e.putString("day",      call.getString("day", ""));
-        e.putString("progress", call.getString("progress", ""));
-        e.putString("next",     call.getString("next", ""));
-        e.putString("nextAt",   call.getString("nextAt", ""));
-        e.putString("shoot",    call.getString("shoot", ""));
-        e.putLong("updatedAt",  System.currentTimeMillis());
-        e.apply();
-
-        /* Writing is not enough — the launcher only redraws when told. */
-        poke(ctx);
-
+        JSObject snap = call.getObject("snapshot");
+        if (snap == null) {
+            // an older web build: the five lines it knows
+            snap = new JSObject();
+            snap.put("legacy", true);
+            snap.put("day", call.getString("day", ""));
+            snap.put("progress", call.getString("progress", ""));
+            snap.put("next", call.getString("next", ""));
+            snap.put("nextAt", call.getString("nextAt", ""));
+            snap.put("shoot", call.getString("shoot", ""));
+        }
+        CSWidgetStore.saveSnapshot(ctx, snap.toString());
+        CSWidgetRender.updateAll(ctx);
         call.resolve();
     }
 
-    /* Ask the launcher to redraw every instance of every widget.
-     *
-     * Each kind is a separate provider with its own ids, so missing one here
-     * means that widget silently stops updating while the others carry on —
-     * the worst kind of bug to notice. Adding a widget means adding it here. */
-    static void poke(Context ctx) {
-        AppWidgetManager mgr = AppWidgetManager.getInstance(ctx);
-
-        redraw(ctx, mgr, CSWidgetProvider.class,
-               R.layout.cs_widget, "cs4://go/today");
-        redraw(ctx, mgr, CSWidgetSmall.class,
-               R.layout.cs_widget_small, "cs4://go/today");
-        redraw(ctx, mgr, CSWidgetShoot.class,
-               R.layout.cs_widget_shoot, "cs4://go/shoot");
-    }
-
-    private static void redraw(Context ctx, AppWidgetManager mgr,
-                               Class<?> provider, int layout, String link) {
-        int[] ids = mgr.getAppWidgetIds(new ComponentName(ctx, provider));
-        if (ids != null && ids.length > 0) {
-            CSWidgetBase.draw(ctx, mgr, ids, layout, link);
-        }
-    }
-
-    /* Lets the web layer ask whether a widget is actually on the home screen,
-     * so it can skip the work when there isn't one. */
-    private static boolean any(Context ctx, AppWidgetManager mgr, Class<?> provider) {
-        int[] ids = mgr.getAppWidgetIds(new ComponentName(ctx, provider));
-        return ids != null && ids.length > 0;
-    }
-
+    /* Whether any widget is on the home screen, so the app can skip the work. */
     @PluginMethod
     public void isPlaced(PluginCall call) {
-        Context ctx = getContext();
-        AppWidgetManager mgr = AppWidgetManager.getInstance(ctx);
         JSObject ret = new JSObject();
-        ret.put("placed", any(ctx, mgr, CSWidgetProvider.class)
-                       || any(ctx, mgr, CSWidgetSmall.class)
-                       || any(ctx, mgr, CSWidgetShoot.class));
+        ret.put("placed", CSWidgetRender.placed(getContext()).length() > 0);
         call.resolve(ret);
+    }
+
+    /* Which kinds are on the home screen, e.g. ["today", "meals"]. */
+    @PluginMethod
+    public void placed(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("kinds", CSWidgetRender.placed(getContext()));
+        call.resolve(ret);
+    }
+
+    /* Check-offs made on a widget since the last call. */
+    @PluginMethod
+    public void takeQueue(PluginCall call) {
+        JSONArray q = CSWidgetStore.takeQueue(getContext());
+        JSObject ret = new JSObject();
+        ret.put("actions", q);
+        call.resolve(ret);
+    }
+
+    static void queueChanged() {
+        CSWidgetPlugin p = current.get();
+        if (p != null) p.notifyListeners("widgetQueue", new JSObject());
     }
 }

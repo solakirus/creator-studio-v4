@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Meals. Goes in: android/app/src/main/res/layout/cs_widget_meals.xml -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/w_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@drawable/cs_widget_bg" android:padding="14dp">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+        <ImageView android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/cs_ic_meal"/>
+        <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="MEALS" android:textColor="#FFA9A395" android:textSize="11sp" android:textStyle="bold" android:letterSpacing="0.06" android:layout_marginStart="6dp"/>
+        <TextView android:id="@+id/w_mhead" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Planned for today" android:textColor="#FFA9A395" android:textSize="11sp" android:textStyle="bold" android:maxLines="1"/>
+    </LinearLayout>
+    <LinearLayout android:id="@+id/w_mrow1" android:layout_width="match_parent" android:layout_height="26dp" android:orientation="horizontal" android:gravity="center_vertical">
+        <TextView android:id="@+id/w_mslot1" android:layout_width="74dp" android:layout_height="wrap_content" android:text="Breakfast" android:textColor="#FFA9A395" android:textSize="12sp" android:textStyle="bold" android:maxLines="1"/>
+        <TextView android:id="@+id/w_mtitle1" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="Overnight Oats" android:textColor="#FFEDE5D2" android:textSize="13.5sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end"/>
+    </LinearLayout>
+    <LinearLayout android:id="@+id/w_mrow2" android:layout_width="match_parent" android:layout_height="26dp" android:orientation="horizontal" android:gravity="center_vertical">
+        <TextView android:id="@+id/w_mslot2" android:layout_width="74dp" android:layout_height="wrap_content" android:text="Breakfast" android:textColor="#FFA9A395" android:textSize="12sp" android:textStyle="bold" android:maxLines="1"/>
+        <TextView android:id="@+id/w_mtitle2" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="Overnight Oats" android:textColor="#FFEDE5D2" android:textSize="13.5sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end"/>
+    </LinearLayout>
+    <LinearLayout android:id="@+id/w_mrow3" android:layout_width="match_parent" android:layout_height="26dp" android:orientation="horizontal" android:gravity="center_vertical">
+        <TextView android:id="@+id/w_mslot3" android:layout_width="74dp" android:layout_height="wrap_content" android:text="Breakfast" android:textColor="#FFA9A395" android:textSize="12sp" android:textStyle="bold" android:maxLines="1"/>
+        <TextView android:id="@+id/w_mtitle3" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="Overnight Oats" android:textColor="#FFEDE5D2" android:textSize="13.5sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end"/>
+    </LinearLayout>
+    <LinearLayout android:id="@+id/w_mrow4" android:layout_width="match_parent" android:layout_height="26dp" android:orientation="horizontal" android:gravity="center_vertical">
+        <TextView android:id="@+id/w_mslot4" android:layout_width="74dp" android:layout_height="wrap_content" android:text="Breakfast" android:textColor="#FFA9A395" android:textSize="12sp" android:textStyle="bold" android:maxLines="1"/>
+        <TextView android:id="@+id/w_mtitle4" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="Overnight Oats" android:textColor="#FFEDE5D2" android:textSize="13.5sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end"/>
+    </LinearLayout>
+    <TextView android:id="@+id/w_mprep" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Meal prep at 4P · 4 meals" android:textColor="#FFF2C230" android:textSize="12sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" android:layout_marginTop="2dp" android:visibility="gone"/>
+</LinearLayout>

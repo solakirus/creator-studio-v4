@@ -1,9 +1,6 @@
 package com.creatorstudio.v2;
 
-/* The small one: the day count and the tally, nothing else. For people who
- * want the number on the home screen without a panel. Taps to Today.
- */
+/* Day: the day count, streak and today's tally. (Was the Small widget.) */
 public class CSWidgetSmall extends CSWidgetBase {
-    @Override protected int layoutId() { return R.layout.cs_widget_small; }
-    @Override protected String link() { return "cs4://go/today"; }
+    @Override int kind() { return CSWidgetRender.DAY; }
 }

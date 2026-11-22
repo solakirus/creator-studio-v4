@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Goes in: android/app/src/main/res/drawable/cs_div.xml (scripts/android-setup.js copies it) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#FF2F2C26" />
+    
+    <corners android:radius="0dp" />
+</shape>

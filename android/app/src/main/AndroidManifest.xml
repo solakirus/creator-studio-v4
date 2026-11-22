@@ -43,38 +43,39 @@
 
         </activity>
 
-        <receiver
-            android:name=".CSWidgetProvider"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/cs_widget_info" />
+        <!-- Home-screen widgets (native/WIDGET.md). The first three keep their
+             original class names so widgets already placed stay placed. -->
+        <receiver android:name=".CSWidgetToday" android:exported="true" android:label="@string/cw_name_today">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/cs_widget_today_info" />
+        </receiver>
+        <receiver android:name=".CSWidgetProvider" android:exported="true" android:label="@string/cw_name_upnext">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/cs_widget_info" />
+        </receiver>
+        <receiver android:name=".CSWidgetShoot" android:exported="true" android:label="@string/cw_name_filming">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/cs_widget_shoot_info" />
+        </receiver>
+        <receiver android:name=".CSWidgetMeals" android:exported="true" android:label="@string/cw_name_meals">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/cs_widget_meals_info" />
+        </receiver>
+        <receiver android:name=".CSWidgetWorkout" android:exported="true" android:label="@string/cw_name_workout">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/cs_widget_workout_info" />
+        </receiver>
+        <receiver android:name=".CSWidgetSmall" android:exported="true" android:label="@string/cw_name_day">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/cs_widget_small_info" />
+        </receiver>
+        <receiver android:name=".CSWidgetCapture" android:exported="true" android:label="@string/cw_name_capture">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/cs_widget_capture_info" />
         </receiver>
 
-        <receiver
-            android:name=".CSWidgetSmall"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/cs_widget_small_info" />
-        </receiver>
-
-        <receiver
-            android:name=".CSWidgetShoot"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/cs_widget_shoot_info" />
-        </receiver>
+        <!-- A check box or Done on a widget, without opening the app -->
+        <receiver android:name=".CSWidgetAction" android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

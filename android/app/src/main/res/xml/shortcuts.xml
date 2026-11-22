@@ -12,16 +12,16 @@
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
 
   <shortcut
-      android:shortcutId="run"
+      android:shortcutId="add"
       android:enabled="true"
       android:icon="@mipmap/ic_launcher"
-      android:shortcutShortLabel="@string/sc_run_short"
-      android:shortcutLongLabel="@string/sc_run_long">
+      android:shortcutShortLabel="@string/sc_add_short"
+      android:shortcutLongLabel="@string/sc_add_long">
     <intent
         android:action="android.intent.action.VIEW"
         android:targetPackage="com.solakirus.creatorstudio4"
         android:targetClass="com.creatorstudio.v2.MainActivity"
-        android:data="cs4://go/run" />
+        android:data="cs4://go/add" />
     <categories android:name="android.shortcut.conversation" />
   </shortcut>
 
@@ -64,6 +64,20 @@
         android:targetPackage="com.solakirus.creatorstudio4"
         android:targetClass="com.creatorstudio.v2.MainActivity"
         android:data="cs4://go/workout" />
+    <categories android:name="android.shortcut.conversation" />
+  </shortcut>
+
+  <shortcut
+      android:shortcutId="run"
+      android:enabled="true"
+      android:icon="@mipmap/ic_launcher"
+      android:shortcutShortLabel="@string/sc_run_short"
+      android:shortcutLongLabel="@string/sc_run_long">
+    <intent
+        android:action="android.intent.action.VIEW"
+        android:targetPackage="com.solakirus.creatorstudio4"
+        android:targetClass="com.creatorstudio.v2.MainActivity"
+        android:data="cs4://go/run" />
     <categories android:name="android.shortcut.conversation" />
   </shortcut>
 

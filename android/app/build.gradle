@@ -16,7 +16,23 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        // GitHub builds (the "Creator Studio APK" workflow in the private kris-apps
+        // repo) sign with a key kept there and pass it in. A laptop build leaves
+        // these unset and signs with the laptop's debug key, as before.
+        if (System.getenv("CS4_KEYSTORE")) {
+            github {
+                storeFile file(System.getenv("CS4_KEYSTORE"))
+                storePassword System.getenv("CS4_KEYSTORE_PASS")
+                keyAlias System.getenv("CS4_KEY_ALIAS")
+                keyPassword System.getenv("CS4_KEYSTORE_PASS")
+            }
+        }
+    }
     buildTypes {
+        debug {
+            if (System.getenv("CS4_KEYSTORE")) signingConfig signingConfigs.github
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'

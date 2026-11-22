@@ -1,12 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Goes in: android/app/src/main/res/xml/cs_widget_small_info.xml -->
+<!-- How the launcher offers and sizes it. Goes in: android/app/src/main/res/xml/cs_widget_small_info.xml
+     updatePeriodMillis 30 min: the app redraws it whenever something changes;
+     the timer only moves countdowns and the day on. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="110dp"
-    android:minHeight="70dp"
+    android:minHeight="60dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="60dp"
     android:targetCellWidth="2"
-    android:targetCellHeight="1"
-    android:updatePeriodMillis="0"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="1800000"
     android:initialLayout="@layout/cs_widget_small"
     android:previewLayout="@layout/cs_widget_small"
+    android:description="@string/cw_desc_day"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen" />

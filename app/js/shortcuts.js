@@ -17,7 +17,10 @@
     run:     { screen:'run-live',      label:'Start a run' },
     capture: { screen:'quick-capture', label:'Quick capture' },
     shoot:   { screen:'vlog-builder',  label:'Today\'s filming' },
-    workout: { screen:'workout',       label:'Workout' }
+    workout: { screen:'workout',       label:'Workout' },
+    /* 2026-11-22: the Add a task shortcut and the Meals widget */
+    add:     { form:true,              label:'Add a task' },
+    meals:   { screen:'nutrition-home', label:'Meals' }
   };
 
   const keyOf = url => {
@@ -43,7 +46,12 @@
     clip:     { screen:'clip' },
     swipe:    { screen:'swipe' },
     series:   { screen:'series-view' },
-    channel:  { screen:'channel', param:'name' }
+    channel:  { screen:'channel', param:'name' },
+    /* the home-screen widgets (js/widget.js): a task, a task's shot page in
+       shoot mode, and a workout task's routine started straight away */
+    task:     { screen:'task', num:true },
+    shootrun: { screen:'shoot-run', num:true },
+    startworkout: { run:'workout' }
   };
 
   /* Opening the app from a shortcut should land you on the thing, not on Today
@@ -73,6 +81,11 @@
         if(global.App && App.go){ App.go(r.tab); return true; }
         return false;
       }
+      if(r.form){
+        if(global.App && App.go) App.go('today');
+        if(global.TaskForm && TaskForm.open){ TaskForm.open({}); return true; }
+        return false;
+      }
 
       if(!(global.Screens && Screens.push)) return false;
 
@@ -96,6 +109,27 @@
     return false;
   }
 
+  /* A workout task from a widget: start its routine, the way the task page's
+     Start button does; without a routine, open the task. */
+  async function startWorkout(raw){
+    try {
+      const all = await Data.tasks();
+      const t = all.find(x => String(x.id) === String(raw));
+      if(t && t.routineId && global.Routines){
+        const r = await Routines.get(t.routineId);
+        if(r){
+          const preset = await Routines.toSession(r);
+          await Routines.markRun(r.id);
+          Screens.push('session', { preset });
+          return true;
+        }
+      }
+      if(t){ Screens.push('task', { id:t.id }); return true; }
+      Screens.push('workout', {});
+      return true;
+    } catch(e){ console.warn('Could not start that workout', e); return false; }
+  }
+
   function handle(url){
     const key = keyOf(url);
     if(!key) return false;
@@ -106,7 +140,11 @@
       const t = TARGETS[key];
       try {
         if(!(global.Screens && Screens.push)) return false;
-        Screens.push(t.screen, { [t.param || 'id']: decodeURIComponent(id) });
+        const raw = decodeURIComponent(id);
+        if(t.run === 'workout') return startWorkout(raw);
+        /* task ids are numbers; a link carries them as text */
+        const val = t.num && /^\d+$/.test(raw) ? +raw : raw;
+        Screens.push(t.screen, { [t.param || 'id']: val });
         return true;
       } catch(e){ return false; }
     }

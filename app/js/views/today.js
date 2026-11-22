@@ -107,7 +107,8 @@
       const wk = Nutrition.isoWeek(dayDate);
       const [week, meals] = await Promise.all([Nutrition.week(wk), Nutrition.meals()]);
       const byId = Object.fromEntries(meals.map(m => [m.id, m]));
-      const dow = Nutrition.DAYS[(new Date(dayDate).getDay() + 6) % 7];
+      /* the plan's weeks start on Sunday, and DAYS starts there too */
+      const dow = Nutrition.DAYS[new Date(dayDate).getDay()];
       const planned = Nutrition.SLOTS
         .map(sl => ({ sl, meal: byId[week.slots[`${dow}-${sl}`]] }))
         .filter(x => x.meal);

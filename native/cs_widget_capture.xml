@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Capture. Goes in: android/app/src/main/res/layout/cs_widget_capture.xml -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/w_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@drawable/cs_widget_cream" android:padding="14dp">
+    <ImageView android:layout_width="26dp" android:layout_height="26dp" android:src="@drawable/cs_ic_camera"/>
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"/>
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Capture" android:textColor="#FF151515" android:textSize="17sp" android:textStyle="bold" android:fontFamily="sans-serif-black"/>
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="A clip, idea or note" android:textColor="#FF4A453C" android:textSize="12sp" android:maxLines="1"/>
+</LinearLayout>
