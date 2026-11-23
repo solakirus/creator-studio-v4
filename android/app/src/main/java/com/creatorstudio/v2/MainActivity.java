@@ -10,6 +10,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(LiveStatusPlugin.class);
         registerPlugin(CSWidgetPlugin.class);
+        registerPlugin(CSSpeakPlugin.class);
         super.onCreate(savedInstanceState);
     }
 

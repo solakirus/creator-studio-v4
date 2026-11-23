@@ -13,6 +13,10 @@ const fs = require('fs');
 const os = require('os');
 const { pathToFileURL } = require('url');
 
+/* The voice (js/voice.js) uses the system's speech. Windows has it built in;
+   on Linux Chromium only talks through speech-dispatcher when asked to. */
+if (process.platform === 'linux') app.commandLine.appendSwitch('enable-speech-dispatcher');
+
 const SCHEME = 'cs4';                  /* deep links: cs4://go/today */
 const NAME = 'Creator Studio v4';
 

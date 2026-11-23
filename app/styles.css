@@ -121,6 +121,7 @@ button{font-family:inherit}
 .sq{width:38px;height:38px;border-radius:var(--r);background:transparent;border:1px solid var(--line);
   color:var(--cream);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 .sq svg{width:17px;height:17px}
+.sq.voicebtn.on{background:var(--orange);border-color:var(--orange);color:#151515}
 .iconbtn{width:var(--h-chip);height:var(--h-chip);display:inline-flex;align-items:center;
   justify-content:center;border-radius:var(--r);background:transparent;border:1px solid var(--line);
   color:var(--muted);padding:0;cursor:pointer}

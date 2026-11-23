@@ -149,7 +149,11 @@ if (fs.existsSync(manifest)) {
   const before = m;
   m = m.replace(new RegExp(`android:authorities="${OLD_ID.replace(/\./g, '\\.')}`, 'g'), 'android:authorities="${applicationId}');
   m = m.replace(new RegExp(`android:scheme="${OLD_ID.replace(/\./g, '\\.')}"`, 'g'), `android:scheme="${SCHEME}"`);
-  if (m !== before) { write(manifest, m); log('AndroidManifest.xml: provider authority and scheme updated'); }
+  /* 2026-11-23: the voice (CSSpeakPlugin) — Android 11+ hides the phone's
+     text-to-speech engine from apps that don't ask for it here */
+  if (!/android\.intent\.action\.TTS_SERVICE/.test(m))
+    m = m.replace(/(\n[ \t]*)<application\b/, '$1<queries>$1    <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>$1</queries>\n$1<application');
+  if (m !== before) { write(manifest, m); log('AndroidManifest.xml: provider authority, scheme and voice query checked'); }
 }
 
 /* Where MainActivity lives — the widget classes go beside it */
@@ -180,6 +184,16 @@ for (const f of fs.readdirSync(NATIVE)) {
   }
 }
 log(`${copied} widget and shortcut files copied from native\\`);
+
+/* 2026-11-23: the voice plugin is registered beside the widgets' */
+{
+  let a = read(activity);
+  if (!/registerPlugin\(CSSpeakPlugin\.class\)/.test(a) && fs.existsSync(path.join(javaDir, 'CSSpeakPlugin.java'))) {
+    a = a.replace(/(\s*)registerPlugin\(CSWidgetPlugin\.class\);/, '$1registerPlugin(CSWidgetPlugin.class);$1registerPlugin(CSSpeakPlugin.class);');
+    if (/registerPlugin\(CSSpeakPlugin\.class\)/.test(a)) { write(activity, a); log('MainActivity: voice plugin registered'); }
+    else log('MainActivity: could not register CSSpeakPlugin — add registerPlugin(CSSpeakPlugin.class); by hand');
+  }
+}
 
 /* Any other Java that builds a v2 link (the live-notification plugin may) */
 for (const f of walk(path.join(MAIN, 'java'))) {

@@ -19,6 +19,17 @@
   const expanded = new Set();
   let root, drag = null;
 
+  /* the briefing button beside the day's arrows (js/voice.js) */
+  const SPEAK_ICON = `<svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd"><path d="M3 9h4l5-4.5v15L7 15H3z"/><path d="M15.2 8.3a5 5 0 0 1 0 7.4l-1.3-1.4a3 3 0 0 0 0-4.6zM17.7 5.6a8.6 8.6 0 0 1 0 12.8l-1.3-1.4a6.6 6.6 0 0 0 0-10z"/></svg>`;
+  const SPEAK_STOP = `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>`;
+  if(global.Voice) Voice.onChange(on => {
+    const b = root && root.querySelector('.voicebtn');
+    if(!b) return;
+    b.classList.toggle('on', on);
+    b.innerHTML = on ? SPEAK_STOP : SPEAK_ICON;
+    b.setAttribute('aria-label', on ? 'Stop the briefing' : 'Read today out loud');
+  });
+
   const artKey = t => slug(t.title);
   /* "14:30" -> "2:30P", matching how the reference labels hours. */
   function fmtTime(hhmm){
@@ -176,6 +187,8 @@
       <div class="dh-top">
         <h1 class="page-title">Day ${day}</h1>
         <div class="headacts">
+          ${global.Voice && Voice.available() ? `<button class="sq voicebtn${Voice.speaking() ? ' on' : ''}" data-act="brief"
+            aria-label="${Voice.speaking() ? 'Stop the briefing' : 'Read today out loud'}" title="Today's briefing">${Voice.speaking() ? SPEAK_STOP : SPEAK_ICON}</button>` : ''}
           <button class="sq" data-act="prev" ${day<=1?'disabled':''} aria-label="Previous day">${ICON.chevL}</button>
           <button class="sq" data-act="next" aria-label="Next day">${ICON.chevR}</button>
         </div>
@@ -847,6 +860,7 @@
         if(a === 'prev' && day > 1){ day--; await loadDerived(); await loadChips(); render(); }
         if(a === 'next'){ day++; await loadDerived(); await loadChips(); render(); }
         if(a === 'add') openLibrary();
+        if(a === 'brief'){ if(global.Voice) Voice.toggle(); return; }
         if(a === 'mode'){ mode = mode === 'time' ? 'list' : 'time'; render(); return; }
         if(a === 'paper'){ Screens.push('paper', { onChange: () => App.refreshTab && App.refreshTab() }); return; }
         if(a === 'clips'){ Screens.push('clips-screen', {}); return; }

@@ -114,6 +114,23 @@
         ${row(D.cloudq,'Notification diagnostics','What is and is not working','data-go="notifydiag"')}
       </div>
 
+      ${sec('Voice')}
+      <div class="group">
+        ${row(D.play,'Play today\'s briefing','Your day, list and videos, read out loud','data-go="voicebrief"')}
+        <div class="row">${svg(D.sun)}
+          <span class="lbl">Read it to me in the morning<small id="voiceNote">The first time you open the app each day, before noon</small></span>
+          <span class="tog" role="switch" data-voicemorning aria-checked="true" tabindex="0"><i></i></span>
+        </div>
+        <div class="row">${svg(D.clock)}
+          <span class="lbl">Speed<small>How fast it talks</small></span>
+          <span style="display:flex;gap:7px">
+            <button class="opt" data-vrate="0.85">Slow</button>
+            <button class="opt" data-vrate="1">Normal</button>
+            <button class="opt" data-vrate="1.15">Fast</button>
+          </span>
+        </div>
+      </div>
+
       ${sec('Planning help')}
       <div class="group">
         ${row(D.bolt,'Claude for planning','Your Anthropic key for Draft and Suggest shots — or none, and paste into a chat','data-go="ai"')}
@@ -160,6 +177,17 @@
       const c = await Pipeline.config();
       const v = el.querySelector('#pipeVal');
       if(v) v.textContent = `Shoot ${c.shootLead}d before · edit ${c.editLead}d before`;
+    })();
+
+    /* voice: morning read-out and speed, kept on this device */
+    (() => {
+      if(!window.Voice) return;
+      const p = Voice.prefs();
+      const t = el.querySelector('[data-voicemorning]');
+      if(t) t.setAttribute('aria-checked', String(p.morning));
+      el.querySelectorAll('[data-vrate]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.vrate === p.rate)));
+      const n = el.querySelector('#voiceNote');
+      if(n && !Voice.isNative()) n.textContent = 'On the phone app. Here, tap the speaker on Today';
     })();
 
     /* sound toggle */
@@ -262,6 +290,14 @@
         return;
       }
 
+      const vr = e.target.closest('[data-vrate]');
+      if(vr && window.Voice){
+        Voice.setPrefs({ rate: +vr.dataset.vrate });
+        el.querySelectorAll('[data-vrate]').forEach(b => b.setAttribute('aria-pressed', String(b === vr)));
+        Voice.speak(vr.textContent.trim() === 'Normal' ? 'This is normal speed.' : `This is ${vr.textContent.trim().toLowerCase()}.`);
+        return;
+      }
+
       const t = e.target.closest('.tog');
       if(t){
         const on = t.getAttribute('aria-checked') !== 'true';
@@ -269,6 +305,10 @@
         if(t.hasAttribute('data-sound')){
           Celebrate.setSound(on);
           if(on) Celebrate.chime();
+          return;
+        }
+        if(t.hasAttribute('data-voicemorning')){
+          if(window.Voice) Voice.setPrefs({ morning: on });
           return;
         }
         if(t.hasAttribute('data-remind')){
@@ -321,6 +361,7 @@
       if(go.dataset.go === 'palette')   return doPalette();
       if(go.dataset.go === 'leadtime')   return openLeadTime();
       if(go.dataset.go === 'testnotify') return doTestNotify();
+      if(go.dataset.go === 'voicebrief') return window.Voice ? Voice.toggle() : U.toast('Voice isn\'t loaded');
       if(go.dataset.go === 'notifydiag') return openNotifyDiag();
       if(go.dataset.go === 'wipe')      return openWipe();
       Screens.push(go.dataset.go);
