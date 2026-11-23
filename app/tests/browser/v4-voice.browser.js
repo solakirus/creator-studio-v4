@@ -101,14 +101,21 @@ const url = 'file:///' + path.resolve(__dirname, '../../index.html').replace(/\\
   ok(await p.evaluate(() => !!document.querySelector('[data-go="voicebrief"]') && !!document.querySelector('[data-voicemorning]')), 'Voice section with Play and the morning switch');
   await p.click('[data-vrate="1.15"]'); await p.waitForTimeout(200);
   ok(await p.evaluate(() => Voice.prefs().rate === 1.15 && window.__sp.said.slice(-1)[0].rate === 1.15), 'Fast saved and heard at that speed');
+  ok(await p.evaluate(() => Voice.prefs().morning === false && Voice.prefs().calls === 'tap' &&
+    document.querySelector('[data-vcalls="tap"]').getAttribute('aria-pressed') === 'true'), 'defaults: no morning read-out, callouts only when tapped');
+  ok(await p.evaluate(() => { localStorage.setItem('cs4:voice', JSON.stringify({ morning: true, callouts: true, rate: 1.15 }));
+    const q = Voice.prefs(); return q.morning === false && q.calls === 'tap' && q.rate === 1.15; }), 'older saved prefs: morning and callouts dropped back to off, speed kept');
   await p.click('[data-voicemorning]'); await p.waitForTimeout(100);
   ok(await p.evaluate(() => Voice.prefs().morning === true), 'morning switch saved');
+  await p.click('[data-vcalls="auto"]'); await p.waitForTimeout(100);
+  ok(await p.evaluate(() => Voice.prefs().calls === 'auto'), 'Shot callouts: Every shot saved');
+  await p.click('[data-vcalls="tap"]'); await p.waitForTimeout(100);
   const sec = await p.$('[data-go="voicebrief"]'); await sec.scrollIntoViewIfNeeded();
   await p.screenshot({ path: path.join(out, 'voice-settings.png') });
 
   console.log('\n— morning read-out —');
   const auto = await p.evaluate(async () => {
-    localStorage.setItem('cs4:voice', JSON.stringify({ morning: true, rate: 1, lastAuto: '' }));
+    localStorage.setItem('cs4:voice', JSON.stringify({ v: 2, morning: true, rate: 1, lastAuto: '' }));
     const before = window.__sp.said.length;
     const h = new Date().getHours();
     document.dispatchEvent(new Event('visibilitychange'));
@@ -137,36 +144,65 @@ const url = 'file:///' + path.resolve(__dirname, '../../index.html').replace(/\\
     return a.id;
   });
   const last = () => p.evaluate(() => (window.__sp.said.slice(-1)[0] || {}).text || '');
+  const count = () => p.evaluate(() => window.__sp.said.length);
+
+  /* When I tap (the default): quiet until asked */
   await p.evaluate(id => Screens.push('shoot-run', { id }), sid); await p.waitForTimeout(1000);
-  let said = await last();
-  console.log('     open: ' + said);
-  ok(/^Morning routine\. 3 shots\. Shot 1 of 3, Close-up: Alarm off\./.test(said), 'opening: the task, how many, and the first shot');
-  ok(!!(await p.$('.sr-voice.on')), '🔊 in the shoot-mode top bar, on');
+  ok(await count() === 0, 'When I tap: opening shoot mode says nothing');
+  ok(!!(await p.$('.sr-voice:not(.on)')), '🔊 is there, not lit');
+  await p.click('[data-got]'); await p.waitForTimeout(900);
+  ok(await count() === 0, 'When I tap: Got it says nothing');
+  await p.click('.sr-voice'); await p.waitForTimeout(300);
+  let said = await last(); console.log('     tap:  ' + said);
+  ok(/^Shot 2 of 3, Wide: Curtains open\. 2 to go\./.test(said), 'tap 🔊: says the shot you\'re on, once');
+  await p.click('[data-next]'); await p.waitForTimeout(1000);
+  ok(await count() === 1, 'and moving on stays quiet');
+  await p.click('[data-prev]'); await p.waitForTimeout(200);
+
+  /* hold 🔊 → Every shot */
+  await p.dispatchEvent('.sr-voice', 'contextmenu'); await p.waitForTimeout(400);
+  ok(await p.evaluate(() => Voice.prefs().calls === 'auto') && !!(await p.$('.sr-voice.on')), 'hold 🔊: Every shot, lit');
   await p.click('[data-got]'); await p.waitForTimeout(500);
   said = await last(); console.log('     got:  ' + said);
-  ok(/^Got it\. Shot 2 of 3, Wide: Curtains open\. 2 to go\./.test(said), 'Got it calls the next shot, and how many are left');
-  await p.click('[data-next]'); await p.waitForTimeout(1100);
+  ok(/^Got it\. Shot 3 of 3, Insert: Coffee pour\. Last one\./.test(said), 'Every shot: Got it calls the next shot');
+  await p.click('[data-prev]'); await p.waitForTimeout(1100);
   said = await last(); console.log('     nav:  ' + said);
-  ok(/^Shot 3 of 3, Insert: Coffee pour\. 2 to go\./.test(said), '› by hand: says where you landed (after a pause)');
-  await p.click('[data-prev]'); await p.click('[data-prev]'); await p.waitForTimeout(1100);
-  said = await last();
-  ok(/Shot 1 is already taken\./.test(said), 'landing on a taken shot says so', said);
+  ok(/Shot 2 is already taken\./.test(said), 'Every shot: moving by hand says where you landed');
   await p.click('[data-next]'); await p.waitForTimeout(150);
-  await p.click('[data-got]'); await p.waitForTimeout(400);
   await p.click('[data-got]'); await p.waitForTimeout(500);
   said = await last(); console.log('     end:  ' + said);
   ok(/That's every shot\. Next up: Gym shoot\./.test(said), 'all taken: says so and names the next shoot task');
-  const n0 = await p.evaluate(() => window.__sp.said.length);
   await p.click('[data-review]'); await p.waitForTimeout(200);
-  await p.click('[data-srvoice]'); await p.waitForTimeout(200);
-  ok(await p.evaluate(() => Voice.prefs().callouts === false) && !!(await p.$('.sr-voice:not(.on)')), '🔊 mutes it, remembered');
+
+  /* tap the lit 🔊 → back to quiet */
+  const n0 = await count();
+  await p.click('.sr-voice'); await p.waitForTimeout(200);
+  ok(await p.evaluate(() => Voice.prefs().calls === 'tap') && !!(await p.$('.sr-voice:not(.on)')), 'tap the lit 🔊: back to When I tap, remembered');
   await p.click('[data-next]'); await p.waitForTimeout(1000);
-  ok(await p.evaluate(n => window.__sp.said.length === n, n0), 'muted: moving shots says nothing');
+  ok(await count() === n0, 'quiet again when moving');
   await p.screenshot({ path: path.join(out, 'voice-shoot.png') });
   const stops = await p.evaluate(() => window.__sp.stops);
-  await p.evaluate(() => Voice.setPrefs({ callouts: true }));
   await p.evaluate(() => Screens.pop()); await p.waitForTimeout(300);
   ok(await p.evaluate(s0 => window.__sp.stops >= s0, stops), 'closing shoot mode stops any speech');
+
+  /* Off: no button */
+  await p.evaluate(() => Voice.setPrefs({ calls: 'off' }));
+  await p.evaluate(id => Screens.push('shoot-run', { id }), sid); await p.waitForTimeout(800);
+  ok(!(await p.$('.sr-voice')), 'Shot callouts Off: no 🔊 in shoot mode');
+  await p.evaluate(() => Screens.pop()); await p.waitForTimeout(300);
+
+  console.log('\n— the main switch —');
+  await p.evaluate(() => Voice.setPrefs({ on: false, calls: 'auto', morning: true }));
+  const before = await count();
+  ok(await p.evaluate(async () => (await Voice.speak('hello')) === false), 'Voice off: speak() refuses');
+  await p.evaluate(id => Screens.push('shoot-run', { id }), sid); await p.waitForTimeout(1000);
+  ok(!(await p.$('.sr-voice')) && await count() === before, 'Voice off: shoot mode has no 🔊 and says nothing, even on Every shot');
+  await p.evaluate(() => Screens.pop()); await p.waitForTimeout(300);
+  await p.evaluate(() => App.refreshTab && App.refreshTab()); await p.waitForTimeout(400);
+  ok(!(await p.$('.voicebtn')), 'Voice off: no speaker on Today');
+  await p.evaluate(() => Voice.setPrefs({ on: true }));
+  await p.evaluate(() => App.refreshTab && App.refreshTab()); await p.waitForTimeout(400);
+  ok(!!(await p.$('.voicebtn')), 'Voice back on: the speaker returns');
 
   ok(!errs.length, 'no page errors', errs.join(' | '));
   await b.close();

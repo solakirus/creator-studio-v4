@@ -19,12 +19,15 @@
 
    When every shot is in, it says so and offers to mark the task done.
 
-   Callouts (23 Nov 2026, js/voice.js): the phone says the shot out loud —
-   where you start ("Film the opener. 9 shots, 3 done. Shot 4 of 9, wide:
-   coffee pour."), after each Got it ("Got it. Shot 5 of 9 …"), where you land
-   after moving by hand, and "That's every shot" at the end with what's next.
-   The 🔊 up top mutes it here and in Settings → Voice (kept per device).
-   It talks between takes — the speech is over before you roll again.
+   Callouts (23 Nov 2026, js/voice.js) — Settings → Voice → Shot callouts:
+     When I tap (default)  silent until you tap 🔊 up top, which says the
+                           shot you're on: "Shot 4 of 9, Wide: coffee pour."
+     Every shot            says where you start, the next shot after each
+                           Got it, where you land after moving by hand, and
+                           "That's every shot" at the end. 🔊 is lit; a tap
+                           silences it (back to When I tap).
+     Off                   no 🔊 at all.
+   Hold 🔊 to switch between When I tap and Every shot from here.
    The screen stays awake while it is open (where the device allows).
 
      Screens.push('shoot-run', { id: taskId, at: shotIndex?, page: pageIndex? }) */
@@ -310,8 +313,8 @@
     const num = x => x.j != null ? `${x.i + 1}.${x.j + 1}` : String(x.i + 1);
 
     /* ---- callouts: the shot, said out loud (js/voice.js) ---- */
-    const voiceOK = () => !!(global.Voice && Voice.available());
-    const callsOn = () => voiceOK() && Voice.prefs().callouts;
+    const voiceOK = () => !!(global.Voice && Voice.enabled() && Voice.prefs().calls !== 'off');
+    const callsOn = () => voiceOK() && Voice.prefs().calls === 'auto';
     const VC = s2 => global.Voice ? Voice.clean(s2) : String(s2 || '');
     /* "Shot 5 of 9, wide: coffee pour." / "Shot 2, part 3 of 4: …" */
     const shotWords = x => {
@@ -350,7 +353,8 @@
           <div class="sr-ttl">${esc(t.title)}</div>
           ${global.Devices ? `<button class="sr-dev" data-srdev title="What you're shooting on — every shot you tick gets it">${esc(Devices.last() || 'Shooting on…')}</button>` : ''}
           <div class="sr-n">${at + 1} / ${shots.length}</div>
-          ${voiceOK() ? `<button class="sr-voice${callsOn() ? ' on' : ''}" data-srvoice aria-pressed="${callsOn()}" aria-label="${callsOn() ? 'Mute the shot callouts' : 'Call out the shots'}">${callsOn() ? VOICE_ON : VOICE_OFF}</button>` : ''}
+          ${voiceOK() ? `<button class="sr-voice${callsOn() ? ' on' : ''}" data-srvoice aria-pressed="${callsOn()}"
+            aria-label="${callsOn() ? 'Callouts on every shot — tap to stop' : 'Say this shot'}" title="${callsOn() ? 'Tap: stop calling out shots · Hold: same' : 'Tap: say this shot · Hold: call out every shot'}">${VOICE_ON}</button>` : ''}
           ${nextTask ? `<button class="sr-skip" data-nexttask title="Next: ${esc(nextTask.title)}">⏭<span> ${Q ? 'Next sequence' : 'Next task'}</span></button>` : ''}</div>
         ${Q ? `<div class="sr-q">Sequence ${qi + 1} of ${Q.length} · <b>${esc(Q[qi].title)}</b>${nextTask ? ` · then ${esc(nextTask.title)}` : ' · the last one today'}</div>` : ''}
         ${more ? `<div class="sr-pages"><button data-pgprev aria-label="Previous page" ${pi <= 0 ? 'disabled' : ''}>‹</button>
@@ -382,6 +386,14 @@
           ${nextTask ? `<button class="${op == null ? 'sr-go' : ''}" data-nexttask>${Q ? 'Next sequence' : 'Next shoot task'} →<small>${esc(nextTask.title)}</small></button>` : ''}
           <button class="${op == null && !nextTask ? 'sr-go' : ''}" data-x>${Q && !nextTask ? 'Done for today' : `Back to ${HO ? 'the shots' : 'the task'}`}</button><button data-review>Look through them again</button></div>` : ''}
       </div>`;
+      /* hold 🔊: switch between "When I tap" and "Every shot" */
+      const vb = el.querySelector('[data-srvoice]');
+      if(vb) U.onHold(vb, () => {
+        const auto = !callsOn();
+        Voice.setPrefs({ calls: auto ? 'auto' : 'tap' });
+        if(auto) sayAt('Calling out every shot.'); else { Voice.stop(); U.toast('Callouts off — tap 🔊 to hear a shot'); }
+        render();
+      });
       /* hold the picture to swap it for another starred frame — today only */
       const pic = el.querySelector('[data-pic]');
       if(pic && global.StarPick) U.onHold(pic, () => {
@@ -429,10 +441,12 @@
       if(e.target.closest('[data-pgprev]')){ const pi = pages.indexOf(pg); if(pi > 0) toPage(pages[pi - 1], 'open'); return; }
       if(e.target.closest('[data-got]')) return got();
       if(e.target.closest('[data-srvoice]')){
-        const on = !Voice.prefs().callouts;
-        Voice.setPrefs({ callouts: on });
-        if(on) sayAt('Callouts on.'); else Voice.stop();
-        return render();
+        /* Every shot: a tap quiets it. When I tap: a tap says this shot. */
+        if(callsOn()){ Voice.setPrefs({ calls:'tap' }); Voice.stop(); U.toast('Callouts off — tap 🔊 to hear a shot, hold for every shot'); return render(); }
+        clearTimeout(navTimer);
+        const x = shots[at];
+        if(x) Voice.speak(x.done ? `Shot ${num(x).replace('.', ', part ')} is already taken. ${shotWords(x)}` : shotWords(x));
+        return;
       }
       if(e.target.closest('[data-srdev]')){ (async () => { const d = await Devices.pick('What are you shooting on?', Devices.last()); if(d !== null){ Devices.setLast(d); render(); } })(); return; }
       if(e.target.closest('[data-vref]')){ const s = shots[at]; if(s && s.vref) RefClip.play(s.vref, s.text); return; }

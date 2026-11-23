@@ -116,14 +116,22 @@
 
       ${sec('Voice')}
       <div class="group">
+        <div class="row">${svg(D.bolt)}
+          <span class="lbl">Voice<small>Lets the app talk — only when you tap a speaker, unless you turn on more below. Off: it never talks</small></span>
+          <span class="tog" role="switch" data-voiceon aria-checked="true" tabindex="0"><i></i></span>
+        </div>
         ${row(D.play,'Play today\'s briefing','Your day, list and videos, read out loud','data-go="voicebrief"')}
         <div class="row">${svg(D.sun)}
-          <span class="lbl">Read it to me in the morning<small id="voiceNote">The first time you open the app each day, before noon</small></span>
-          <span class="tog" role="switch" data-voicemorning aria-checked="true" tabindex="0"><i></i></span>
+          <span class="lbl">Read it to me in the morning<small id="voiceNote">By itself, the first time you open the app each day, before noon</small></span>
+          <span class="tog" role="switch" data-voicemorning aria-checked="false" tabindex="0"><i></i></span>
         </div>
-        <div class="row">${svg(D.play)}
-          <span class="lbl">Call out shots while filming<small>Shoot mode says each shot: "Shot 5 of 9, wide: coffee pour"</small></span>
-          <span class="tog" role="switch" data-voicecalls aria-checked="true" tabindex="0"><i></i></span>
+        <div class="row" style="flex-wrap:wrap;row-gap:10px">${svg(D.play)}
+          <span class="lbl" style="flex:1 1 calc(100% - 48px)">Shot callouts<small>In shoot mode: say the shot when you tap 🔊, or by itself after every Got it</small></span>
+          <span style="display:flex;gap:6px;margin-left:auto">
+            <button class="opt" data-vcalls="off">Off</button>
+            <button class="opt" data-vcalls="tap">When I tap</button>
+            <button class="opt" data-vcalls="auto">Every shot</button>
+          </span>
         </div>
         <div class="row">${svg(D.clock)}
           <span class="lbl">Speed<small>How fast it talks</small></span>
@@ -189,8 +197,9 @@
       const p = Voice.prefs();
       const t = el.querySelector('[data-voicemorning]');
       if(t) t.setAttribute('aria-checked', String(p.morning));
-      const tc = el.querySelector('[data-voicecalls]');
-      if(tc) tc.setAttribute('aria-checked', String(p.callouts));
+      const to = el.querySelector('[data-voiceon]');
+      if(to) to.setAttribute('aria-checked', String(p.on));
+      el.querySelectorAll('[data-vcalls]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.vcalls === p.calls)));
       el.querySelectorAll('[data-vrate]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.vrate === p.rate)));
       const n = el.querySelector('#voiceNote');
       if(n && !Voice.isNative()) n.textContent = 'On the phone app. Here, tap the speaker on Today';
@@ -296,6 +305,14 @@
         return;
       }
 
+      const vc = e.target.closest('[data-vcalls]');
+      if(vc && window.Voice){
+        Voice.setPrefs({ calls: vc.dataset.vcalls });
+        el.querySelectorAll('[data-vcalls]').forEach(b => b.setAttribute('aria-pressed', String(b === vc)));
+        U.toast({ off:'No shot callouts', tap:'Tap 🔊 in shoot mode to hear a shot', auto:'Shoot mode calls out every shot' }[vc.dataset.vcalls]);
+        return;
+      }
+
       const vr = e.target.closest('[data-vrate]');
       if(vr && window.Voice){
         Voice.setPrefs({ rate: +vr.dataset.vrate });
@@ -313,8 +330,9 @@
           if(on) Celebrate.chime();
           return;
         }
-        if(t.hasAttribute('data-voicecalls')){
-          if(window.Voice) Voice.setPrefs({ callouts: on });
+        if(t.hasAttribute('data-voiceon')){
+          if(window.Voice){ if(!on) Voice.stop(); Voice.setPrefs({ on }); }
+          U.toast(on ? 'Voice on — it talks when you tap a speaker' : 'Voice off — the app won\'t talk');
           return;
         }
         if(t.hasAttribute('data-voicemorning')){
@@ -371,7 +389,11 @@
       if(go.dataset.go === 'palette')   return doPalette();
       if(go.dataset.go === 'leadtime')   return openLeadTime();
       if(go.dataset.go === 'testnotify') return doTestNotify();
-      if(go.dataset.go === 'voicebrief') return window.Voice ? Voice.toggle() : U.toast('Voice isn\'t loaded');
+      if(go.dataset.go === 'voicebrief'){
+        if(!window.Voice) return U.toast('Voice isn\'t loaded');
+        if(!Voice.prefs().on) return U.toast('Voice is off — switch it on above');
+        return Voice.toggle();
+      }
       if(go.dataset.go === 'notifydiag') return openNotifyDiag();
       if(go.dataset.go === 'wipe')      return openWipe();
       Screens.push(go.dataset.go);

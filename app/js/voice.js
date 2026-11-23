@@ -21,11 +21,19 @@
    The words are built from your data with plain rules, not AI, so they are
    instant and the same every time.
 
-   Settings → Voice (per device, kept in localStorage 'cs4:voice'):
+   Settings → Voice (per device, kept in localStorage 'cs4:voice').
+   Nothing talks unless you ask it to (23 Nov 2026, v:2):
+     on        the main switch. Off: the app never talks and the speaker
+               buttons go away. Default on — on its own it only speaks when
+               you tap a speaker.
      morning   read the briefing the first time the app opens each day,
-               before noon. Phone only: a browser won't talk until you tap.
-     callouts  shoot mode says each shot out loud (screens/shoot-run.js)
-     rate      0.85 · 1 · 1.15 */
+               before noon. Default OFF. Phone only: a browser won't talk
+               until you tap.
+     calls     shoot mode: 'off' · 'tap' (default — tap 🔊 to hear the shot
+               you're on) · 'auto' (says each shot by itself)
+     rate      0.85 · 1 · 1.15
+   Prefs saved before v:2 had morning and callouts on by default; those two
+   are dropped so nothing starts talking that you didn't switch on. */
 (function(global){
 
   const KEY = 'cs4:voice';
@@ -35,10 +43,14 @@
   function prefs(){
     let p = {};
     try { p = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch(e){}
-    return { morning: p.morning !== false, callouts: p.callouts !== false, rate: +p.rate || 1, lastAuto: p.lastAuto || '' };
+    const v2 = p.v === 2;
+    return { on: p.on !== false,
+             morning: v2 ? !!p.morning : false,
+             calls: v2 && ['off', 'tap', 'auto'].includes(p.calls) ? p.calls : 'tap',
+             rate: +p.rate || 1, lastAuto: p.lastAuto || '' };
   }
   function setPrefs(patch){
-    const p = { ...prefs(), ...patch };
+    const p = { ...prefs(), ...patch, v: 2 };
     try { localStorage.setItem(KEY, JSON.stringify(p)); } catch(e){}
     return p;
   }
@@ -48,6 +60,8 @@
     (global.Capacitor && global.Capacitor.Plugins && global.Capacitor.Plugins.CSSpeak) || null;
   const webSpeech = () => ('speechSynthesis' in global) && typeof global.SpeechSynthesisUtterance === 'function';
   const available = () => !!plugin() || webSpeech();
+  /* there is a voice on this device and you've left it switched on */
+  const enabled = () => available() && prefs().on;
   const isNative = () => !!plugin();
 
   let talking = false;
@@ -108,7 +122,7 @@
 
   async function speak(text){
     text = String(text || '').trim();
-    if(!text) return false;
+    if(!text || !prefs().on) return false;
     await stop();
     const rate = prefs().rate;
     const p = plugin();
@@ -348,7 +362,7 @@
     clearTimeout(autoTimer);
     autoTimer = setTimeout(async () => {
       const p = prefs();
-      if(!p.morning || !isNative() || document.hidden) return;
+      if(!p.on || !p.morning || !isNative() || document.hidden) return;
       const h = new Date().getHours();
       if(h < 4 || h >= 12 || p.lastAuto === isoDay()) return;
       setPrefs({ lastAuto: isoDay() });
@@ -361,6 +375,6 @@
     document.addEventListener('visibilitychange', () => { if(!document.hidden) morning(); else if(talking && !isNative()) stop(); });
   } catch(e){}
 
-  global.Voice = { available, isNative, speak, stop, toggle, brief, briefing, speaking, onChange,
+  global.Voice = { available, enabled, isNative, speak, stop, toggle, brief, briefing, speaking, onChange,
                    prefs, setPrefs, chunks, sayTime, clean };
 })(window);

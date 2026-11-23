@@ -187,7 +187,7 @@
       <div class="dh-top">
         <h1 class="page-title">Day ${day}</h1>
         <div class="headacts">
-          ${global.Voice && Voice.available() ? `<button class="sq voicebtn${Voice.speaking() ? ' on' : ''}" data-act="brief"
+          ${global.Voice && Voice.enabled() ? `<button class="sq voicebtn${Voice.speaking() ? ' on' : ''}" data-act="brief"
             aria-label="${Voice.speaking() ? 'Stop the briefing' : 'Read today out loud'}" title="Today's briefing">${Voice.speaking() ? SPEAK_STOP : SPEAK_ICON}</button>` : ''}
           <button class="sq" data-act="prev" ${day<=1?'disabled':''} aria-label="Previous day">${ICON.chevL}</button>
           <button class="sq" data-act="next" aria-label="Next day">${ICON.chevR}</button>
