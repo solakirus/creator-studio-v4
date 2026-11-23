@@ -36,6 +36,11 @@
 		file_server
 	}
 
+	# the morning paper — your day as a newspaper (PAPER.txt)
+	handle /paper* {
+		reverse_proxy {$PAPER:creator-studio-v4-paper:8081}
+	}
+
 	handle {
 		root * /srv
 		# every file is checked with nastime before it's used (a quick "not

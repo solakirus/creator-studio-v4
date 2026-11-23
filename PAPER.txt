@@ -1,0 +1,107 @@
+THE MORNING PAPER — setting it up on nastime
+=============================================
+
+Your day as a newspaper, printed every morning before you wake up, so you
+can see it without picking up your phone.
+
+  Page A1   the front page: a headline and short story about your day, today's
+            list with boxes to tick by pen, this week, the weather, the
+            workout, your habit streaks, videos due by channel, anything still
+            open from earlier in the week
+  Page A2   To film today: every video you're shooting today, each with one
+            frame from its shots (A3 if there are more than five)
+
+It runs on nastime beside Creator Studio v4. It reads your plans from Sync Hub
+(read only, it never changes anything) and prints on your network printer at
+4:30 every morning. Its code comes from GitHub and keeps itself up to date.
+
+
+WHAT YOU NEED (about 10 minutes)
+--------------------------------
+
+1. Your printer's address.
+   The printer has to be on your home network (Wi-Fi or a cable). Print its
+   network page from the printer's own menu, or look it up in the eero app
+   under devices. It looks like 192.168.4.50.
+   Tip: in the eero app, reserve that address for the printer so it never
+   changes.
+
+2. Your Sync token.
+   The same one you typed into the app under Settings › Sync (it's also in
+   Sync Hub's settings in CasaOS).
+
+3. Optional: a Claude token, so Claude writes the headline and story.
+   This uses your Claude plan. No API key, nothing extra to pay.
+   On the laptop, open PowerShell and run:
+
+       claude setup-token
+
+   (Claude Code is already on the laptop for the Planner's Draft. If not:
+    irm https://claude.ai/install.ps1 | iex)
+   A browser opens; approve it. It prints a long token starting sk-ant-oat01-.
+   Copy it. It lasts a year.
+   Without it, plain rules write the words and the paper still prints.
+
+
+PUT IT ON NASTIME
+-----------------
+
+4. Open CasaOS (http://192.168.4.23). Open the Creator Studio v4 app's
+   settings, choose Import, and paste the whole of nas/docker-compose.yml
+   (or App Store › Custom Install › Import). It now has a third part,
+   creator-studio-v4-paper. In that part, fill in:
+
+       SYNC_TOKEN: "your sync token"
+       PRINTER: "192.168.4.50"                (your printer's address)
+       CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-…"   (or leave it empty)
+
+   Everything else can stay. You can change these too:
+       PRINT_AT      "04:30"           when it prints (24-hour)
+       PRINT_DAYS    "0123456"         0 is Sunday; "12345" for weekdays only
+       PAPER_NAME    "The Kris Times"
+       MASTHEAD      blackletter or redhat
+       DUPLEX        on prints both sides of one sheet, off for two sheets
+
+   Save. The first start takes a few minutes: it installs Chromium (which
+   makes the PDF) and Claude Code. After that it starts in seconds.
+
+5. On the laptop, run update.bat once. That copies the new Caddyfile to
+   nastime, so the paper also answers on the app's usual address (:8795).
+   Until then it answers on its own port, :8796, and the app uses that.
+
+
+TRY IT
+------
+
+6. Open  http://192.168.4.23:8795/paper   (or :8796/paper before step 5).
+   - Check the printer: it should name your printer, say "ready", and that
+     it prints both sides.
+   - The page shows today's paper. Pick a date to see another day.
+   - Print it now: it makes the paper and prints it. With Claude this takes
+     about a minute.
+
+7. In the app: Settings › Morning paper.
+   - Print today's paper — any time, from the phone, laptop or iPad.
+   - See the paper — opens the page from step 6.
+   - Every morning — says when and where it prints, and how the last one went.
+
+
+IF SOMETHING'S OFF
+------------------
+
+- "Not printed — the printer isn't answering": the printer is off or asleep
+  on a deep-sleep setting, or its address changed. It tries again every 15
+  minutes until 7:30, then waits for tomorrow.
+- The printer answers but nothing comes out, or it says it doesn't take PDFs:
+  set PRINTER to raw://192.168.4.50:9100 (the printer's raw port).
+- "Sync Hub didn't accept the token": SYNC_TOKEN doesn't match Sync Hub's.
+- Words by "rules" instead of Claude: the page's status says why. Usually the
+  token is missing or a year old — run claude setup-token again.
+- The fonts look plain: nastime couldn't reach Google Fonts the first time.
+  Delete the paper/fonts folder in /DATA/AppData/Projects/creator-studio-v4
+  and restart the paper.
+- Logs: CasaOS › Creator Studio v4 › creator-studio-v4-paper › Logs.
+
+Files on nastime: /DATA/AppData/Projects/creator-studio-v4/paper
+  app/    the code (from GitHub)       out/    the last 3 weeks of PDFs
+  data/   the read-only copy of your plans    state.json   what printed when

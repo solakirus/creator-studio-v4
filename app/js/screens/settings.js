@@ -143,6 +143,15 @@
         </div>
       </div>
 
+      ${sec('Morning paper')}
+      <div class="group">
+        ${row(D.lines,'Print today\'s paper','Your day as a newspaper, printed now from nastime','data-go="paperprint"')}
+        ${row(D.image,'See the paper','Preview, the PDF and a printer check — on nastime','data-go="paperopen"')}
+        <div class="row">${svg(D.clock)}
+          <span class="lbl">Every morning<small id="paperNote">Prints by itself on nastime — set up with PAPER.txt</small></span>
+        </div>
+      </div>
+
       ${sec('Planning help')}
       <div class="group">
         ${row(D.bolt,'Claude for planning','Your Anthropic key for Draft and Suggest shots — or none, and paste into a chat','data-go="ai"')}
@@ -203,6 +212,20 @@
       el.querySelectorAll('[data-vrate]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.vrate === p.rate)));
       const n = el.querySelector('#voiceNote');
       if(n && !Voice.isNative()) n.textContent = 'On the phone app. Here, tap the speaker on Today';
+    })();
+
+    /* morning paper: when and where nastime prints it */
+    (async () => {
+      if(!window.MorningPaper) return;
+      const n = el.querySelector('#paperNote');
+      const s = await MorningPaper.status();
+      if(!n || !n.isConnected) return;
+      if(!s){ n.textContent = 'nastime isn\'t answering, or the paper isn\'t set up there yet (PAPER.txt)'; return; }
+      const [h, m] = String(s.printAt || '4:30').split(':').map(Number);
+      const t = `${((h + 11) % 12) + 1}:${String(m || 0).padStart(2, '0')} ${h >= 12 ? 'pm' : 'am'}`;
+      const last = (s.history || [])[0];
+      n.textContent = (s.printer ? `Prints at ${t} on ${s.printer}` : `Set for ${t} — no printer set yet`) +
+        (last ? ` · last: ${new Date(last.at).toLocaleDateString(undefined, { weekday:'short' })} ${last.ok ? '✓' : '✗ ' + last.message}` : '');
     })();
 
     /* sound toggle */
@@ -394,6 +417,8 @@
         if(!Voice.prefs().on) return U.toast('Voice is off — switch it on above');
         return Voice.toggle();
       }
+      if(go.dataset.go === 'paperprint') return window.MorningPaper ? MorningPaper.print() : U.toast('Not loaded');
+      if(go.dataset.go === 'paperopen')  return window.MorningPaper ? MorningPaper.open() : U.toast('Not loaded');
       if(go.dataset.go === 'notifydiag') return openNotifyDiag();
       if(go.dataset.go === 'wipe')      return openWipe();
       Screens.push(go.dataset.go);

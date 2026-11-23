@@ -5,6 +5,7 @@
 #   www/        the web app (update.bat / publish-nas copy it; the helper keeps
 #               it current from GitHub on its own)
 #   Caddyfile, helper.js, mirror.js, libscan.js — publish-nas copies them
+#   paper/      the morning paper's code (from GitHub), PDFs and settings
 # /DATA/AppData/Projects/shot-library is the Shot Library the laptop reads too;
 # the iPad's Library reads it through this app (read-only).
 name: creator-studio-v4
@@ -19,6 +20,7 @@ services:
       # Sync Hub, reached from inside the container (the host's port 8787)
       SYNC_HUB: host.docker.internal:8787
       HELPER: creator-studio-v4-helper:8080
+      PAPER: creator-studio-v4-paper:8081
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -42,13 +44,65 @@ services:
     volumes:
       - /DATA/AppData/Projects/creator-studio-v4:/site
       - /DATA/AppData/Projects/shot-library:/shotlib:ro
+  # The morning paper: your day as a newspaper, printed every morning on your
+  # printer (PAPER.txt). Fill in SYNC_TOKEN and PRINTER below; the rest can
+  # stay as it is. Its code comes from GitHub and keeps itself up to date.
+  creator-studio-v4-paper:
+    image: node:22-bookworm-slim
+    container_name: creator-studio-v4-paper
+    restart: unless-stopped
+    working_dir: /paper
+    ports:
+      - "8796:8081"
+    entrypoint:
+      - node
+      - -e
+      - |
+        const f = require('fs'), d = '/paper/app', u = 'https://raw.githubusercontent.com/solakirus/creator-studio-v4/main/nas/paper/boot.js';
+        f.mkdirSync(d, { recursive: true });
+        fetch(u + '?t=' + Date.now()).then(r => r.ok ? r.text() : Promise.reject(new Error('GitHub ' + r.status)))
+          .then(t => f.writeFileSync(d + '/boot.js', t))
+          .catch(e => console.log('boot.js: using the copy already here (' + e.message + ')'))
+          .finally(() => require(d + '/boot.js'));
+    environment:
+      TZ: America/New_York
+      HOME: /paper/home
+      # Sync Hub — the same token the app uses (Settings › Sync)
+      SYNC_HUB: http://host.docker.internal:8787
+      SYNC_TOKEN: ""
+      # your printer's address, e.g. 192.168.4.50 (or raw://192.168.4.50:9100, or none)
+      PRINTER: ""
+      PRINT_AT: "04:30"
+      # days it prints: 0 = Sunday … 6 = Saturday
+      PRINT_DAYS: "0123456"
+      DUPLEX: "on"
+      PAPER_NAME: "The Kris Times"
+      # blackletter (old newspaper) or redhat (Red Hat Display Black)
+      MASTHEAD: blackletter
+      PLACE: "Plant City, Fla."
+      LAT: "28.0186"
+      LON: "-82.1129"
+      DAYS_TOTAL: "1000"
+      # Claude writes the headline and story on your Claude plan: run
+      # `claude setup-token` on the laptop once and paste the token here.
+      # Empty: plain rules write them and it still prints.
+      CLAUDE_CODE_OAUTH_TOKEN: ""
+      CLAUDE: "on"
+      DATA: /paper
+      SHOTLIB: /shotlib
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /DATA/AppData/Projects/creator-studio-v4/paper:/paper
+      - /DATA/AppData/Projects/shot-library:/shotlib:ro
+
 x-casaos:
   architectures: [amd64, arm64]
   main: creator-studio-v4
   title:
     en_us: Creator Studio v4
   description:
-    en_us: Creator Studio v4 for the iPad and any browser — Sync Hub on the same address, the Shot Library for the iPad's Library, and kept current from GitHub.
+    en_us: Creator Studio v4 for the iPad and any browser — Sync Hub on the same address, the Shot Library for the iPad's Library, the morning paper, and kept current from GitHub.
   category: Productivity
   port_map: "8795"
   scheme: http
