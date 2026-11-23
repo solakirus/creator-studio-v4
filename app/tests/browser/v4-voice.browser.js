@@ -37,7 +37,7 @@ const url = 'file:///' + path.resolve(__dirname, '../../index.html').replace(/\\
       } } };
   });
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message)); p.on('dialog', d => d.accept());
-  await p.goto(url); await p.waitForFunction(() => window.App && window.Voice && window.Widget, null, { timeout: 20000 });
+  await p.goto(url); await p.waitForFunction(() => window.App && window.Voice && window.Widget && window.ShootRun && window.Notebook, null, { timeout: 20000 });
   await p.waitForTimeout(800);
 
   await p.evaluate(async () => {
@@ -120,6 +120,53 @@ const url = 'file:///' + path.resolve(__dirname, '../../index.html').replace(/\\
   });
   if(auto.h >= 4 && auto.h < 12) ok(auto.first === 1 && auto.second === 0, 'reads once in the morning, not again that day', JSON.stringify(auto));
   else ok(auto.first === 0, 'outside the morning it stays quiet', JSON.stringify(auto));
+
+  console.log('\n— shoot mode callouts —');
+  await p.evaluate(() => Screens.pop()); await p.waitForTimeout(300);
+  const sid = await p.evaluate(async () => {
+    localStorage.setItem('cs4:voice', JSON.stringify({ morning: false, rate: 1 }));
+    const mk = (name, names) => { const P = Notebook.stepsPage(name); P.name = name; P.slots = names.map(([n, role]) => ({ item:'', tone:'', text:n, role, done:false })); return P; };
+    const day = await Data.todayDay();
+    const a = { id: 9101, title: 'Morning routine 🌅', day, at: '07:00', kind: 'shoot', view: 'todo', pri: 'med', subs: [],
+      page: mk('Morning', [['Alarm off', 'Close-up'], ['Curtains open', 'Wide'], ['Coffee pour', 'Insert']]) };
+    TaskPages.match(a);
+    const b = { id: 9102, title: 'Gym shoot', day, at: '18:00', kind: 'shoot', view: 'todo', pri: 'med', subs: [], page: mk('Gym', [['Walk in', 'Wide']]) };
+    TaskPages.match(b);
+    await Store.put('tasks', a); await Store.put('tasks', b); Data.invalidate('tasks');
+    window.__sp.said = [];
+    return a.id;
+  });
+  const last = () => p.evaluate(() => (window.__sp.said.slice(-1)[0] || {}).text || '');
+  await p.evaluate(id => Screens.push('shoot-run', { id }), sid); await p.waitForTimeout(1000);
+  let said = await last();
+  console.log('     open: ' + said);
+  ok(/^Morning routine\. 3 shots\. Shot 1 of 3, Close-up: Alarm off\./.test(said), 'opening: the task, how many, and the first shot');
+  ok(!!(await p.$('.sr-voice.on')), '🔊 in the shoot-mode top bar, on');
+  await p.click('[data-got]'); await p.waitForTimeout(500);
+  said = await last(); console.log('     got:  ' + said);
+  ok(/^Got it\. Shot 2 of 3, Wide: Curtains open\. 2 to go\./.test(said), 'Got it calls the next shot, and how many are left');
+  await p.click('[data-next]'); await p.waitForTimeout(1100);
+  said = await last(); console.log('     nav:  ' + said);
+  ok(/^Shot 3 of 3, Insert: Coffee pour\. 2 to go\./.test(said), '› by hand: says where you landed (after a pause)');
+  await p.click('[data-prev]'); await p.click('[data-prev]'); await p.waitForTimeout(1100);
+  said = await last();
+  ok(/Shot 1 is already taken\./.test(said), 'landing on a taken shot says so', said);
+  await p.click('[data-next]'); await p.waitForTimeout(150);
+  await p.click('[data-got]'); await p.waitForTimeout(400);
+  await p.click('[data-got]'); await p.waitForTimeout(500);
+  said = await last(); console.log('     end:  ' + said);
+  ok(/That's every shot\. Next up: Gym shoot\./.test(said), 'all taken: says so and names the next shoot task');
+  const n0 = await p.evaluate(() => window.__sp.said.length);
+  await p.click('[data-review]'); await p.waitForTimeout(200);
+  await p.click('[data-srvoice]'); await p.waitForTimeout(200);
+  ok(await p.evaluate(() => Voice.prefs().callouts === false) && !!(await p.$('.sr-voice:not(.on)')), '🔊 mutes it, remembered');
+  await p.click('[data-next]'); await p.waitForTimeout(1000);
+  ok(await p.evaluate(n => window.__sp.said.length === n, n0), 'muted: moving shots says nothing');
+  await p.screenshot({ path: path.join(out, 'voice-shoot.png') });
+  const stops = await p.evaluate(() => window.__sp.stops);
+  await p.evaluate(() => Voice.setPrefs({ callouts: true }));
+  await p.evaluate(() => Screens.pop()); await p.waitForTimeout(300);
+  ok(await p.evaluate(s0 => window.__sp.stops >= s0, stops), 'closing shoot mode stops any speech');
 
   ok(!errs.length, 'no page errors', errs.join(' | '));
   await b.close();

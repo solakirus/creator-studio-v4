@@ -24,6 +24,7 @@
    Settings → Voice (per device, kept in localStorage 'cs4:voice'):
      morning   read the briefing the first time the app opens each day,
                before noon. Phone only: a browser won't talk until you tap.
+     callouts  shoot mode says each shot out loud (screens/shoot-run.js)
      rate      0.85 · 1 · 1.15 */
 (function(global){
 
@@ -34,7 +35,7 @@
   function prefs(){
     let p = {};
     try { p = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch(e){}
-    return { morning: p.morning !== false, rate: +p.rate || 1, lastAuto: p.lastAuto || '' };
+    return { morning: p.morning !== false, callouts: p.callouts !== false, rate: +p.rate || 1, lastAuto: p.lastAuto || '' };
   }
   function setPrefs(patch){
     const p = { ...prefs(), ...patch };

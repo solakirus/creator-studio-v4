@@ -18,6 +18,13 @@
                  first, then read what is said over it
 
    When every shot is in, it says so and offers to mark the task done.
+
+   Callouts (23 Nov 2026, js/voice.js): the phone says the shot out loud —
+   where you start ("Film the opener. 9 shots, 3 done. Shot 4 of 9, wide:
+   coffee pour."), after each Got it ("Got it. Shot 5 of 9 …"), where you land
+   after moving by hand, and "That's every shot" at the end with what's next.
+   The 🔊 up top mutes it here and in Settings → Voice (kept per device).
+   It talks between takes — the speech is over before you roll again.
    The screen stays awake while it is open (where the device allows).
 
      Screens.push('shoot-run', { id: taskId, at: shotIndex?, page: pageIndex? }) */
@@ -178,7 +185,10 @@
   .sr-all small{display:block;font-size:12.5px;color:#969185;margin-top:2px;font-weight:400}
   .sr-all .sr-go small{color:#151515aa}
   .sr-all button{height:auto;min-height:52px;padding:8px 16px}
-  @media (max-width:520px){ .sr-skip span{display:none} }
+  @media (max-width:520px){ .sr-skip span{display:none}
+.sr-voice{width:42px;height:42px;flex:0 0 42px;border:1px solid #ffffff33;border-radius:var(--r,4px);background:#00000066;color:#969185;display:flex;align-items:center;justify-content:center;padding:0}
+.sr-voice svg{width:19px;height:19px}
+.sr-voice.on{color:#FB6900;border-color:#FB690088} }
   @media (min-width:900px){ .sr-lines{margin:10px -28px 0;padding:16px 28px} }
   @media (min-width:900px){ .sr-cap{padding:14px 28px 6px} .sr-bar{grid-template-columns:90px minmax(240px,420px) 90px;justify-content:center} }`;
 
@@ -253,6 +263,7 @@
       pg = k; shots = shotsOf(t, pg); allShown = false;
       at = where === 'last' ? shots.length - 1 : where === 'open' ? firstOpen() : 0;
       render();
+      sayAt(`${VC(pageName(t, pg))}.`, 300);
     }
     if(!shots.length){ el.innerHTML = `<div class="sr"><div class="sr-top"><button class="sr-x" data-x>✕</button></div><div class="sr-pic"><div class="sr-none"><b>No shots</b>Add steps or a shot page first.</div></div></div>`;
       el.querySelector('[data-x]').onclick = () => Screens.pop(); return; }
@@ -297,6 +308,36 @@
 
     /* a shot's number: 2, or 2.3 for the third part of shot 2's sequence */
     const num = x => x.j != null ? `${x.i + 1}.${x.j + 1}` : String(x.i + 1);
+
+    /* ---- callouts: the shot, said out loud (js/voice.js) ---- */
+    const voiceOK = () => !!(global.Voice && Voice.available());
+    const callsOn = () => voiceOK() && Voice.prefs().callouts;
+    const VC = s2 => global.Voice ? Voice.clean(s2) : String(s2 || '');
+    /* "Shot 5 of 9, wide: coffee pour." / "Shot 2, part 3 of 4: …" */
+    const shotWords = x => {
+      const main = shots.filter(y => y.j == null).length;
+      const head = x.j != null ? `Shot ${x.i + 1}, part ${x.j + 1} of ${x.of}` : `Shot ${x.i + 1} of ${main}`;
+      const left = shots.filter(y => !y.done).length;
+      return `${head}${x.role ? ', ' + VC(x.role) : ''}: ${VC(x.text)}.${x.note ? ' ' + VC(x.note) + '.' : ''}` +
+        (left > 0 && left <= 3 && !x.done ? ` ${left === 1 ? 'Last one.' : left + ' to go.'}` : '');
+    };
+    const say = text => { if(callsOn() && text) Voice.speak(text.replace(/\.\.+/g, '.')); };
+    let navTimer = null;
+    const sayAt = (pre, wait) => {
+      clearTimeout(navTimer);
+      const run = () => { if(el.isConnected && shots[at]) say((pre ? pre + ' ' : '') + (shots[at].done ? `Shot ${num(shots[at]).replace('.', ', part ')} is already taken.` : shotWords(shots[at]))); };
+      wait ? navTimer = setTimeout(run, wait) : run();
+    };
+    const sayAll = () => {
+      const op = openPage();
+      const bits = [`That's every shot${pages.length > 1 ? ' on this page' : ''}.`];
+      if(op != null) bits.push(`Next page: ${VC(pageName(t, op))}, ${shotsOf(t, op).filter(x => !x.done).length} to take.`);
+      else if(nextTask) bits.push(`${Q ? 'Next sequence' : 'Next up'}: ${VC(nextTask.title)}.`);
+      else bits.push('Nice work.');
+      say(bits.join(' '));
+    };
+    const VOICE_ON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9h4l5-4.5v15L7 15H3z"/><path d="M15.2 8.3a5 5 0 0 1 0 7.4l-1.3-1.4a3 3 0 0 0 0-4.6zM17.7 5.6a8.6 8.6 0 0 1 0 12.8l-1.3-1.4a6.6 6.6 0 0 0 0-10z"/></svg>';
+    const VOICE_OFF = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9h4l5-4.5v15L7 15H3z"/><path d="M15 9.4l1.4-1.4 2.1 2.1 2.1-2.1 1.4 1.4-2.1 2.1 2.1 2.1-1.4 1.4-2.1-2.1-2.1 2.1-1.4-1.4 2.1-2.1z"/></svg>';
     async function render(){
       const s = shots[at];
       const nx = nextAfter(at);
@@ -309,6 +350,7 @@
           <div class="sr-ttl">${esc(t.title)}</div>
           ${global.Devices ? `<button class="sr-dev" data-srdev title="What you're shooting on — every shot you tick gets it">${esc(Devices.last() || 'Shooting on…')}</button>` : ''}
           <div class="sr-n">${at + 1} / ${shots.length}</div>
+          ${voiceOK() ? `<button class="sr-voice${callsOn() ? ' on' : ''}" data-srvoice aria-pressed="${callsOn()}" aria-label="${callsOn() ? 'Mute the shot callouts' : 'Call out the shots'}">${callsOn() ? VOICE_ON : VOICE_OFF}</button>` : ''}
           ${nextTask ? `<button class="sr-skip" data-nexttask title="Next: ${esc(nextTask.title)}">⏭<span> ${Q ? 'Next sequence' : 'Next task'}</span></button>` : ''}</div>
         ${Q ? `<div class="sr-q">Sequence ${qi + 1} of ${Q.length} · <b>${esc(Q[qi].title)}</b>${nextTask ? ` · then ${esc(nextTask.title)}` : ' · the last one today'}</div>` : ''}
         ${more ? `<div class="sr-pages"><button data-pgprev aria-label="Previous page" ${pi <= 0 ? 'disabled' : ''}>‹</button>
@@ -359,6 +401,7 @@
       if(k >= shots.length){ if(pi < pages.length - 1) toPage(pages[pi + 1], 'first'); else if(Q && nextTask) goTask(); return; }
       if(k < 0){ if(pi > 0) toPage(pages[pi - 1], 'last'); else if(Q && qi > 0) goPrevSeq(); return; }
       at = k; render();
+      sayAt('', 700);   /* after you stop flicking */
     };
     async function got(){
       const s = shots[at];
@@ -372,8 +415,9 @@
       if(!v) return render();
       if(navigator.vibrate) try { navigator.vibrate(30); } catch(e){}
       const n = nextAfter(at);
-      if(n < 0){ allShown = true; return render(); }
+      if(n < 0){ allShown = true; sayAll(); return render(); }
       at = n; render();
+      sayAt('Got it.');
     }
 
     el.addEventListener('click', e => {
@@ -384,6 +428,12 @@
       if(e.target.closest('[data-pgnext]')){ const pi = pages.indexOf(pg); if(pi < pages.length - 1) toPage(pages[pi + 1], 'open'); return; }
       if(e.target.closest('[data-pgprev]')){ const pi = pages.indexOf(pg); if(pi > 0) toPage(pages[pi - 1], 'open'); return; }
       if(e.target.closest('[data-got]')) return got();
+      if(e.target.closest('[data-srvoice]')){
+        const on = !Voice.prefs().callouts;
+        Voice.setPrefs({ callouts: on });
+        if(on) sayAt('Callouts on.'); else Voice.stop();
+        return render();
+      }
       if(e.target.closest('[data-srdev]')){ (async () => { const d = await Devices.pick('What are you shooting on?', Devices.last()); if(d !== null){ Devices.setLast(d); render(); } })(); return; }
       if(e.target.closest('[data-vref]')){ const s = shots[at]; if(s && s.vref) RefClip.play(s.vref, s.text); return; }
       if(e.target.closest('[data-script]')){ scriptOpen = !scriptOpen; try { localStorage.setItem('cs4.sr.script', scriptOpen ? '1' : '0'); } catch(err){} return render(); }
@@ -415,12 +465,19 @@
     document.addEventListener('keydown', onKey);
     /* let go of the screen lock and listeners once closed */
     const mo = new MutationObserver(() => { if(!el.isConnected){ mo.disconnect(); document.removeEventListener('keydown', onKey);
+      clearTimeout(navTimer); try { if(global.Voice && Voice.speaking()) Voice.stop(); } catch(e){}
       document.removeEventListener('visibilitychange', onVis); try { lock && lock.release(); } catch(e){}
       /* the screen underneath shows the ticks made here */
       try { params.onChange && params.onChange(); } catch(e){} } });
     mo.observe(document.getElementById('screens') || document.body, { childList:true });
 
     await render();
+    /* where you start: the task, how far along, the shot in front of you */
+    if(!params.quietStart){
+      const doneN = shots.filter(x => x.done).length, main = shots.filter(y => y.j == null).length;
+      if(doneN === shots.length) say(`${VC(t.title)}. Every shot is already taken.`);
+      else sayAt(`${VC(t.title)}. ${main} shot${main === 1 ? '' : 's'}${doneN ? `, ${doneN} done` : ''}.`);
+    }
   }
 
   Screens.register('shoot-run', mount);

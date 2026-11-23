@@ -121,6 +121,10 @@
           <span class="lbl">Read it to me in the morning<small id="voiceNote">The first time you open the app each day, before noon</small></span>
           <span class="tog" role="switch" data-voicemorning aria-checked="true" tabindex="0"><i></i></span>
         </div>
+        <div class="row">${svg(D.play)}
+          <span class="lbl">Call out shots while filming<small>Shoot mode says each shot: "Shot 5 of 9, wide: coffee pour"</small></span>
+          <span class="tog" role="switch" data-voicecalls aria-checked="true" tabindex="0"><i></i></span>
+        </div>
         <div class="row">${svg(D.clock)}
           <span class="lbl">Speed<small>How fast it talks</small></span>
           <span style="display:flex;gap:7px">
@@ -185,6 +189,8 @@
       const p = Voice.prefs();
       const t = el.querySelector('[data-voicemorning]');
       if(t) t.setAttribute('aria-checked', String(p.morning));
+      const tc = el.querySelector('[data-voicecalls]');
+      if(tc) tc.setAttribute('aria-checked', String(p.callouts));
       el.querySelectorAll('[data-vrate]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.vrate === p.rate)));
       const n = el.querySelector('#voiceNote');
       if(n && !Voice.isNative()) n.textContent = 'On the phone app. Here, tap the speaker on Today';
@@ -305,6 +311,10 @@
         if(t.hasAttribute('data-sound')){
           Celebrate.setSound(on);
           if(on) Celebrate.chime();
+          return;
+        }
+        if(t.hasAttribute('data-voicecalls')){
+          if(window.Voice) Voice.setPrefs({ callouts: on });
           return;
         }
         if(t.hasAttribute('data-voicemorning')){
